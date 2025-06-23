@@ -48,18 +48,22 @@ def create_price_tag(item_data, size_config):
     margin = 0.05 * width_px
     content_width = width_px - (2 * margin)
 
-    logo_area_height = 0.12 * height_px
-    title_area_height = 0.12 * height_px
-    footer_area_height = 0.15 * height_px  # Increased footer height for larger fonts
+    # REVISED: Reduced top section heights to move them up.
+    logo_area_height = 0.10 * height_px
+    title_area_height = 0.11 * height_px
+    footer_area_height = 0.14 * height_px
 
-    logo_area_top = margin
+    # REVISED: Reduced top margin to push everything higher.
+    top_margin = 0.03 * height_px
+    logo_area_top = top_margin
     title_area_top = logo_area_top + logo_area_height
     specs_area_top = title_area_top + title_area_height
 
-    footer_area_bottom = height_px - margin
+    bottom_margin = 0.02 * height_px
+    footer_area_bottom = height_px - bottom_margin
     footer_area_top = footer_area_bottom - footer_area_height
 
-    specs_area_bottom = footer_area_top - (0.03 * height_px)
+    specs_area_bottom = footer_area_top - (0.02 * height_px)
     specs_area_height = specs_area_bottom - specs_area_top
 
     # --- 1. Draw Logo ---
@@ -76,7 +80,8 @@ def create_price_tag(item_data, size_config):
                   fill='gray', anchor='mm')
 
     # --- 2. Draw Item Name ---
-    title_font = get_font(PRIMARY_FONT_BOLD_PATH, 55, FALLBACK_FONT_EN_BOLD)
+    # UPDATED: Increased title font size.
+    title_font = get_font(PRIMARY_FONT_BOLD_PATH, 60, FALLBACK_FONT_EN_BOLD)
     item_name = item_data.get('Name', 'N/A')
     draw.text((width_px / 2, title_area_top + title_area_height / 2), item_name, font=title_font, fill='black',
               anchor='mm', align='center')
@@ -86,7 +91,6 @@ def create_price_tag(item_data, size_config):
     draw.line([(margin, line_y1), (width_px - margin, line_y1)], fill='black', width=3)
 
     # --- 3. Draw Specifications ---
-    # REVISED: Using a large, fixed font size. Vertical spacing is handled by line_height.
     spec_font_regular = get_font(PRIMARY_FONT_PATH, 42, FALLBACK_FONT_EN)
     spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, 42, FALLBACK_FONT_EN_BOLD)
 
@@ -130,7 +134,6 @@ def create_price_tag(item_data, size_config):
     draw.text((margin, footer_content_y), sku_text, font=sku_font, fill='black', anchor='lm')
 
     # --- Price Logic ---
-    # UPDATED: Set specific font sizes as requested.
     price_font = get_font(PRIMARY_FONT_BOLD_PATH, 75, FALLBACK_FONT_EN_BOLD)
     strikethrough_font = get_font(PRIMARY_FONT_PATH, 60, FALLBACK_FONT_EN)
 
