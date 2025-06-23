@@ -45,7 +45,8 @@ def create_price_tag(item_data, size_config, theme):
     text_color = theme.get("text_color", "black")
     price_color = theme.get('price_color', '#D32F2F')
     strikethrough_color = theme.get("strikethrough_color", "black")
-    logo_to_use = theme.get("logo_path", "logo.png")  # Get the logo path for the theme
+    logo_to_use = theme.get("logo_path", "logo.png")
+    logo_scale = theme.get("logo_scale_factor", 0.9)  # Get the scale factor
 
     if bg_image_path and os.path.exists(bg_image_path):
         with Image.open(bg_image_path) as bg_img:
@@ -70,7 +71,9 @@ def create_price_tag(item_data, size_config, theme):
     # --- Draw Logo, Title, Separators ---
     try:
         with Image.open(logo_to_use) as logo:
-            logo.thumbnail((int((width_px - 2 * margin) * 0.7), int(logo_area_height * 0.9)), Image.Resampling.LANCZOS)
+            # UPDATED: Using the logo_scale factor from the theme.
+            logo.thumbnail((int((width_px - 2 * margin) * 0.7), int(logo_area_height * logo_scale)),
+                           Image.Resampling.LANCZOS)
             img.paste(logo,
                       (int((width_px - logo.width) / 2), int(logo_area_top + (logo_area_height - logo.height) / 2)),
                       logo)
