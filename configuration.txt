@@ -1,2 +1,0 @@
-paper_size=2
-manual_edit=false
