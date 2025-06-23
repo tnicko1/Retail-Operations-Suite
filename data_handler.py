@@ -12,6 +12,42 @@ DEFAULT_PAPER_SIZES = {
     '15x10cm': {'dims': (15, 10), 'specs': 13},
     '17x12cm': {'dims': (17, 12), 'specs': 11}
 }
+CSV_HEADERS = None
+
+
+def get_csv_headers():
+    """Reads and returns the header row from the data file, caching it for efficiency."""
+    global CSV_HEADERS
+    if CSV_HEADERS:
+        return CSV_HEADERS
+
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8-sig') as f:
+            reader = csv.reader(f)
+            CSV_HEADERS = next(reader)
+            return CSV_HEADERS
+    except (FileNotFoundError, StopIteration):
+        print(f"ERROR: Could not read headers from {DATA_FILE}")
+        return None
+
+
+def add_new_item(item_data):
+    """Appends a new item record to the data file."""
+    headers = get_csv_headers()
+    if not headers:
+        return False
+
+    # Create a new row in the correct order, with defaults for missing keys
+    new_row = [item_data.get(header, "") for header in headers]
+
+    try:
+        with open(DATA_FILE, 'a', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow(new_row)
+        return True
+    except Exception as e:
+        print(f"Error writing to data file: {e}")
+        return False
 
 
 def get_settings():
@@ -64,4 +100,3 @@ def extract_specifications(html_description):
     soup = BeautifulSoup(html_description, 'html.parser')
     list_items = soup.find_all('li')
     return [li.get_text(strip=True).replace(':', ': ').replace('  ', ' ') for li in list_items]
-
