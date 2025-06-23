@@ -48,10 +48,9 @@ def create_price_tag(item_data, size_config):
     margin = 0.05 * width_px
     content_width = width_px - (2 * margin)
 
-    # REVISED: Further reduced top section heights to give more room to specs.
-    logo_area_height = 0.15 * height_px
-    title_area_height = 0.10 * height_px
-    footer_area_height = 0.12 * height_px
+    logo_area_height = 0.12 * height_px
+    title_area_height = 0.12 * height_px
+    footer_area_height = 0.15 * height_px  # Increased footer height for larger fonts
 
     logo_area_top = margin
     title_area_top = logo_area_top + logo_area_height
@@ -67,7 +66,7 @@ def create_price_tag(item_data, size_config):
     try:
         with Image.open(LOGO_PATH) as logo:
             logo = logo.convert("RGBA")
-            logo.thumbnail((int(content_width * 0.8), int(logo_area_height * 0.9)), Image.Resampling.LANCZOS)
+            logo.thumbnail((int(content_width * 0.7), int(logo_area_height * 0.9)), Image.Resampling.LANCZOS)
             logo_x = int((width_px - logo.width) / 2)
             logo_y = int(logo_area_top + (logo_area_height - logo.height) / 2)
             img.paste(logo, (logo_x, logo_y), logo)
@@ -77,7 +76,7 @@ def create_price_tag(item_data, size_config):
                   fill='gray', anchor='mm')
 
     # --- 2. Draw Item Name ---
-    title_font = get_font(PRIMARY_FONT_BOLD_PATH, 50, FALLBACK_FONT_EN_BOLD)
+    title_font = get_font(PRIMARY_FONT_BOLD_PATH, 55, FALLBACK_FONT_EN_BOLD)
     item_name = item_data.get('Name', 'N/A')
     draw.text((width_px / 2, title_area_top + title_area_height / 2), item_name, font=title_font, fill='black',
               anchor='mm', align='center')
@@ -86,44 +85,38 @@ def create_price_tag(item_data, size_config):
     line_y1 = specs_area_top - (0.01 * height_px)
     draw.line([(margin, line_y1), (width_px - margin, line_y1)], fill='black', width=3)
 
-    # --- 3. Draw Specifications (with mixed bold/regular text) ---
-    spec_font_regular = get_font(PRIMARY_FONT_PATH, 32, FALLBACK_FONT_EN)
-    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, 32, FALLBACK_FONT_EN_BOLD)
-    bullet = "• "
+    # --- 3. Draw Specifications ---
+    # REVISED: Using a large, fixed font size. Vertical spacing is handled by line_height.
+    spec_font_regular = get_font(PRIMARY_FONT_PATH, 42, FALLBACK_FONT_EN)
+    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, 42, FALLBACK_FONT_EN_BOLD)
 
-    # REVISED: The increased specs_area_height results in a larger line_height for more spacing.
-    line_height = (specs_area_height / size_config['specs']) if size_config['specs'] > 0 else 0
+    specs = item_data.get('specs', [])
+    num_specs = len(specs)
+    if num_specs > 0:
+        line_height = specs_area_height / num_specs
+        start_y = specs_area_top
 
-    start_y = specs_area_top
-    for spec in item_data.get('specs', []):
-        if start_y + line_height >= specs_area_bottom:
-            continue
+        for spec in specs:
+            current_y = start_y + line_height / 2
+            start_x = margin + 20
+            bullet = "• "
 
-        current_y = start_y + line_height / 2
-        start_x = margin + 20
+            draw.text((start_x, current_y), bullet, font=spec_font_regular, fill='black', anchor='lm')
+            bullet_bbox = draw.textbbox((0, 0), bullet, font=spec_font_regular)
+            current_x = start_x + (bullet_bbox[2] - bullet_bbox[0])
 
-        # Draw bullet first, in regular font
-        draw.text((start_x, current_y), bullet, font=spec_font_regular, fill='black', anchor='lm')
-        bullet_bbox = draw.textbbox((0, 0), bullet, font=spec_font_regular)
-        current_x = start_x + (bullet_bbox[2] - bullet_bbox[0])
+            if ':' in spec:
+                parts = spec.split(':', 1)
+                label = parts[0] + ':'
+                value = ' ' + parts[1].strip()
+                draw.text((current_x, current_y), label, font=spec_font_bold, fill='black', anchor='lm')
+                label_bbox = draw.textbbox((0, 0), label, font=spec_font_bold)
+                current_x += (label_bbox[2] - label_bbox[0])
+                draw.text((current_x, current_y), value, font=spec_font_regular, fill='black', anchor='lm')
+            else:
+                draw.text((current_x, current_y), spec, font=spec_font_regular, fill='black', anchor='lm')
 
-        if ':' in spec:
-            parts = spec.split(':', 1)
-            label = parts[0] + ':'
-            value = ' ' + parts[1].strip()
-
-            # Draw bold label
-            draw.text((current_x, current_y), label, font=spec_font_bold, fill='black', anchor='lm')
-            label_bbox = draw.textbbox((0, 0), label, font=spec_font_bold)
-            current_x += (label_bbox[2] - label_bbox[0])
-
-            # Draw regular value
-            draw.text((current_x, current_y), value, font=spec_font_regular, fill='black', anchor='lm')
-        else:
-            # If no colon, draw the whole spec in regular font
-            draw.text((current_x, current_y), spec, font=spec_font_regular, fill='black', anchor='lm')
-
-        start_y += line_height
+            start_y += line_height
 
     # --- Separator Line 2 ---
     line_y2 = footer_area_top
@@ -132,14 +125,14 @@ def create_price_tag(item_data, size_config):
     # --- 4. Draw Footer (SKU and Price) ---
     footer_content_y = footer_area_top + (footer_area_height / 2)
 
-    # UPDATED: Using the bold font for the SKU.
-    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 38, FALLBACK_FONT_EN_BOLD)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 60, FALLBACK_FONT_EN_BOLD)
     sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
     draw.text((margin, footer_content_y), sku_text, font=sku_font, fill='black', anchor='lm')
 
     # --- Price Logic ---
-    price_font = get_font(PRIMARY_FONT_BOLD_PATH, 60, FALLBACK_FONT_EN_BOLD)
-    strikethrough_font = get_font(PRIMARY_FONT_PATH, 40, FALLBACK_FONT_EN)
+    # UPDATED: Set specific font sizes as requested.
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, 75, FALLBACK_FONT_EN_BOLD)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, 60, FALLBACK_FONT_EN)
 
     regular_price_str = item_data.get('Regular price', '').strip()
     sale_price_str = item_data.get('Sale price', '').strip()
