@@ -78,16 +78,14 @@ class BatchDialog(QDialog):
         if not sku:
             return
 
-        # Check for duplicates
         if sku in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
             QMessageBox.warning(self, "Duplicate", f"SKU '{sku}' is already in the list.")
             return
 
-        # Check if SKU exists in the data file
         if data_handler.find_item_by_sku(sku):
             self.sku_list_widget.addItem(sku)
             self.sku_input.clear()
-            self.check_limit()  # Check the limit after adding
+            self.check_limit()
         else:
             QMessageBox.warning(self, "Not Found", f"SKU '{sku}' was not found in the data file.")
 
@@ -95,7 +93,7 @@ class BatchDialog(QDialog):
         """Removes selected SKUs from the list."""
         for item in self.sku_list_widget.selectedItems():
             self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
-        self.check_limit()  # Check the limit after removing
+        self.check_limit()
 
     def get_skus(self):
         """Returns the final list of SKUs."""
@@ -113,11 +111,30 @@ class PriceTagDashboard(QMainWindow):
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
 
-        # UPDATED: Added the new "Winter" theme.
+        # UPDATED: Added a 'logo_scale_factor' to control logo size per theme.
         self.themes = {
-            "Default": {"price_color": "#D32F2F"},
-            "New Year's": {"price_color": "#008000", "background_image": "themes/new_year.png"},
-            "Winter": {"price_color": "#A0D2EB", "background_image": "themes/winter.png"}
+            "Default": {
+                "price_color": "#D32F2F",
+                "text_color": "black",
+                "strikethrough_color": "black",
+                "logo_path": "logo.png",
+                "logo_scale_factor": 0.9
+            },
+            "New Year's": {
+                "price_color": "#008000",
+                "text_color": "black",
+                "strikethrough_color": "black",
+                "background_image": "themes/new_year.png",
+                "logo_path": "logo.png",
+                "logo_scale_factor": 0.9
+            },
+            "Winter": {
+                "price_color": "#A0D2EB",
+                "text_color": "black",
+                "strikethrough_color": "black",
+                "logo_path": "logo-santa-hat.png",
+                "logo_scale_factor": 1.1  # Increased scale to make it appear larger
+            }
         }
 
         central_widget = QWidget()
@@ -331,11 +348,10 @@ class PriceTagDashboard(QMainWindow):
             tag_images = []
             for sku in skus:
                 item_data = data_handler.find_item_by_sku(sku)
-                # Automatically process specs without user interaction
                 specs = data_handler.extract_specifications(item_data.get('Description'))
                 warranty = item_data.get('Attribute 3 value(s)')
                 if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
-                item_data['specs'] = specs[:size_config['specs']]  # Truncate if too long
+                item_data['specs'] = specs[:size_config['specs']]
 
                 tag_image = price_generator.create_price_tag(item_data, size_config, theme_config)
                 tag_images.append(tag_image)
