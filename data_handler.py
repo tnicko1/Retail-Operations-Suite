@@ -37,7 +37,6 @@ def add_new_item(item_data):
     if not headers:
         return False
 
-    # Create a new row in the correct order, with defaults for missing keys
     new_row = [item_data.get(header, "") for header in headers]
 
     try:
@@ -56,18 +55,23 @@ def get_settings():
         settings = {
             "default_size": "14.4x8cm",
             "custom_sizes": {},
-            "default_theme": "Default"
+            "default_theme": "Default",
+            "language": "en"  # Added language setting
         }
         save_settings(settings)
         return settings
 
-    with open(USER_SETTINGS_FILE, 'r') as f:
-        return json.load(f)
+    with open(USER_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+        settings = json.load(f)
+        # Ensure language setting exists for older configs
+        if "language" not in settings:
+            settings["language"] = "en"
+        return settings
 
 
 def save_settings(settings):
     """Saves the settings dictionary to the user file."""
-    with open(USER_SETTINGS_FILE, 'w') as f:
+    with open(USER_SETTINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(settings, f, indent=4)
 
 
