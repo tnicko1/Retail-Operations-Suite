@@ -2,6 +2,7 @@
 
 TRANSLATIONS = {
     "en": {
+        # UI Text
         "window_title": "Price Tag Dashboard by Nikoloz Taturashvili",
         "find_item_group": "1. Find Item (for Single Preview)",
         "sku_placeholder": "Enter SKU and press Enter...",
@@ -13,6 +14,7 @@ TRANSLATIONS = {
         "style_group": "2. Select Style",
         "paper_size_label": "Paper Size:",
         "theme_label": "Theme:",
+        "dual_language_label": "Generate Georgian Tag:",
         "specs_group": "3. Edit Specifications",
         "add_button": "Add",
         "edit_button": "Edit",
@@ -53,9 +55,31 @@ TRANSLATIONS = {
         "new_item_name_empty_error": "Item Name cannot be empty.",
         "new_item_save_success": "Item '{}' has been saved.",
         "new_item_save_error": "Could not save the new item to the data file.",
+
+        # Spec Labels (for translation on the tag itself)
+        # UPDATED: Added all new labels from the image.
+        "spec_labels": {
+            "SKU": "SKU",
+            "Screen": "Screen",
+            "Processor": "Processor",
+            "Memory": "Memory",
+            "Storage": "Storage",
+            "Graphics": "Graphics",
+            "Ports": "Ports",
+            "Connectivity": "Connectivity",
+            "Operating System": "Operating System",
+            "Battery": "Battery",
+            "Weight": "Weight",
+            "Color": "Color",
+            "Warranty": "Warranty",
+            "Brand": "Brand",
+            "Model": "Model",
+            "Display": "Display"
+        }
     },
     "ka": {
-        "window_title": "ფასმაჩვენებლის დაფა - ავტორი: ნიკოლოზ ტატურაშვილი",
+        # UI Text
+        "window_title": "ფასმაჩვენებლის დაფა - ავტორი: ნიკოლოზ თათურაშვილი",
         "find_item_group": "1. პროდუქტის მოძებნა (ერთეულის)",
         "sku_placeholder": "შეიყვანეთ კოდი და დააჭირეთ Enter...",
         "find_button": "ძებნა",
@@ -66,6 +90,7 @@ TRANSLATIONS = {
         "style_group": "2. სტილის არჩევა",
         "paper_size_label": "ქაღალდის ზომა:",
         "theme_label": "თემა:",
+        "dual_language_label": "ქართული ვერსიის გენერირება:",
         "specs_group": "3. მონაცემების რედაქტირება",
         "add_button": "დამატება",
         "edit_button": "შეცვლა",
@@ -106,8 +131,30 @@ TRANSLATIONS = {
         "new_item_name_empty_error": "პროდუქტის სახელი ცარიელია.",
         "new_item_save_success": "პროდუქტი '{}' შენახულია.",
         "new_item_save_error": "პროდუქტის შენახვა ვერ მოხერხდა.",
+
+        # Spec Labels (for translation on the tag itself)
+        # UPDATED: Added Georgian translations for all new labels.
+        "spec_labels": {
+            "SKU": "კოდი",
+            "Screen": "ეკრანი",
+            "Processor": "პროცესორი",
+            "Memory": "მეხსიერება",
+            "Storage": "მეხსიერების მოცულობა",
+            "Graphics": "გრაფიკა",
+            "Ports": "პორტები",
+            "Connectivity": "კავშირი",
+            "Operating System": "ოპერაციული სისტემა",
+            "Battery": "ელემენტი",
+            "Weight": "წონა",
+            "Color": "ფერი",
+            "Warranty": "გარანტია",
+            "Brand": "ბრენდი",
+            "Model": "მოდელი",
+            "Display": "ეკრანი"
+        }
     }
 }
+
 
 class Translator:
     def __init__(self, language="en"):
@@ -121,10 +168,20 @@ class Translator:
             translation = TRANSLATIONS[self.language][key]
             return translation.format(*args)
         except KeyError:
-            # Fallback to English if key not found in current language
             try:
                 translation = TRANSLATIONS["en"][key]
                 return translation.format(*args)
             except KeyError:
                 return f"<{key}>"
 
+    def get_spec_label(self, label, target_lang):
+        """Translates a specification label into the target language."""
+        try:
+            # Find which English key matches the label
+            for key_en, value_en in TRANSLATIONS["en"]["spec_labels"].items():
+                if value_en.lower() == label.lower():
+                    # Return the translation for that key in the target language
+                    return TRANSLATIONS[target_lang]["spec_labels"][key_en]
+            return label  # Return original if no match found
+        except KeyError:
+            return label  # Fallback to original label
