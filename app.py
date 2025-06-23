@@ -3,7 +3,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
-                             QDialogButtonBox, QAbstractItemView)
+                             QDialogButtonBox, QAbstractItemView, QTextEdit)
 from PyQt6.QtGui import QPixmap, QImage, QIcon
 from PyQt6.QtCore import Qt, QSize
 
@@ -11,6 +11,60 @@ from PyQt6.QtCore import Qt, QSize
 import data_handler
 import price_generator
 import a4_layout_generator
+
+
+class NewItemDialog(QDialog):
+    """A dialog to manually register a new item."""
+
+    def __init__(self, sku, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Register New Item")
+        self.setMinimumWidth(500)
+        self.new_item_data = {"SKU": sku}
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        self.sku_label = QLineEdit(sku)
+        self.sku_label.setReadOnly(True)
+        self.name_input = QLineEdit()
+        self.price_input = QLineEdit()
+        self.sale_price_input = QLineEdit()
+        self.specs_input = QTextEdit()
+        self.specs_input.setPlaceholderText(
+            "Enter one specification per line.\nExample:\nScreen: 15.6 inch\nCPU: Intel Core i5")
+
+        form_layout.addRow("SKU:", self.sku_label)
+        form_layout.addRow("Item Name:", self.name_input)
+        form_layout.addRow("Regular Price:", self.price_input)
+        form_layout.addRow("Sale Price (optional):", self.sale_price_input)
+        form_layout.addRow("Specifications:", self.specs_input)
+
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Save Item")
+        self.button_box.accepted.connect(self.save_item)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def save_item(self):
+        """Validates input, formats data, and accepts the dialog."""
+        name = self.name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Validation Error", "Item Name cannot be empty.")
+            return
+
+        self.new_item_data["Name"] = name
+        self.new_item_data["Regular price"] = self.price_input.text().strip()
+        self.new_item_data["Sale price"] = self.sale_price_input.text().strip()
+
+        # Format specs as HTML list for the description field
+        specs = self.specs_input.toPlainText().strip().split('\n')
+        specs_html = "<ul>" + "".join([f"<li>{s}</li>" for s in specs if s]) + "</ul>"
+        self.new_item_data["Description"] = specs_html
+
+        self.accept()
 
 
 class BatchDialog(QDialog):
@@ -22,33 +76,28 @@ class BatchDialog(QDialog):
         self.setMinimumSize(400, 500)
         self.max_items = max_items
 
-        # --- Layout ---
         layout = QVBoxLayout(self)
 
-        # --- SKU List ---
         list_label = QLabel(f"SKUs to add (max {self.max_items} for this paper size):")
         self.sku_list_widget = QListWidget()
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(list_label)
         layout.addWidget(self.sku_list_widget)
 
-        # --- Input Section ---
         input_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
         self.sku_input.setPlaceholderText("Enter SKU...")
         self.sku_input.returnPressed.connect(self.add_sku)
-        self.add_button = QPushButton("Add SKU")  # Made it a class attribute
+        self.add_button = QPushButton("Add SKU")
         self.add_button.clicked.connect(self.add_sku)
         input_layout.addWidget(self.sku_input)
         input_layout.addWidget(self.add_button)
         layout.addLayout(input_layout)
 
-        # --- Action Buttons ---
         remove_button = QPushButton("Remove Selected")
         remove_button.clicked.connect(self.remove_sku)
         layout.addWidget(remove_button)
 
-        # --- Dialog Buttons ---
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Generate")
         self.button_box.accepted.connect(self.accept)
@@ -58,25 +107,18 @@ class BatchDialog(QDialog):
         self.check_limit()
 
     def check_limit(self):
-        """Disables or enables the Add SKU inputs based on the item count."""
         is_full = self.sku_list_widget.count() >= self.max_items
         self.sku_input.setEnabled(not is_full)
         self.add_button.setEnabled(not is_full)
-        if is_full:
-            self.sku_input.setPlaceholderText("Page is full")
-        else:
-            self.sku_input.setPlaceholderText("Enter SKU...")
+        self.sku_input.setPlaceholderText("Page is full" if is_full else "Enter SKU...")
 
     def add_sku(self):
-        """Validates and adds an SKU to the list."""
         if self.sku_list_widget.count() >= self.max_items:
-            QMessageBox.information(self, "Limit Reached",
-                                    f"The maximum of {self.max_items} items for this paper size has been reached.")
+            QMessageBox.information(self, "Limit Reached", f"The maximum of {self.max_items} items has been reached.")
             return
 
         sku = self.sku_input.text().strip().upper()
-        if not sku:
-            return
+        if not sku: return
 
         if sku in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
             QMessageBox.warning(self, "Duplicate", f"SKU '{sku}' is already in the list.")
@@ -87,16 +129,14 @@ class BatchDialog(QDialog):
             self.sku_input.clear()
             self.check_limit()
         else:
-            QMessageBox.warning(self, "Not Found", f"SKU '{sku}' was not found in the data file.")
+            QMessageBox.warning(self, "Not Found", f"SKU '{sku}' was not found.")
 
     def remove_sku(self):
-        """Removes selected SKUs from the list."""
         for item in self.sku_list_widget.selectedItems():
             self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
         self.check_limit()
 
     def get_skus(self):
-        """Returns the final list of SKUs."""
         return [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
 
 
@@ -111,42 +151,19 @@ class PriceTagDashboard(QMainWindow):
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
 
-        # UPDATED: Added a 'logo_scale_factor' to control logo size per theme.
         self.themes = {
-            "Default": {
-                "price_color": "#D32F2F",
-                "text_color": "black",
-                "strikethrough_color": "black",
-                "logo_path": "logo.png",
-                "logo_scale_factor": 0.9
-            },
-            "New Year's": {
-                "price_color": "#008000",
-                "text_color": "black",
-                "strikethrough_color": "black",
-                "background_image": "themes/new_year.png",
-                "logo_path": "logo.png",
-                "logo_scale_factor": 0.9
-            },
-            "Winter": {
-                "price_color": "#A0D2EB",
-                "text_color": "black",
-                "strikethrough_color": "black",
-                "logo_path": "logo-santa-hat.png",
-                "logo_scale_factor": 1.1  # Increased scale to make it appear larger
-            }
+            "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
+                        "logo_path": "logo.png", "logo_scale_factor": 0.9},
+            "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
+                       "logo_path": "logo-santa-hat.png", "logo_scale_factor": 1.1,
+                       "bullet_image_path": "themes/snowflake.png", "background_snow": True}
         }
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
-
-        left_panel = self.create_left_panel()
-        right_panel = self.create_right_panel()
-
-        main_layout.addWidget(left_panel, 1)
-        main_layout.addWidget(right_panel, 2)
-
+        main_layout.addWidget(self.create_left_panel(), 1)
+        main_layout.addWidget(self.create_right_panel(), 2)
         self.update_paper_size_combo()
         self.update_theme_combo()
         self.clear_all_fields()
@@ -168,9 +185,12 @@ class PriceTagDashboard(QMainWindow):
 
         details_box = QGroupBox("Item Details")
         details_layout = QFormLayout()
-        self.name_label = QLineEdit(readOnly=True)
-        self.price_label = QLineEdit(readOnly=True)
-        self.sale_price_label = QLineEdit(readOnly=True)
+        self.name_label = QLineEdit()
+        self.price_label = QLineEdit()
+        self.sale_price_label = QLineEdit()
+        self.name_label.textChanged.connect(self.update_preview)
+        self.price_label.textChanged.connect(self.update_preview)
+        self.sale_price_label.textChanged.connect(self.update_preview)
         details_layout.addRow("Name:", self.name_label)
         details_layout.addRow("Price:", self.price_label)
         details_layout.addRow("Sale Price:", self.sale_price_label)
@@ -251,46 +271,59 @@ class PriceTagDashboard(QMainWindow):
         self.current_item_data = {}
 
     def find_item(self):
-        sku = self.sku_input.text().strip()
+        sku = self.sku_input.text().strip().upper()
         if not sku: return
 
         item_data = data_handler.find_item_by_sku(sku)
+
+        # UPDATED: Handle case where SKU is not found
         if not item_data:
-            QMessageBox.warning(self, "Not Found", f"SKU '{sku}' was not found in the data file.")
-            self.clear_all_fields()
+            reply = QMessageBox.question(self, "Not Found",
+                                         f"SKU '{sku}' was not found.\n\nWould you like to register it as a new item?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.register_new_item(sku)
+            else:
+                self.clear_all_fields()
             return
 
-        self.current_item_data = item_data
+        self.current_item_data = item_data.copy()
         self.name_label.setText(item_data.get("Name", ""))
         self.price_label.setText(item_data.get("Regular price", "").strip())
         self.sale_price_label.setText(item_data.get("Sale price", "").strip())
-
         specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
-
         self.specs_list.clear()
         self.specs_list.addItems(specs)
         self.update_preview()
 
+    def register_new_item(self, sku):
+        dialog = NewItemDialog(sku, self)
+        if dialog.exec():
+            new_data = dialog.new_item_data
+            if data_handler.add_new_item(new_data):
+                QMessageBox.information(self, "Success", f"Item '{sku}' has been saved.")
+                # Automatically find the item we just added
+                self.sku_input.setText(sku)
+                self.find_item()
+            else:
+                QMessageBox.critical(self, "Error", "Could not save the new item to the data file.")
+
     def update_preview(self):
         if not self.current_item_data: return
 
-        specs = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
-        self.current_item_data['specs'] = specs
+        preview_data = self.get_current_data_from_ui()
+        if not preview_data: return
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
 
-        size_config = self.paper_sizes[size_name]
-        theme_config = self.themes[theme_name]
-
-        pil_image = price_generator.create_price_tag(self.current_item_data, size_config, theme_config)
-
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        pil_image = price_generator.create_price_tag(preview_data, size_config, theme_config)
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
-
         scaled_pixmap = pixmap.scaledToWidth(self.preview_label.width(), Qt.TransformationMode.SmoothTransformation)
         self.preview_label.setPixmap(scaled_pixmap)
 
@@ -313,25 +346,34 @@ class PriceTagDashboard(QMainWindow):
                 self.specs_list.takeItem(self.specs_list.row(item))
                 self.update_preview()
 
+    def get_current_data_from_ui(self):
+        if not self.current_item_data: return None
+        data = self.current_item_data.copy()
+        data['Name'] = self.name_label.text()
+        data['Regular price'] = self.price_label.text()
+        data['Sale price'] = self.sale_price_label.text()
+        data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
+        return data
+
     def generate_single(self):
-        if not self.current_item_data:
+        data_to_print = self.get_current_data_from_ui()
+        if not data_to_print:
             QMessageBox.warning(self, "No Item", "Please find an item first.")
             return
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
 
-        tag_image = price_generator.create_price_tag(self.current_item_data, size_config, theme_config)
+        tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config)
         a4_page = a4_layout_generator.create_a4_for_single(tag_image)
 
-        filename = os.path.join("output", f"A4_SINGLE_{self.current_item_data['SKU']}.png")
+        filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
         a4_page.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
         QMessageBox.information(self, "Success", f"File saved to:\n{os.path.abspath(filename)}")
 
     def generate_batch(self):
-        """Opens the batch dialog and processes the list of SKUs."""
-        size_name = self.paper_size_combo.currentText()
-        size_config = self.paper_sizes[size_name]
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
         dialog = BatchDialog(max_items=layout_info['total'], parent=self)
@@ -341,9 +383,6 @@ class PriceTagDashboard(QMainWindow):
             if not skus:
                 QMessageBox.warning(self, "Empty List", "No SKUs were added to the batch.")
                 return
-
-            theme_name = self.theme_combo.currentText()
-            theme_config = self.themes[theme_name]
 
             tag_images = []
             for sku in skus:
