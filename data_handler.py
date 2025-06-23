@@ -5,9 +5,10 @@ from bs4 import BeautifulSoup
 CONFIG_FILE = 'configuration.txt'
 DATA_FILE = 'Items for Web Mixed.txt'
 
+# UPDATED: Changed the dimensions and name for paper size '2'.
 PAPER_SIZES = {
     '1': {'name': '10x8cm', 'dims': (10, 8), 'specs': 8},
-    '2': {'name': '14x8cm', 'dims': (14, 8), 'specs': 12},
+    '2': {'name': '14.4x8cm', 'dims': (14.4, 8), 'specs': 12},
     '3': {'name': '15x10cm', 'dims': (15, 10), 'specs': 13},
     '4': {'name': '17x12cm', 'dims': (17, 12), 'specs': 11}
 }
@@ -23,14 +24,12 @@ def get_config():
                     key, value = line.strip().split('=', 1)
                     config[key] = value
 
-    # Check for missing paper_size setting
     if 'paper_size' not in config:
         config['paper_size'] = choose_paper_size()
         save_config(config)
     else:
         print(f"Using saved paper size: {PAPER_SIZES[config['paper_size']]['name']}")
 
-    # Check for missing manual_edit setting
     if 'manual_edit' not in config:
         config['manual_edit'] = choose_manual_edit_setting()
         save_config(config)
