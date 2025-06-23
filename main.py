@@ -107,7 +107,7 @@ def main():
         manual_edit_on = config.get('manual_edit') == 'true'
 
         print("\n--- Main Menu ---")
-        print("1. Generate a single price tag")
+        print("1. Generate a single price tag (on an A4 sheet)")
         print("2. Generate a full A4 sheet of price tags")
         print("3. Settings")
         print("4. Exit")
@@ -116,10 +116,14 @@ def main():
         if choice == '1':
             item_data = get_item_details_with_specs(size_config, manual_edit_on)
             tag_image = price_generator.create_price_tag(item_data, size_config)
-            filename = os.path.join(OUTPUT_DIR, f"{item_data['SKU']}_{size_config['name']}.png")
-            tag_image.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
-            print(f"\nSuccessfully saved single tag to: {filename}")
-            tag_image.show()
+
+            # UPDATED: Create a full A4 page for the single tag
+            a4_page = a4_layout_generator.create_a4_for_single(tag_image)
+
+            filename = os.path.join(OUTPUT_DIR, f"A4_SINGLE_{item_data['SKU']}_{size_config['name']}.png")
+            a4_page.save(filename, dpi=(a4_layout_generator.DPI, a4_layout_generator.DPI))
+            print(f"\nSuccessfully saved single tag on an A4 sheet to: {filename}")
+            a4_page.show()
 
         elif choice == '2':
             layout = a4_layout_generator.calculate_layout(*size_config['dims'])
@@ -133,7 +137,7 @@ def main():
                 tag_images.append(tag_image)
 
             a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout)
-            filename = os.path.join(OUTPUT_DIR, f"A4_Sheet_{size_config['name']}.png")
+            filename = os.path.join(OUTPUT_DIR, f"A4_BATCH_{size_config['name']}.png")
             a4_sheet.save(filename, dpi=(a4_layout_generator.DPI, a4_layout_generator.DPI))
             print(f"\nSuccessfully saved A4 sheet to: {filename}")
             a4_sheet.show()
