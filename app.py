@@ -11,19 +11,18 @@ from PyQt6.QtCore import Qt, QSize
 import data_handler
 import price_generator
 import a4_layout_generator
+from translations import Translator  # Import the new Translator class
 
 
 class NewItemDialog(QDialog):
-    """A dialog to manually register a new item."""
-
-    def __init__(self, sku, parent=None):
+    def __init__(self, sku, translator, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Register New Item")
+        self.tr = translator
+        self.setWindowTitle(self.tr.get("new_item_dialog_title"))
         self.setMinimumWidth(500)
         self.new_item_data = {"SKU": sku}
 
-        layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
+        layout, form_layout = QVBoxLayout(self), QFormLayout()
 
         self.sku_label = QLineEdit(sku)
         self.sku_label.setReadOnly(True)
@@ -31,97 +30,97 @@ class NewItemDialog(QDialog):
         self.price_input = QLineEdit()
         self.sale_price_input = QLineEdit()
         self.specs_input = QTextEdit()
-        self.specs_input.setPlaceholderText(
-            "Enter one specification per line.\nExample:\nScreen: 15.6 inch\nCPU: Intel Core i5")
+        self.specs_input.setPlaceholderText(self.tr.get("new_item_specs_placeholder"))
 
-        form_layout.addRow("SKU:", self.sku_label)
-        form_layout.addRow("Item Name:", self.name_input)
-        form_layout.addRow("Regular Price:", self.price_input)
-        form_layout.addRow("Sale Price (optional):", self.sale_price_input)
-        form_layout.addRow("Specifications:", self.specs_input)
+        form_layout.addRow(self.tr.get("new_item_sku_label"), self.sku_label)
+        form_layout.addRow(self.tr.get("new_item_name_label"), self.name_input)
+        form_layout.addRow(self.tr.get("new_item_price_label"), self.price_input)
+        form_layout.addRow(self.tr.get("new_item_sale_price_label"), self.sale_price_input)
+        form_layout.addRow(self.tr.get("new_item_specs_label"), self.specs_input)
 
         layout.addLayout(form_layout)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Save Item")
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr.get("new_item_save_button"))
         self.button_box.accepted.connect(self.save_item)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
     def save_item(self):
-        """Validates input, formats data, and accepts the dialog."""
         name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, "Validation Error", "Item Name cannot be empty.")
+            QMessageBox.warning(self, self.tr.get("new_item_validation_error"),
+                                self.tr.get("new_item_name_empty_error"))
             return
 
         self.new_item_data["Name"] = name
         self.new_item_data["Regular price"] = self.price_input.text().strip()
         self.new_item_data["Sale price"] = self.sale_price_input.text().strip()
-
-        # Format specs as HTML list for the description field
         specs = self.specs_input.toPlainText().strip().split('\n')
-        specs_html = "<ul>" + "".join([f"<li>{s}</li>" for s in specs if s]) + "</ul>"
-        self.new_item_data["Description"] = specs_html
-
+        self.new_item_data["Description"] = "<ul>" + "".join([f"<li>{s}</li>" for s in specs if s]) + "</ul>"
         self.accept()
 
 
 class BatchDialog(QDialog):
-    """A dialog window for inputting multiple SKUs for batch processing."""
-
-    def __init__(self, max_items, parent=None):
+    def __init__(self, max_items, translator, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Generate A4 Batch")
+        self.tr = translator
+        self.setWindowTitle(self.tr.get("batch_dialog_title"))
         self.setMinimumSize(400, 500)
         self.max_items = max_items
 
         layout = QVBoxLayout(self)
 
-        list_label = QLabel(f"SKUs to add (max {self.max_items} for this paper size):")
+        self.list_label = QLabel(self.tr.get("batch_list_label", self.max_items))
         self.sku_list_widget = QListWidget()
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        layout.addWidget(list_label)
+        layout.addWidget(self.list_label)
         layout.addWidget(self.sku_list_widget)
 
         input_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
-        self.sku_input.setPlaceholderText("Enter SKU...")
         self.sku_input.returnPressed.connect(self.add_sku)
-        self.add_button = QPushButton("Add SKU")
+        self.add_button = QPushButton()
         self.add_button.clicked.connect(self.add_sku)
         input_layout.addWidget(self.sku_input)
         input_layout.addWidget(self.add_button)
         layout.addLayout(input_layout)
 
-        remove_button = QPushButton("Remove Selected")
-        remove_button.clicked.connect(self.remove_sku)
-        layout.addWidget(remove_button)
+        self.remove_button = QPushButton()
+        self.remove_button.clicked.connect(self.remove_sku)
+        layout.addWidget(self.remove_button)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Generate")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
+        self.retranslate_ui()
         self.check_limit()
+
+    def retranslate_ui(self):
+        self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder"))
+        self.add_button.setText(self.tr.get("batch_add_sku_button"))
+        self.remove_button.setText(self.tr.get("batch_remove_button"))
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr.get("batch_generate_button"))
 
     def check_limit(self):
         is_full = self.sku_list_widget.count() >= self.max_items
         self.sku_input.setEnabled(not is_full)
         self.add_button.setEnabled(not is_full)
-        self.sku_input.setPlaceholderText("Page is full" if is_full else "Enter SKU...")
+        self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder") if not is_full else "")
 
     def add_sku(self):
         if self.sku_list_widget.count() >= self.max_items:
-            QMessageBox.information(self, "Limit Reached", f"The maximum of {self.max_items} items has been reached.")
+            QMessageBox.information(self, self.tr.get("batch_limit_title"),
+                                    self.tr.get("batch_limit_message", self.max_items))
             return
 
         sku = self.sku_input.text().strip().upper()
         if not sku: return
 
         if sku in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
-            QMessageBox.warning(self, "Duplicate", f"SKU '{sku}' is already in the list.")
+            QMessageBox.warning(self, self.tr.get("batch_duplicate_title"), self.tr.get("batch_duplicate_message", sku))
             return
 
         if data_handler.find_item_by_sku(sku):
@@ -129,7 +128,7 @@ class BatchDialog(QDialog):
             self.sku_input.clear()
             self.check_limit()
         else:
-            QMessageBox.warning(self, "Not Found", f"SKU '{sku}' was not found.")
+            QMessageBox.warning(self, self.tr.get("sku_not_found_title"), self.tr.get("sku_not_found_message", sku))
 
     def remove_sku(self):
         for item in self.sku_list_widget.selectedItems():
@@ -143,11 +142,14 @@ class BatchDialog(QDialog):
 class PriceTagDashboard(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Price Tag Dashboard by Nikoloz Taturashvili")
+        self.settings = data_handler.get_settings()
+        self.translator = Translator(self.settings.get("language", "en"))
+        self.tr = self.translator.get
+
+        self.setWindowTitle(self.tr("window_title"))
         self.setWindowIcon(QIcon("logo.png"))
         self.setGeometry(100, 100, 1400, 800)
 
-        self.settings = data_handler.get_settings()
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
 
@@ -164,6 +166,8 @@ class PriceTagDashboard(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         main_layout.addWidget(self.create_left_panel(), 1)
         main_layout.addWidget(self.create_right_panel(), 2)
+
+        self.retranslate_ui()
         self.update_paper_size_combo()
         self.update_theme_combo()
         self.clear_all_fields()
@@ -172,84 +176,131 @@ class PriceTagDashboard(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        sku_box = QGroupBox("1. Find Item (for Single Preview)")
+        self.find_item_group = QGroupBox()
         sku_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
-        self.sku_input.setPlaceholderText("Enter SKU and press Enter...")
         self.sku_input.returnPressed.connect(self.find_item)
-        find_button = QPushButton("Find")
-        find_button.clicked.connect(self.find_item)
+        self.find_button = QPushButton()
+        self.find_button.clicked.connect(self.find_item)
         sku_layout.addWidget(self.sku_input)
-        sku_layout.addWidget(find_button)
-        sku_box.setLayout(sku_layout)
+        sku_layout.addWidget(self.find_button)
+        self.find_item_group.setLayout(sku_layout)
 
-        details_box = QGroupBox("Item Details")
+        self.details_group = QGroupBox()
         details_layout = QFormLayout()
-        self.name_label = QLineEdit()
-        self.price_label = QLineEdit()
-        self.sale_price_label = QLineEdit()
-        self.name_label.textChanged.connect(self.update_preview)
-        self.price_label.textChanged.connect(self.update_preview)
-        self.sale_price_label.textChanged.connect(self.update_preview)
-        details_layout.addRow("Name:", self.name_label)
-        details_layout.addRow("Price:", self.price_label)
-        details_layout.addRow("Sale Price:", self.sale_price_label)
-        details_box.setLayout(details_layout)
+        self.name_label_widget, self.price_label_widget, self.sale_price_label_widget = QLabel(), QLabel(), QLabel()
+        self.name_input = QLineEdit()
+        self.price_input = QLineEdit()
+        self.sale_price_input = QLineEdit()
+        self.name_input.textChanged.connect(self.update_preview)
+        self.price_input.textChanged.connect(self.update_preview)
+        self.sale_price_input.textChanged.connect(self.update_preview)
+        details_layout.addRow(self.name_label_widget, self.name_input)
+        details_layout.addRow(self.price_label_widget, self.price_input)
+        details_layout.addRow(self.sale_price_label_widget, self.sale_price_input)
+        self.details_group.setLayout(details_layout)
 
-        settings_box = QGroupBox("2. Select Style")
+        self.style_group = QGroupBox()
         settings_layout = QFormLayout()
+        self.paper_size_label, self.theme_label = QLabel(), QLabel()
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.currentTextChanged.connect(self.update_preview)
         self.theme_combo = QComboBox()
         self.theme_combo.currentTextChanged.connect(self.update_preview)
-        settings_layout.addRow("Paper Size:", self.paper_size_combo)
-        settings_layout.addRow("Theme:", self.theme_combo)
-        settings_box.setLayout(settings_layout)
+        settings_layout.addRow(self.paper_size_label, self.paper_size_combo)
+        settings_layout.addRow(self.theme_label, self.theme_combo)
+        self.style_group.setLayout(settings_layout)
 
-        specs_box = QGroupBox("3. Edit Specifications")
+        self.specs_group = QGroupBox()
         specs_layout = QVBoxLayout()
         self.specs_list = QListWidget()
         self.specs_list.itemChanged.connect(self.update_preview)
         specs_buttons_layout = QHBoxLayout()
-        add_button, edit_button, remove_button = QPushButton("Add"), QPushButton("Edit"), QPushButton("Remove")
-        add_button.clicked.connect(self.add_spec)
-        edit_button.clicked.connect(self.edit_spec)
-        remove_button.clicked.connect(self.remove_spec)
-        specs_buttons_layout.addWidget(add_button)
-        specs_buttons_layout.addWidget(edit_button)
-        specs_buttons_layout.addWidget(remove_button)
+        self.add_button, self.edit_button, self.remove_button = QPushButton(), QPushButton(), QPushButton()
+        self.add_button.clicked.connect(self.add_spec)
+        self.edit_button.clicked.connect(self.edit_spec)
+        self.remove_button.clicked.connect(self.remove_spec)
+        specs_buttons_layout.addWidget(self.add_button)
+        specs_buttons_layout.addWidget(self.edit_button)
+        specs_buttons_layout.addWidget(self.remove_button)
         specs_layout.addWidget(self.specs_list)
         specs_layout.addLayout(specs_buttons_layout)
-        specs_box.setLayout(specs_layout)
+        self.specs_group.setLayout(specs_layout)
 
-        actions_box = QGroupBox("4. Generate Output")
+        self.output_group = QGroupBox()
         actions_layout = QVBoxLayout()
-        single_button = QPushButton("Generate Single Tag (on A4)")
-        single_button.setFixedHeight(40)
-        single_button.clicked.connect(self.generate_single)
-        batch_button = QPushButton("Generate Full A4 Batch")
-        batch_button.setFixedHeight(40)
-        batch_button.clicked.connect(self.generate_batch)
-        actions_layout.addWidget(single_button)
-        actions_layout.addWidget(batch_button)
-        actions_box.setLayout(actions_layout)
+        self.single_button = QPushButton()
+        self.single_button.setFixedHeight(40)
+        self.single_button.clicked.connect(self.generate_single)
+        self.batch_button = QPushButton()
+        self.batch_button.setFixedHeight(40)
+        self.batch_button.clicked.connect(self.generate_batch)
+        actions_layout.addWidget(self.single_button)
+        actions_layout.addWidget(self.batch_button)
+        self.output_group.setLayout(actions_layout)
 
-        layout.addWidget(sku_box)
-        layout.addWidget(details_box)
-        layout.addWidget(settings_box)
-        layout.addWidget(specs_box)
-        layout.addWidget(actions_box)
+        self.lang_button = QPushButton()
+        self.lang_button.setFixedSize(40, 40)
+        self.lang_button.setIconSize(QSize(32, 32))
+        self.lang_button.clicked.connect(self.switch_language)
+
+        top_layout = QHBoxLayout()
+        top_layout.addStretch()
+        top_layout.addWidget(self.lang_button)
+
+        layout.addLayout(top_layout)
+        layout.addWidget(self.find_item_group)
+        layout.addWidget(self.details_group)
+        layout.addWidget(self.style_group)
+        layout.addWidget(self.specs_group)
+        layout.addWidget(self.output_group)
         return panel
 
     def create_right_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        self.preview_label = QLabel("Enter an SKU to see a preview.")
+        self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(600, 700)
         self.preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
         layout.addWidget(self.preview_label)
         return panel
+
+    def retranslate_ui(self):
+        self.setWindowTitle(self.tr("window_title"))
+        self.find_item_group.setTitle(self.tr("find_item_group"))
+        self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
+        self.find_button.setText(self.tr("find_button"))
+        self.details_group.setTitle(self.tr("item_details_group"))
+        self.name_label_widget.setText(self.tr("name_label"))
+        self.price_label_widget.setText(self.tr("price_label"))
+        self.sale_price_label_widget.setText(self.tr("sale_price_label"))
+        self.style_group.setTitle(self.tr("style_group"))
+        self.paper_size_label.setText(self.tr("paper_size_label"))
+        self.theme_label.setText(self.tr("theme_label"))
+        self.specs_group.setTitle(self.tr("specs_group"))
+        self.add_button.setText(self.tr("add_button"))
+        self.edit_button.setText(self.tr("edit_button"))
+        self.remove_button.setText(self.tr("remove_button"))
+        self.output_group.setTitle(self.tr("output_group"))
+        self.single_button.setText(self.tr("generate_single_button"))
+        self.batch_button.setText(self.tr("generate_batch_button"))
+
+        if not self.current_item_data:
+            self.preview_label.setText(self.tr("preview_default_text"))
+
+        # UPDATED: Correctly set the icon based on the CURRENT language.
+        current_lang = self.translator.language
+        icon_path = "en.png" if current_lang == "en" else "ka.png"
+        self.lang_button.setIcon(QIcon(icon_path))
+
+    def switch_language(self):
+        current_lang = self.translator.language
+        new_lang = "ka" if current_lang == "en" else "en"
+        self.translator.set_language(new_lang)
+        self.settings["language"] = new_lang
+        data_handler.save_settings(self.settings)
+        self.retranslate_ui()
 
     def update_paper_size_combo(self):
         self.paper_sizes = data_handler.get_all_paper_sizes()
@@ -263,11 +314,11 @@ class PriceTagDashboard(QMainWindow):
         self.theme_combo.setCurrentText(self.settings.get("default_theme", "Default"))
 
     def clear_all_fields(self):
-        self.name_label.clear()
-        self.price_label.clear()
-        self.sale_price_label.clear()
+        self.name_input.clear()
+        self.price_input.clear()
+        self.sale_price_input.clear()
         self.specs_list.clear()
-        self.preview_label.setText("Enter an SKU to see a preview.")
+        self.preview_label.setText(self.tr("preview_default_text"))
         self.current_item_data = {}
 
     def find_item(self):
@@ -276,10 +327,9 @@ class PriceTagDashboard(QMainWindow):
 
         item_data = data_handler.find_item_by_sku(sku)
 
-        # UPDATED: Handle case where SKU is not found
         if not item_data:
-            reply = QMessageBox.question(self, "Not Found",
-                                         f"SKU '{sku}' was not found.\n\nWould you like to register it as a new item?",
+            reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
+                                         self.tr("sku_not_found_message", sku) + self.tr("register_new_item_prompt"),
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
                 self.register_new_item(sku)
@@ -288,9 +338,9 @@ class PriceTagDashboard(QMainWindow):
             return
 
         self.current_item_data = item_data.copy()
-        self.name_label.setText(item_data.get("Name", ""))
-        self.price_label.setText(item_data.get("Regular price", "").strip())
-        self.sale_price_label.setText(item_data.get("Sale price", "").strip())
+        self.name_input.setText(item_data.get("Name", ""))
+        self.price_input.setText(item_data.get("Regular price", "").strip())
+        self.sale_price_input.setText(item_data.get("Sale price", "").strip())
         specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
@@ -299,28 +349,25 @@ class PriceTagDashboard(QMainWindow):
         self.update_preview()
 
     def register_new_item(self, sku):
-        dialog = NewItemDialog(sku, self)
+        dialog = NewItemDialog(sku, self.translator, self)
         if dialog.exec():
             new_data = dialog.new_item_data
             if data_handler.add_new_item(new_data):
-                QMessageBox.information(self, "Success", f"Item '{sku}' has been saved.")
-                # Automatically find the item we just added
+                QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
                 self.sku_input.setText(sku)
                 self.find_item()
             else:
-                QMessageBox.critical(self, "Error", "Could not save the new item to the data file.")
+                QMessageBox.critical(self, self.tr("new_item_validation_error"), self.tr.get("new_item_save_error"))
 
     def update_preview(self):
-        if not self.current_item_data: return
-
-        preview_data = self.get_current_data_from_ui()
-        if not preview_data: return
+        data_to_preview = self.get_current_data_from_ui()
+        if not data_to_preview: return
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
 
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        pil_image = price_generator.create_price_tag(preview_data, size_config, theme_config)
+        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config)
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
@@ -334,31 +381,30 @@ class PriceTagDashboard(QMainWindow):
 
     def edit_spec(self):
         item = self.specs_list.currentItem()
-        if item:
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            self.specs_list.editItem(item)
+        if item: item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable); self.specs_list.editItem(item)
 
     def remove_spec(self):
         item = self.specs_list.currentItem()
         if item:
-            reply = QMessageBox.question(self, "Remove", f"Are you sure you want to remove '{item.text()}'?")
+            reply = QMessageBox.question(self, self.tr("remove_spec_title"),
+                                         self.tr("remove_spec_message", item.text()))
             if reply == QMessageBox.StandardButton.Yes:
-                self.specs_list.takeItem(self.specs_list.row(item))
+                self.specs_list.takeItem(self.specs_list.row(item));
                 self.update_preview()
 
     def get_current_data_from_ui(self):
         if not self.current_item_data: return None
         data = self.current_item_data.copy()
-        data['Name'] = self.name_label.text()
-        data['Regular price'] = self.price_label.text()
-        data['Sale price'] = self.sale_price_label.text()
+        data['Name'] = self.name_input.text()
+        data['Regular price'] = self.price_input.text()
+        data['Sale price'] = self.sale_price_input.text()
         data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
         return data
 
     def generate_single(self):
         data_to_print = self.get_current_data_from_ui()
         if not data_to_print:
-            QMessageBox.warning(self, "No Item", "Please find an item first.")
+            QMessageBox.warning(self, self.tr("no_item_title"), self.tr("no_item_message"))
             return
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
@@ -369,19 +415,20 @@ class PriceTagDashboard(QMainWindow):
 
         filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
         a4_page.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
-        QMessageBox.information(self, "Success", f"File saved to:\n{os.path.abspath(filename)}")
+        QMessageBox.information(self, self.tr("success_title"),
+                                self.tr("file_saved_message", os.path.abspath(filename)))
 
     def generate_batch(self):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
-        dialog = BatchDialog(max_items=layout_info['total'], parent=self)
+        dialog = BatchDialog(max_items=layout_info['total'], translator=self.translator, parent=self)
 
         if dialog.exec():
             skus = dialog.get_skus()
             if not skus:
-                QMessageBox.warning(self, "Empty List", "No SKUs were added to the batch.")
+                QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message"))
                 return
 
             tag_images = []
@@ -398,13 +445,13 @@ class PriceTagDashboard(QMainWindow):
             a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
             filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
             a4_sheet.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
-            QMessageBox.information(self, "Success", f"Batch file saved to:\n{os.path.abspath(filename)}")
+            QMessageBox.information(self, self.tr("success_title"),
+                                    self.tr("file_saved_message", os.path.abspath(filename)))
 
 
 if __name__ == "__main__":
-    if not os.path.exists('output'): os.makedirs('output')
-    if not os.path.exists('themes'): os.makedirs('themes')
-    if not os.path.exists('fonts'): os.makedirs('fonts')
+    for folder in ['output', 'themes', 'fonts']:
+        if not os.path.exists(folder): os.makedirs(folder)
 
     app = QApplication(sys.argv)
     dashboard = PriceTagDashboard()
