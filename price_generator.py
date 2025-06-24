@@ -12,7 +12,7 @@ FALLBACK_FONT_EN = "arial.ttf"
 FALLBACK_FONT_EN_BOLD = "arialbd.ttf"
 
 
-# --- FONT SETUP ---
+# --- HELPER FUNCTIONS ---
 def get_font(font_path, size, fallback_path=None):
     try:
         return ImageFont.truetype(font_path, size)
@@ -29,6 +29,36 @@ def cm_to_pixels(cm, dpi=DPI):
     return int(cm / 2.54 * dpi)
 
 
+def wrap_text(text, font, max_width):
+    """
+    Wraps text to fit a specified pixel width without breaking words.
+    Returns a list of lines.
+    """
+    lines = []
+    # If the text is empty or None, return an empty list
+    if not text:
+        return []
+
+    words = text.split()
+    if not words:
+        return []
+
+    current_line = words[0]
+    for word in words[1:]:
+        # Check the width of the line if the new word is added
+        if font.getlength(current_line + " " + word) <= max_width:
+            current_line += " " + word
+        else:
+            # The new word doesn't fit, so finalize the current line
+            lines.append(current_line)
+            # Start a new line with the current word
+            current_line = word
+
+    # Append the last line
+    lines.append(current_line)
+    return lines
+
+
 def _create_accessory_tag(item_data, width_px, height_px):
     """
     Creates a special, minimalist price tag for small accessories (6x3.5cm).
@@ -38,9 +68,9 @@ def _create_accessory_tag(item_data, width_px, height_px):
     draw = ImageDraw.Draw(img)
     text_color = "black"
 
-    # --- Fonts for the small tag (Updated) ---
-    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 50, FALLBACK_FONT_EN_BOLD)  # Bolder and larger
-    name_font = get_font(PRIMARY_FONT_PATH, 55, FALLBACK_FONT_EN)  # Regular weight
+    # --- Fonts for the small tag ---
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 50, FALLBACK_FONT_EN_BOLD)
+    name_font = get_font(PRIMARY_FONT_PATH, 55, FALLBACK_FONT_EN)
     price_font = get_font(PRIMARY_FONT_BOLD_PATH, 65, FALLBACK_FONT_EN_BOLD)
 
     # --- Layout proportions ---
@@ -59,24 +89,34 @@ def _create_accessory_tag(item_data, width_px, height_px):
     sku_text = item_data.get('SKU', 'N/A')
     draw.text((width_px / 2, top_sep_y / 2), sku_text, font=sku_font, fill=text_color, anchor="mm")
 
-    # 2. Name (Middle area)
+    # 2. Name (Middle area - with text wrapping)
     name_text = item_data.get('Name', 'N/A')
-    middle_area_y = top_sep_y + (bottom_sep_y - top_sep_y) / 2
-    draw.text((width_px / 2, middle_area_y), name_text, font=name_font, fill=text_color, anchor="mm", align='center')
+    name_area_width = width_px - (2 * margin)
+    wrapped_lines = wrap_text(name_text, name_font, name_area_width)
 
-    # 3. Price (Bottom area - Updated Logic)
+    # Calculate line height and starting position for centered block
+    _, top, _, bottom = name_font.getbbox("Ag")  # Get ascent/descent for line height
+    line_height = bottom - top
+    total_text_height = len(wrapped_lines) * line_height
+    middle_area_height = bottom_sep_y - top_sep_y
+    start_y = top_sep_y + (middle_area_height - total_text_height) / 2
+
+    # Draw each line of the wrapped text
+    for i, line in enumerate(wrapped_lines):
+        y_pos = start_y + (i * line_height)
+        draw.text((width_px / 2, y_pos), line, font=name_font, fill=text_color, anchor="ma", align='center')
+
+    # 3. Price (Bottom area)
     price_y = bottom_sep_y + (height_px - bottom_sep_y) / 2
     sale_price = item_data.get('Sale price', '').strip()
     regular_price = item_data.get('Regular price', '').strip()
 
-    # Determine which price to show
     display_price = ""
     if sale_price and float(sale_price.replace(',', '.')) > 0:
         display_price = sale_price
     elif regular_price:
         display_price = regular_price
 
-    # Draw only the final price, centered
     if display_price:
         price_text = f"₾{display_price}"
         draw.text((width_px / 2, price_y), price_text, font=price_font, fill=text_color, anchor="mm")
@@ -154,8 +194,21 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         draw.text((width_px - margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="rm")
 
     title_font = get_font(PRIMARY_FONT_BOLD_PATH, 60, FALLBACK_FONT_EN_BOLD)
-    draw.text((width_px / 2, title_area_top + title_area_height / 2), item_data.get('Name', 'N/A'), font=title_font,
-              fill=text_color, anchor='mm', align='center')
+
+    # Title with wrapping
+    title_text = item_data.get('Name', 'N/A')
+    title_area_width = width_px - (2 * margin)
+    wrapped_title_lines = wrap_text(title_text, title_font, title_area_width)
+
+    _, top, _, bottom = title_font.getbbox("Ag")
+    line_height = bottom - top + 5  # Add 5px spacing between lines
+    total_text_height = len(wrapped_title_lines) * line_height
+    start_y = title_area_top + (title_area_height - total_text_height) / 2
+
+    for i, line in enumerate(wrapped_title_lines):
+        y_pos = start_y + (i * line_height)
+        draw.text((width_px / 2, y_pos), line, font=title_font, fill=text_color, anchor='ma', align='center')
+
     draw.line([(margin, specs_area_top - (0.01 * height_px)), (width_px - margin, specs_area_top - (0.01 * height_px))],
               fill=text_color, width=3)
 
@@ -211,8 +264,9 @@ def create_price_tag(item_data, size_config, theme, language='en'):
 
     if sale_price and float(sale_price.replace(',', '.')) > 0:
         draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
-        orig_text, sale_text = f"₾{regular_price}", f"₾{sale_price}"
-        orig_bbox, sale_bbox = strikethrough_font.getbbox(orig_text), price_font.getbbox(sale_text)
+        orig_text = f"₾{regular_price}"
+        sale_text = f"₾{sale_price}"
+        sale_bbox = price_font.getbbox(sale_text)
         orig_x = price_x - (sale_bbox[2] - sale_bbox[0]) - 20
         draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
         drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
