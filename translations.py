@@ -4,8 +4,8 @@ TRANSLATIONS = {
     "en": {
         # UI Text
         "window_title": "Price Tag Dashboard by Nikoloz Taturashvili",
-        "find_item_group": "1. Find Item (for Single Preview)",
-        "sku_placeholder": "Enter SKU and press Enter...",
+        "find_item_group": "1. Find Item by SKU / Barcode",
+        "sku_placeholder": "Enter SKU or Barcode and press Enter...",
         "find_button": "Find",
         "item_details_group": "Item Details",
         "name_label": "Name:",
@@ -22,7 +22,7 @@ TRANSLATIONS = {
         "output_group": "4. Generate Output",
         "generate_single_button": "Generate Single Tag (on A4)",
         "generate_batch_button": "Generate Full A4 Batch",
-        "preview_default_text": "Enter an SKU to see a preview.",
+        "preview_default_text": "Enter an SKU or Barcode to see a preview.",
         "sku_not_found_title": "Not Found",
         "sku_not_found_message": "SKU '{}' was not found in the data file.",
         "register_new_item_prompt": "\n\nWould you like to register it as a new item?",
@@ -55,6 +55,8 @@ TRANSLATIONS = {
         "new_item_name_empty_error": "Item Name cannot be empty.",
         "new_item_save_success": "Item '{}' has been saved.",
         "new_item_save_error": "Could not save the new item to the data file.",
+        "cannot_register_barcode_error": "Cannot register a new item using a barcode. Please use a new, unique SKU.",
+
 
         # Spec Labels (for translation on the tag itself)
         # UPDATED: Added all new labels from the image.
@@ -102,8 +104,8 @@ TRANSLATIONS = {
     "ka": {
         # UI Text
         "window_title": "ფასმაჩვენებლის დაფა - ავტორი: ნიკოლოზ ტატურაშვილი",
-        "find_item_group": "1. პროდუქტის მოძებნა (ერთეულის)",
-        "sku_placeholder": "შეიყვანეთ კოდი და დააჭირეთ Enter...",
+        "find_item_group": "1. პროდუქტის მოძებნა (კოდით / შტრიხკოდით)",
+        "sku_placeholder": "შეიყვანეთ კოდი ან შტრიხკოდი...",
         "find_button": "ძებნა",
         "item_details_group": "პროდუქტის მონაცემები",
         "name_label": "დასახელება:",
@@ -120,7 +122,7 @@ TRANSLATIONS = {
         "output_group": "4. გენერირება",
         "generate_single_button": "1 ფასმაჩვენებელი (A4-ზე)",
         "generate_batch_button": "სრული A4 გვერდი",
-        "preview_default_text": "შეიყვანეთ კოდი, რომ ნახოთ.",
+        "preview_default_text": "შეიყვანეთ კოდი ან შტრიხკოდი, რომ ნახოთ.",
         "sku_not_found_title": "ვერ მოიძებნა",
         "sku_not_found_message": "კოდი '{}' ვერ მოიძებნა.",
         "register_new_item_prompt": "\n\nგსურთ ახალი პროდუქტის დამატება?",
@@ -153,6 +155,7 @@ TRANSLATIONS = {
         "new_item_name_empty_error": "პროდუქტის სახელი ცარიელია.",
         "new_item_save_success": "პროდუქტი '{}' შენახულია.",
         "new_item_save_error": "პროდუქტის შენახვა ვერ მოხერხდა.",
+        "cannot_register_barcode_error": "შტრიხკოდით ახალი ნივთის რეგისტრაცია შეუძლებელია. გთხოვთ გამოიყენოთ ახალი, უნიკალური კოდი.",
 
         # Spec Labels (for translation on the tag itself)
         # UPDATED: Added Georgian translations for all new labels.
