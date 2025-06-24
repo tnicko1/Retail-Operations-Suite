@@ -7,6 +7,7 @@ DATA_FILE = 'Items for Web Mixed.txt'
 USER_SETTINGS_FILE = 'user_settings.json'
 
 DEFAULT_PAPER_SIZES = {
+    '6x3.5cm': {'dims': (6, 3.5), 'specs': 0},
     '10x8cm': {'dims': (10, 8), 'specs': 8},
     '14.4x8cm': {'dims': (14.4, 8), 'specs': 12},
     '15x10cm': {'dims': (15, 10), 'specs': 13},
@@ -48,7 +49,7 @@ def get_settings():
             "custom_sizes": {},
             "default_theme": "Default",
             "language": "en",
-            "generate_dual_language": False  # Added new setting
+            "generate_dual_language": False
         }
         save_settings(settings)
         return settings
