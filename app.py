@@ -16,49 +16,109 @@ import a4_layout_generator
 from translations import Translator
 
 
-class NewItemDialog(QDialog):
-    def __init__(self, sku, translator, parent=None):
+class TemplateSelectionDialog(QDialog):
+    def __init__(self, translator, parent=None):
         super().__init__(parent)
-        self.tr, self.new_item_data = translator, {"SKU": sku}
-        self.setWindowTitle(self.tr.get("new_item_dialog_title"));
-        self.setMinimumWidth(500)
-        layout, form_layout = QVBoxLayout(self), QFormLayout()
-        self.sku_label, self.name_input, self.price_input, self.sale_price_input, self.specs_input = QLineEdit(
-            sku), QLineEdit(), QLineEdit(), QLineEdit(), QTextEdit()
-        self.sku_label.setReadOnly(True);
-        self.specs_input.setPlaceholderText(self.tr.get("new_item_specs_placeholder"))
-        form_layout.addRow(self.tr.get("new_item_sku_label"), self.sku_label);
-        form_layout.addRow(self.tr.get("new_item_name_label"), self.name_input)
-        form_layout.addRow(self.tr.get("new_item_price_label"), self.price_input);
-        form_layout.addRow(self.tr.get("new_item_sale_price_label"), self.sale_price_input)
-        form_layout.addRow(self.tr.get("new_item_specs_label"), self.specs_input);
-        layout.addLayout(form_layout)
+        self.translator = translator
+        self.setWindowTitle(self.translator.get("template_selection_title"))
+        self.selected_template_key = None
+        self.selected_template_data = None
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(self.translator.get("template_selection_label")))
+
+        self.template_list = QListWidget()
+        self.templates = data_handler.get_item_templates()
+        for key in self.templates.keys():
+            self.template_list.addItem(self.translator.get(key))
+        self.template_list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self.template_list)
+
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr.get("new_item_save_button"))
-        self.button_box.accepted.connect(self.save_item);
-        self.button_box.rejected.connect(self.reject);
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def accept(self):
+        selected_item = self.template_list.currentItem()
+        if not selected_item:
+            QMessageBox.warning(self, self.translator.get("template_validation_error_title"),
+                                self.translator.get("template_validation_error_message"))
+            return
+
+        self.selected_template_key = self.translator.get_key_from_value(selected_item.text())
+        self.selected_template_data = self.templates.get(self.selected_template_key)
+
+        super().accept()
+
+
+class NewItemDialog(QDialog):
+    def __init__(self, sku, translator, template=None, category_name=None, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.new_item_data = {"SKU": sku}
+        if category_name:
+            self.new_item_data["Categories"] = category_name
+
+        self.setWindowTitle(self.translator.get("new_item_dialog_title"))
+        self.setMinimumWidth(500)
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        self.sku_label = QLineEdit(sku)
+        self.sku_label.setReadOnly(True)
+        self.name_input = QLineEdit()
+        self.price_input = QLineEdit()
+        self.sale_price_input = QLineEdit()
+        self.specs_input = QTextEdit()
+
+        if template:
+            specs_text = "\n".join([f"{spec}:" for spec in template])
+            self.specs_input.setPlainText(specs_text)
+        else:
+            self.specs_input.setPlaceholderText(self.translator.get("new_item_specs_placeholder"))
+
+        form_layout.addRow(self.translator.get("new_item_sku_label"), self.sku_label)
+        form_layout.addRow(self.translator.get("new_item_name_label"), self.name_input)
+        form_layout.addRow(self.translator.get("new_item_price_label"), self.price_input)
+        form_layout.addRow(self.translator.get("new_item_sale_price_label"), self.sale_price_input)
+        form_layout.addRow(self.translator.get("new_item_specs_label"), self.specs_input)
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.translator.get("new_item_save_button"))
+        self.button_box.accepted.connect(self.save_item)
+        self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
     def save_item(self):
         name = self.name_input.text().strip()
-        if not name: QMessageBox.warning(self, self.tr.get("new_item_validation_error"),
-                                         self.tr.get("new_item_name_empty_error")); return
-        self.new_item_data["Name"], self.new_item_data["Regular price"], self.new_item_data[
-            "Sale price"] = name, self.price_input.text().strip(), self.sale_price_input.text().strip()
-        self.new_item_data["Description"] = "<ul>" + "".join(
-            [f"<li>{s}</li>" for s in self.specs_input.toPlainText().strip().split('\n') if s]) + "</ul>";
+        if not name:
+            QMessageBox.warning(self, self.translator.get("new_item_validation_error"),
+                                self.translator.get("new_item_name_empty_error"))
+            return
+
+        self.new_item_data["Name"] = name
+        self.new_item_data["Regular price"] = self.price_input.text().strip()
+        self.new_item_data["Sale price"] = self.sale_price_input.text().strip()
+
+        specs_html = "".join(
+            [f"<li>{line}</li>" for line in self.specs_input.toPlainText().strip().split('\n') if line and ':' in line])
+        self.new_item_data["Description"] = f"<ul>{specs_html}</ul>"
+
         self.accept()
 
 
 class BatchDialog(QDialog):
     def __init__(self, max_items, translator, dual_lang_enabled, parent=None):
         super().__init__(parent)
-        self.tr = translator
+        self.translator = translator
         self.max_items = max_items // 2 if dual_lang_enabled else max_items
-        self.setWindowTitle(self.tr.get("batch_dialog_title"));
+        self.setWindowTitle(self.translator.get("batch_dialog_title"));
         self.setMinimumSize(400, 500)
         layout = QVBoxLayout(self)
-        self.list_label = QLabel(self.tr.get("batch_list_label", self.max_items))
+        self.list_label = QLabel(self.translator.get("batch_list_label", self.max_items))
         self.sku_list_widget = QListWidget();
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(self.list_label);
@@ -88,35 +148,37 @@ class BatchDialog(QDialog):
         super().keyPressEvent(event)
 
     def retranslate_ui(self):
-        self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder"));
-        self.add_button.setText(self.tr.get("batch_add_sku_button"))
-        self.remove_button.setText(self.tr.get("batch_remove_button"));
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr.get("batch_generate_button"))
+        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder"));
+        self.add_button.setText(self.translator.get("batch_add_sku_button"))
+        self.remove_button.setText(self.translator.get("batch_remove_button"));
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.translator.get("batch_generate_button"))
 
     def check_limit(self):
         is_full = self.sku_list_widget.count() >= self.max_items
         self.sku_input.setEnabled(not is_full);
         self.add_button.setEnabled(not is_full)
-        self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder") if not is_full else "")
+        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder") if not is_full else "")
 
     def add_item(self):
         if self.sku_list_widget.count() >= self.max_items: QMessageBox.information(self,
-                                                                                   self.tr.get("batch_limit_title"),
-                                                                                   self.tr.get("batch_limit_message",
-                                                                                               self.max_items)); return
+                                                                                   self.translator.get(
+                                                                                       "batch_limit_title"),
+                                                                                   self.translator.get(
+                                                                                       "batch_limit_message",
+                                                                                       self.max_items)); return
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
         item_data = data_handler.find_item_by_sku_or_barcode(identifier)
         if not item_data:
-            QMessageBox.warning(self, self.tr.get("sku_not_found_title"),
-                                self.tr.get("sku_not_found_message", identifier))
+            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
+                                self.translator.get("sku_not_found_message", identifier))
             return
 
         sku_to_add = item_data.get('SKU')
         if sku_to_add in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
-            QMessageBox.warning(self, self.tr.get("batch_duplicate_title"),
-                                self.tr.get("batch_duplicate_message", sku_to_add))
+            QMessageBox.warning(self, self.translator.get("batch_duplicate_title"),
+                                self.translator.get("batch_duplicate_message", sku_to_add))
             return
 
         self.sku_list_widget.addItem(sku_to_add);
@@ -134,35 +196,35 @@ class BatchDialog(QDialog):
 class DisplayManagerDialog(QDialog):
     def __init__(self, translator, branch_stock_column, parent=None):
         super().__init__(parent)
-        self.tr = translator
+        self.translator = translator
         self.parent = parent
         self.branch_stock_column = branch_stock_column
-        self.setWindowTitle(self.tr.get("display_manager_title"))
+        self.setWindowTitle(self.translator.get("display_manager_title"))
         self.setMinimumSize(800, 600)
 
         layout = QVBoxLayout(self)
 
-        return_group = QGroupBox(self.tr.get("return_tag_group"))
+        return_group = QGroupBox(self.translator.get("return_tag_group"))
         return_layout = QHBoxLayout()
         self.return_input = QLineEdit()
-        self.return_input.setPlaceholderText(self.tr.get("return_tag_placeholder"))
-        self.find_replacements_button = QPushButton(self.tr.get("find_replacements_button"))
+        self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
+        self.find_replacements_button = QPushButton(self.translator.get("find_replacements_button"))
         self.find_replacements_button.clicked.connect(self.find_replacements)
-        return_layout.addWidget(QLabel(self.tr.get("return_tag_label")))
+        return_layout.addWidget(QLabel(self.translator.get("return_tag_label")))
         return_layout.addWidget(self.return_input)
         return_layout.addWidget(self.find_replacements_button)
         return_group.setLayout(return_layout)
 
-        suggestions_group = QGroupBox(self.tr.get("suggestions_group", self.parent.branch_combo.currentText()))
+        suggestions_group = QGroupBox(self.translator.get("suggestions_group", self.parent.branch_combo.currentText()))
         suggestions_layout = QVBoxLayout()
         self.suggestions_table = QTableWidget()
         self.suggestions_table.setColumnCount(5)
         self.suggestions_table.setHorizontalHeaderLabels([
-            self.tr.get("suggestions_header_sku"),
-            self.tr.get("suggestions_header_name"),
-            self.tr.get("suggestions_header_stock"),
-            self.tr.get("suggestions_header_price"),
-            self.tr.get("suggestions_header_action")
+            self.translator.get("suggestions_header_sku"),
+            self.translator.get("suggestions_header_name"),
+            self.translator.get("suggestions_header_stock"),
+            self.translator.get("suggestions_header_price"),
+            self.translator.get("suggestions_header_action")
         ])
         self.suggestions_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.suggestions_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -179,13 +241,14 @@ class DisplayManagerDialog(QDialog):
 
         item_data = data_handler.find_item_by_sku_or_barcode(identifier)
         if not item_data:
-            QMessageBox.warning(self, self.tr.get("sku_not_found_title"),
-                                self.tr.get("sku_not_found_message", identifier))
+            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
+                                self.translator.get("sku_not_found_message", identifier))
             return
 
         sku = item_data.get('SKU')
         data_handler.remove_item_from_display(sku)
-        QMessageBox.information(self, self.tr.get("success_title"), self.tr.get("item_returned_message", sku))
+        QMessageBox.information(self, self.translator.get("success_title"),
+                                self.translator.get("item_returned_message", sku))
         self.return_input.clear()
 
         category = item_data.get('Categories')
@@ -212,7 +275,7 @@ class DisplayManagerDialog(QDialog):
             self.suggestions_table.setItem(row, 2, QTableWidgetItem(item.get(self.branch_stock_column, '0')))
             self.suggestions_table.setItem(row, 3, QTableWidgetItem(display_price))
 
-            print_button = QPushButton(self.tr.get("quick_print_button"))
+            print_button = QPushButton(self.translator.get("quick_print_button"))
             print_button.clicked.connect(lambda _, r=row: self.quick_print_tag(r))
             self.suggestions_table.setCellWidget(row, 4, print_button)
 
@@ -496,15 +559,39 @@ class PriceTagDashboard(QMainWindow):
 
     def find_item(self):
         identifier = self.sku_input.text().strip().upper()
-        if not identifier:
-            return
+        if not identifier: return
+
         item_data = data_handler.find_item_by_sku_or_barcode(identifier)
         if not item_data:
             self.clear_all_fields()
-            QMessageBox.warning(self, self.tr.get("sku_not_found_title"),
-                                self.tr.get("sku_not_found_message", identifier))
+            reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
+                                         self.tr("sku_not_found_message", identifier) + "\n\n" + self.tr(
+                                             "register_new_item_prompt"),
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.register_new_item(identifier)
             return
+
         self.populate_ui_with_item_data(item_data)
+
+    def register_new_item(self, sku):
+        template_dialog = TemplateSelectionDialog(self.translator, self)
+        if not template_dialog.exec():
+            return
+
+        template_data = template_dialog.selected_template_data
+        template_specs = template_data.get("specs") if template_data else []
+        category_name = template_data.get("category_name") if template_data else ""
+
+        dialog = NewItemDialog(sku, self.translator, template=template_specs, category_name=category_name, parent=self)
+        if dialog.exec():
+            new_data = dialog.new_item_data
+            if data_handler.add_new_item(new_data):
+                QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
+                self.sku_input.setText(sku)
+                self.find_item()
+            else:
+                QMessageBox.critical(self, self.tr("new_item_validation_error"), self.tr("new_item_save_error"))
 
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
@@ -560,7 +647,7 @@ class PriceTagDashboard(QMainWindow):
     def generate_single_by_sku(self, sku, mark_on_display=False):
         item_data = data_handler.find_item_by_sku_or_barcode(sku)
         if not item_data:
-            QMessageBox.warning(self, self.tr.get("sku_not_found_title"), self.tr.get("sku_not_found_message", sku))
+            QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
 
         data_to_print = item_data.copy()
