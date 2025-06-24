@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 DATA_FILE = 'Items for Web Mixed.txt'
 USER_SETTINGS_FILE = 'user_settings.json'
 DISPLAY_STATUS_FILE = 'display_status.json'
+TEMPLATES_FILE = 'templates.json'
 
 DEFAULT_PAPER_SIZES = {
     '6x3.5cm': {'dims': (6, 3.5), 'specs': 0},
@@ -15,6 +16,57 @@ DEFAULT_PAPER_SIZES = {
     '17x12cm': {'dims': (17, 12), 'specs': 11}
 }
 CSV_HEADERS = None
+
+
+# --- Template Management ---
+
+def get_item_templates():
+    """Loads item templates from a JSON file."""
+    if not os.path.exists(TEMPLATES_FILE):
+        # Create a default templates file if it doesn't exist
+        default_templates = {
+            "template_blank": {
+                "category_name": "Uncategorized",
+                "specs": []
+            },
+            "template_laptop": {
+                "category_name": "Laptops",
+                "specs": ["Brand", "Model", "Screen", "Processor", "Memory", "Storage", "Graphics", "Operating System",
+                          "Color", "Warranty"]
+            },
+            "template_monitor": {
+                "category_name": "Monitors",
+                "specs": ["Brand", "Model", "Screen Size", "Resolution", "Panel Type", "Refresh Rate", "Ports",
+                          "Warranty"]
+            },
+            "template_tv": {
+                "category_name": "TVs",
+                "specs": ["Brand", "Model", "Screen Size", "Resolution", "Smart TV", "Ports", "Warranty"]
+            },
+            "template_phone": {
+                "category_name": "Mobile Phones",
+                "specs": ["Brand", "Model", "Screen", "Processor", "RAM", "Storage", "Main Camera", "Front Camera",
+                          "Battery", "Color", "Warranty"]
+            },
+            "template_printer": {
+                "category_name": "Printers",
+                "specs": ["Brand", "Model", "Printer Type", "Print Technology", "Print Speed", "Connectivity",
+                          "Warranty"]
+            },
+            "template_ups": {
+                "category_name": "UPS",
+                "specs": ["Brand", "Model", "Capacity (VA)", "Capacity (Watts)", "Outlets", "Warranty"]
+            }
+        }
+        with open(TEMPLATES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_templates, f, indent=4)
+        return default_templates
+
+    try:
+        with open(TEMPLATES_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}
 
 
 # --- Display Status Management ---
@@ -131,7 +183,7 @@ def get_settings():
             "default_theme": "Default",
             "language": "en",
             "generate_dual_language": False,
-            "default_branch": "branch_vaja"  # **FIXED**: Use the key, not the display name
+            "default_branch": "branch_vaja"
         }
         save_settings(settings)
         return settings
@@ -140,7 +192,7 @@ def get_settings():
         settings = json.load(f)
         if "language" not in settings: settings["language"] = "en"
         if "generate_dual_language" not in settings: settings["generate_dual_language"] = False
-        if "default_branch" not in settings: settings["default_branch"] = "branch_vaja"  # **FIXED**
+        if "default_branch" not in settings: settings["default_branch"] = "branch_vaja"
         return settings
 
 
