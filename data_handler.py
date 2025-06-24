@@ -83,7 +83,6 @@ def get_replacement_suggestions(category, branch_stock_column):
     suggestions = []
 
     for item in all_items:
-        # Check stock for the specific branch
         stock_str = item.get(branch_stock_column, '0')
         if stock_str:
             stock_value_clean = stock_str.replace(',', '')
@@ -91,7 +90,6 @@ def get_replacement_suggestions(category, branch_stock_column):
         else:
             is_in_stock = False
 
-        # Check conditions: same category, not on display, and in stock at the branch
         if item.get('Categories') == category and item.get('SKU') not in on_display_skus and is_in_stock:
             suggestions.append(item)
 
@@ -133,7 +131,7 @@ def get_settings():
             "default_theme": "Default",
             "language": "en",
             "generate_dual_language": False,
-            "default_branch": "Vaja Shop"  # Add default branch
+            "default_branch": "branch_vaja"  # **FIXED**: Use the key, not the display name
         }
         save_settings(settings)
         return settings
@@ -142,7 +140,7 @@ def get_settings():
         settings = json.load(f)
         if "language" not in settings: settings["language"] = "en"
         if "generate_dual_language" not in settings: settings["generate_dual_language"] = False
-        if "default_branch" not in settings: settings["default_branch"] = "Vaja Shop"
+        if "default_branch" not in settings: settings["default_branch"] = "branch_vaja"  # **FIXED**
         return settings
 
 
