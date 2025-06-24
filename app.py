@@ -417,12 +417,10 @@ class PriceTagDashboard(QMainWindow):
 
     def switch_language(self):
         branch_key = self.settings.get("default_branch", "branch_vaja")
-
         new_lang = "ka" if self.translator.language == "en" else "en"
         self.translator.set_language(new_lang)
         self.settings["language"] = new_lang
         data_handler.save_settings(self.settings)
-
         self.retranslate_ui()
         self.branch_combo.setCurrentText(self.tr(branch_key))
         self.update_preview()
@@ -477,6 +475,26 @@ class PriceTagDashboard(QMainWindow):
         self.update_status_display()
         self.toggle_status_button.setVisible(False)
 
+    # **FIXED**: Added helper functions back to the class
+    def extract_part_number(self, description):
+        """Finds and returns the part number from the description string."""
+        if not description: return ""
+        match = re.search(r'\[p/n\s*([^\]]+)\]', description)
+        return match.group(1).strip() if match else ""
+
+    def process_specifications(self, specs):
+        """Filters out duplicate warranty entries."""
+        first_warranty_found = False
+        filtered_specs = []
+        for spec in specs:
+            if 'warranty' in spec.lower():
+                if not first_warranty_found:
+                    filtered_specs.append(spec)
+                    first_warranty_found = True
+            else:
+                filtered_specs.append(spec)
+        return filtered_specs
+
     def find_item(self):
         identifier = self.sku_input.text().strip().upper()
         if not identifier:
@@ -491,16 +509,23 @@ class PriceTagDashboard(QMainWindow):
 
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
-        self.sku_input.setText(item_data.get('SKU'))
-        self.name_input.setText(item_data.get("Name", ""))
-        self.price_input.setText(item_data.get("Regular price", "").strip())
-        self.sale_price_input.setText(item_data.get("Sale price", "").strip())
+
+        # **FIXED**: Process specs and part number here
+        self.current_item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
         specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
+
+        self.current_item_data['specs'] = self.process_specifications(specs)
+
+        self.sku_input.setText(self.current_item_data.get('SKU'))
+        self.name_input.setText(self.current_item_data.get("Name", ""))
+        self.price_input.setText(self.current_item_data.get("Regular price", "").strip())
+        self.sale_price_input.setText(self.current_item_data.get("Sale price", "").strip())
+
         self.specs_list.clear()
-        self.specs_list.addItems(specs)
+        self.specs_list.addItems(self.current_item_data['specs'])
         self.update_status_display()
         self.update_preview()
 
@@ -544,8 +569,17 @@ class PriceTagDashboard(QMainWindow):
             QMessageBox.warning(self, self.tr.get("sku_not_found_title"), self.tr.get("sku_not_found_message", sku))
             return
         original_data = self.current_item_data.copy() if self.current_item_data else None
-        self.populate_ui_with_item_data(item_data)
-        data_to_print = self.get_current_data_from_ui()
+
+        # We need to populate the UI to get the correct data, but we can't call the full populate method
+        # as it will change the main window's state. Instead, we prepare a temporary data dictionary.
+        data_to_print = item_data.copy()
+        data_to_print['part_number'] = self.extract_part_number(item_data.get('Description', ''))
+        specs = data_handler.extract_specifications(item_data.get('Description'))
+        warranty = item_data.get('Attribute 3 value(s)')
+        if warranty and warranty != '-':
+            specs.append(f"Warranty: {warranty}")
+        data_to_print['specs'] = self.process_specifications(specs)
+
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
@@ -569,9 +603,8 @@ class PriceTagDashboard(QMainWindow):
                                 self.tr("file_saved_message", os.path.abspath(filename)))
         if mark_on_display:
             data_handler.add_item_to_display(sku)
-        if original_data and original_data.get('SKU') != sku:
-            self.populate_ui_with_item_data(original_data)
-        else:
+
+        if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
     def generate_batch(self):
@@ -594,12 +627,13 @@ class PriceTagDashboard(QMainWindow):
                 QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
                 continue
 
-            # **FIXED**: Add spec processing logic for batch items.
+            # **FIXED**: Add spec and part number processing for batch items.
+            item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
             specs = data_handler.extract_specifications(item_data.get('Description'))
             warranty = item_data.get('Attribute 3 value(s)')
             if warranty and warranty != '-':
                 specs.append(f"Warranty: {warranty}")
-            item_data['specs'] = specs
+            item_data['specs'] = self.process_specifications(specs)
 
             valid_skus.append(item_data.get('SKU'))
             if dual_lang_enabled:
@@ -626,6 +660,8 @@ class PriceTagDashboard(QMainWindow):
         data['Regular price'] = self.price_input.text()
         data['Sale price'] = self.sale_price_input.text()
         data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
+        # Ensure part number is included
+        data['part_number'] = self.current_item_data.get('part_number', '')
         return data
 
     def update_preview(self):
