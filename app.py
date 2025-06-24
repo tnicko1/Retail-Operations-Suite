@@ -600,15 +600,52 @@ class PriceTagDashboard(QMainWindow):
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
-        self.current_item_data['specs'] = self.process_specifications(specs)
+        self.current_item_data['all_specs'] = self.process_specifications(specs)
         self.sku_input.setText(self.current_item_data.get('SKU'))
         self.name_input.setText(self.current_item_data.get("Name", ""))
         self.price_input.setText(self.current_item_data.get("Regular price", "").strip())
         self.sale_price_input.setText(self.current_item_data.get("Sale price", "").strip())
-        self.specs_list.clear()
-        self.specs_list.addItems(self.current_item_data['specs'])
+        self.update_specs_list()
         self.update_status_display()
         self.update_preview()
+
+    def _prepare_specs_for_display(self, all_specs):
+        size_name = self.paper_size_combo.currentText()
+        if not size_name: return all_specs
+
+        size_config = self.paper_sizes.get(size_name, {})
+        spec_limit = size_config.get('spec_limit', 99)
+
+        if not spec_limit or len(all_specs) <= spec_limit:
+            return all_specs
+
+        warranty_spec = None
+        other_specs = []
+
+        for spec in all_specs:
+            if 'warranty' in spec.lower() and not warranty_spec:
+                warranty_spec = spec
+            else:
+                other_specs.append(spec)
+
+        if warranty_spec:
+            truncated_specs = other_specs[:spec_limit - 1]
+            truncated_specs.append(warranty_spec)
+            return truncated_specs
+        else:
+            return all_specs[:spec_limit]
+
+    def update_specs_list(self):
+        """Updates the specs QListWidget based on the current paper size limit."""
+        if not self.current_item_data:
+            self.specs_list.clear()
+            return
+
+        all_specs = self.current_item_data.get('all_specs', [])
+        display_specs = self._prepare_specs_for_display(all_specs)
+
+        self.specs_list.clear()
+        self.specs_list.addItems(display_specs)
 
     def update_status_display(self):
         if not self.current_item_data:
@@ -656,7 +693,8 @@ class PriceTagDashboard(QMainWindow):
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
-        data_to_print['specs'] = self.process_specifications(specs)
+        processed_specs = self.process_specifications(specs)
+        data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
@@ -688,7 +726,8 @@ class PriceTagDashboard(QMainWindow):
     def generate_batch(self):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
-        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        size_config = self.paper_sizes[size_name]
+        theme_config = self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
         dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
         dialog = BatchDialog(layout_info['total'], self.translator, dual_lang_enabled, self)
@@ -705,20 +744,25 @@ class PriceTagDashboard(QMainWindow):
                 QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
                 continue
 
-            item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
+            data_to_print = item_data.copy()
+            data_to_print['part_number'] = self.extract_part_number(item_data.get('Description', ''))
             specs = data_handler.extract_specifications(item_data.get('Description'))
             warranty = item_data.get('Attribute 3 value(s)')
             if warranty and warranty != '-':
                 specs.append(f"Warranty: {warranty}")
-            item_data['specs'] = self.process_specifications(specs)
+            processed_specs = self.process_specifications(specs)
+            data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
 
-            valid_skus.append(item_data.get('SKU'))
+            valid_skus.append(data_to_print.get('SKU'))
             if dual_lang_enabled:
-                tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config, language='en'))
-                tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config, language='ka'))
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
             else:
                 lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-                tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config, language=lang))
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
 
         if not tag_images: return
         a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
@@ -736,6 +780,8 @@ class PriceTagDashboard(QMainWindow):
         data['Name'] = self.name_input.text()
         data['Regular price'] = self.price_input.text()
         data['Sale price'] = self.sale_price_input.text()
+
+        # Get specs from the UI list, not the full list in memory
         data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
         data['part_number'] = self.current_item_data.get('part_number', '')
         return data
@@ -762,6 +808,7 @@ class PriceTagDashboard(QMainWindow):
         else:
             self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
         self.specs_group.setVisible(not is_special_size)
+        self.update_specs_list()
         self.update_preview()
 
     def add_spec(self):
