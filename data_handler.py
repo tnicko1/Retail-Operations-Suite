@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 
 DATA_FILE = 'Items for Web Mixed.txt'
 USER_SETTINGS_FILE = 'user_settings.json'
+DISPLAY_STATUS_FILE = 'display_status.json'
 
 DEFAULT_PAPER_SIZES = {
     '6x3.5cm': {'dims': (6, 3.5), 'specs': 0},
@@ -14,6 +15,87 @@ DEFAULT_PAPER_SIZES = {
     '17x12cm': {'dims': (17, 12), 'specs': 11}
 }
 CSV_HEADERS = None
+
+
+# --- Display Status Management ---
+
+def get_display_status():
+    """Loads the list of SKUs currently on display from a JSON file."""
+    if not os.path.exists(DISPLAY_STATUS_FILE):
+        return []
+    try:
+        with open(DISPLAY_STATUS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return []
+
+
+def save_display_status(sku_list):
+    """Saves the list of on-display SKUs to a JSON file."""
+    with open(DISPLAY_STATUS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(sorted(list(set(sku_list))), f, indent=4)
+
+
+def add_item_to_display(sku):
+    """Adds a SKU to the on-display list."""
+    if not sku: return
+    on_display_skus = get_display_status()
+    if sku not in on_display_skus:
+        on_display_skus.append(sku)
+        save_display_status(on_display_skus)
+
+
+def remove_item_from_display(sku):
+    """Removes a SKU from the on-display list."""
+    if not sku: return
+    on_display_skus = get_display_status()
+    if sku in on_display_skus:
+        on_display_skus.remove(sku)
+        save_display_status(on_display_skus)
+
+
+def is_item_on_display(sku):
+    """Checks if a given SKU is in the on-display list."""
+    return sku in get_display_status()
+
+
+# --- Main Data and Settings ---
+
+def get_all_items():
+    """Loads all items from the CSV data file."""
+    try:
+        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
+            return list(csv.DictReader(infile))
+    except FileNotFoundError:
+        return []
+
+
+def get_replacement_suggestions(category, branch_stock_column):
+    """
+    Finds items of the same category that are in stock AT A SPECIFIC BRANCH
+    and not on display.
+    """
+    if not category or not branch_stock_column:
+        return []
+
+    all_items = get_all_items()
+    on_display_skus = get_display_status()
+    suggestions = []
+
+    for item in all_items:
+        # Check stock for the specific branch
+        stock_str = item.get(branch_stock_column, '0')
+        if stock_str:
+            stock_value_clean = stock_str.replace(',', '')
+            is_in_stock = int(stock_value_clean) > 0 if stock_value_clean.isdigit() else False
+        else:
+            is_in_stock = False
+
+        # Check conditions: same category, not on display, and in stock at the branch
+        if item.get('Categories') == category and item.get('SKU') not in on_display_skus and is_in_stock:
+            suggestions.append(item)
+
+    return suggestions
 
 
 def get_csv_headers():
@@ -43,13 +125,15 @@ def add_new_item(item_data):
 
 
 def get_settings():
+    """Gets user settings, adding defaults for branch if they don't exist."""
     if not os.path.exists(USER_SETTINGS_FILE):
         settings = {
             "default_size": "14.4x8cm",
             "custom_sizes": {},
             "default_theme": "Default",
             "language": "en",
-            "generate_dual_language": False
+            "generate_dual_language": False,
+            "default_branch": "Vaja Shop"  # Add default branch
         }
         save_settings(settings)
         return settings
@@ -58,6 +142,7 @@ def get_settings():
         settings = json.load(f)
         if "language" not in settings: settings["language"] = "en"
         if "generate_dual_language" not in settings: settings["generate_dual_language"] = False
+        if "default_branch" not in settings: settings["default_branch"] = "Vaja Shop"
         return settings
 
 
@@ -73,44 +158,23 @@ def get_all_paper_sizes():
     return all_sizes
 
 
-def find_item_by_sku(sku):
-    try:
-        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
-            reader = csv.DictReader(infile)
-            for row in reader:
-                if row.get('SKU') == sku:
-                    return row
-    except FileNotFoundError:
-        return None
-    return None
-
-
 def find_item_by_sku_or_barcode(identifier):
-    """
-    Finds an item by SKU first, then by barcode if no SKU match is found.
-    The barcode is assumed to be in the 'Attribute 4 value(s)' column.
-    """
     if not identifier:
         return None
-    try:
-        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
-            reader = csv.DictReader(infile)
-            # Load data into a list to search multiple times without re-reading file
-            data = list(reader)
-    except FileNotFoundError:
+
+    all_items = get_all_items()
+    if not all_items:
         return None
 
-    # First, search by SKU (primary identifier)
-    for row in data:
+    for row in all_items:
         if row.get('SKU') == identifier:
             return row
 
-    # If not found by SKU, search by Barcode
-    for row in data:
+    for row in all_items:
         if row.get('Attribute 4 value(s)') == identifier:
             return row
 
-    return None  # Not found by either
+    return None
 
 
 def extract_specifications(html_description):
