@@ -31,7 +31,7 @@ TRANSLATIONS = {
         "preview_default_text": "Enter an SKU or Barcode to see a preview.",
         "sku_not_found_title": "Not Found",
         "sku_not_found_message": "Item with ID '{}' was not found in the data file.",
-        "register_new_item_prompt": "\n\nWould you like to register it as a new item?",
+        "register_new_item_prompt": "Would you like to register it as a new item?",
         "cannot_register_barcode_error": "Cannot register a new item using a barcode. Please use a new, unique SKU.",
         "remove_spec_title": "Remove",
         "remove_spec_message": "Are you sure you want to remove '{}'?",
@@ -45,6 +45,31 @@ TRANSLATIONS = {
         "set_to_display_button": "Set to Display",
         "set_to_storage_button": "Set to Storage",
         "item_returned_message": "Item {} marked as 'In Storage'.",
+        "new_item_save_success": "Item '{}' has been saved.",
+        "new_item_save_error": "Could not save the new item to the data file.",
+
+        # New Item & Template Dialogs
+        "new_item_dialog_title": "Register New Item",
+        "new_item_sku_label": "SKU:",
+        "new_item_name_label": "Item Name:",
+        "new_item_price_label": "Regular Price:",
+        "new_item_sale_price_label": "Sale Price (optional):",
+        "new_item_specs_label": "Specifications:",
+        "new_item_specs_placeholder": "Enter one specification per line.\nExample:\nScreen: 15.6 inch\nCPU: Intel Core i5",
+        "new_item_save_button": "Save Item",
+        "new_item_validation_error": "Validation Error",
+        "new_item_name_empty_error": "Item Name cannot be empty.",
+        "template_selection_title": "Select a Template",
+        "template_selection_label": "Choose a template for the new item:",
+        "template_validation_error_title": "No Template Selected",
+        "template_validation_error_message": "Please select a template from the list.",
+        "template_blank": "Blank Template",
+        "template_laptop": "Laptop",
+        "template_monitor": "Monitor",
+        "template_tv": "TV",
+        "template_phone": "Mobile Phone",
+        "template_printer": "Printer",
+        "template_ups": "UPS",
 
         # Batch Dialog
         "batch_dialog_title": "Generate A4 Batch",
@@ -121,7 +146,7 @@ TRANSLATIONS = {
         "preview_default_text": "შეიყვანეთ კოდი ან შტრიხკოდი, რომ ნახოთ.",
         "sku_not_found_title": "ვერ მოიძებნა",
         "sku_not_found_message": "პროდუქტი ID-ით '{}' ვერ მოიძებნა.",
-        "register_new_item_prompt": "\n\nგსურთ ახალი პროდუქტის დამატება?",
+        "register_new_item_prompt": "გსურთ ახალი პროდუქტის დამატება?",
         "cannot_register_barcode_error": "შტრიხკოდით ახალი ნივთის რეგისტრაცია შეუძლებელია.",
         "remove_spec_title": "წაშლა",
         "remove_spec_message": "დარწმუნებული ხართ, რომ გსურთ წაშალოთ '{}'?",
@@ -135,6 +160,31 @@ TRANSLATIONS = {
         "set_to_display_button": "ვიტრინაში გადატანა",
         "set_to_storage_button": "საწყობში დაბრუნება",
         "item_returned_message": "პროდუქტი {} აღინიშნა როგორც 'საწყობშია'.",
+        "new_item_save_success": "პროდუქტი '{}' შენახულია.",
+        "new_item_save_error": "პროდუქტის შენახვა ვერ მოხერხდა.",
+
+        # New Item & Template Dialogs
+        "new_item_dialog_title": "ახალი პროდუქტის რეგისტრაცია",
+        "new_item_sku_label": "კოდი:",
+        "new_item_name_label": "პროდუქტის სახელი:",
+        "new_item_price_label": "სტანდარტული ფასი:",
+        "new_item_sale_price_label": "ფასდაკლებული ფასი:",
+        "new_item_specs_label": "მონაცემები:",
+        "new_item_specs_placeholder": "შეიყვანეთ თითო მონაცემი ახალ ხაზზე.\nმაგალითად:\nეკრანი: 15.6 ინჩი\nპროცესორი: Intel Core i5",
+        "new_item_save_button": "პროდუქტის შენახვა",
+        "new_item_validation_error": "შეცდომა",
+        "new_item_name_empty_error": "პროდუქტის სახელი ცარიელია.",
+        "template_selection_title": "აირჩიეთ შაბლონი",
+        "template_selection_label": "აირჩიეთ შაბლონი ახალი პროდუქტისთვის:",
+        "template_validation_error_title": "შაბლონი არ არის არჩეული",
+        "template_validation_error_message": "გთხოვთ, აირჩიოთ შაბლონი სიიდან.",
+        "template_blank": "ცარიელი შაბლონი",
+        "template_laptop": "ლეპტოპი",
+        "template_monitor": "მონიტორი",
+        "template_tv": "ტელევიზორი",
+        "template_phone": "მობილური ტელეფონი",
+        "template_printer": "პრინტერი",
+        "template_ups": "UPS",
 
         # Batch Dialog
         "batch_dialog_title": "A4 გვერდის გენერირება",
@@ -207,10 +257,8 @@ class Translator:
         if not value_to_find:
             return None
 
-        # Search in all languages for the value to find its canonical key
         for lang_dict in TRANSLATIONS.values():
             for key, value in lang_dict.items():
-                # We only care about top-level keys, not spec_labels etc.
                 if isinstance(value, str) and value == value_to_find:
                     return key
         return None
