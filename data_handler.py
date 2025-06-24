@@ -85,6 +85,34 @@ def find_item_by_sku(sku):
     return None
 
 
+def find_item_by_sku_or_barcode(identifier):
+    """
+    Finds an item by SKU first, then by barcode if no SKU match is found.
+    The barcode is assumed to be in the 'Attribute 4 value(s)' column.
+    """
+    if not identifier:
+        return None
+    try:
+        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
+            reader = csv.DictReader(infile)
+            # Load data into a list to search multiple times without re-reading file
+            data = list(reader)
+    except FileNotFoundError:
+        return None
+
+    # First, search by SKU (primary identifier)
+    for row in data:
+        if row.get('SKU') == identifier:
+            return row
+
+    # If not found by SKU, search by Barcode
+    for row in data:
+        if row.get('Attribute 4 value(s)') == identifier:
+            return row
+
+    return None  # Not found by either
+
+
 def extract_specifications(html_description):
     if not html_description: return []
     soup = BeautifulSoup(html_description, 'html.parser')
