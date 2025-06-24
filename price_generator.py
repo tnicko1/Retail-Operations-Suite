@@ -29,12 +29,77 @@ def cm_to_pixels(cm, dpi=DPI):
     return int(cm / 2.54 * dpi)
 
 
+def _create_accessory_tag(item_data, width_px, height_px):
+    """
+    Creates a special, minimalist price tag for small accessories (6x3.5cm).
+    This function contains a completely separate design logic.
+    """
+    img = Image.new('RGB', (width_px, height_px), 'white')
+    draw = ImageDraw.Draw(img)
+    text_color = "black"
+
+    # --- Fonts for the small tag (Updated) ---
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 50, FALLBACK_FONT_EN_BOLD)  # Bolder and larger
+    name_font = get_font(PRIMARY_FONT_PATH, 55, FALLBACK_FONT_EN)  # Regular weight
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, 65, FALLBACK_FONT_EN_BOLD)
+
+    # --- Layout proportions ---
+    margin = 0.06 * width_px
+    top_area_height = 0.22 * height_px
+    bottom_area_height = 0.28 * height_px
+
+    # --- Draw Separators ---
+    top_sep_y = top_area_height
+    draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=text_color, width=2)
+    bottom_sep_y = height_px - bottom_area_height
+    draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=text_color, width=2)
+
+    # --- Draw Content ---
+    # 1. SKU (Top area)
+    sku_text = item_data.get('SKU', 'N/A')
+    draw.text((width_px / 2, top_sep_y / 2), sku_text, font=sku_font, fill=text_color, anchor="mm")
+
+    # 2. Name (Middle area)
+    name_text = item_data.get('Name', 'N/A')
+    middle_area_y = top_sep_y + (bottom_sep_y - top_sep_y) / 2
+    draw.text((width_px / 2, middle_area_y), name_text, font=name_font, fill=text_color, anchor="mm", align='center')
+
+    # 3. Price (Bottom area - Updated Logic)
+    price_y = bottom_sep_y + (height_px - bottom_sep_y) / 2
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+
+    # Determine which price to show
+    display_price = ""
+    if sale_price and float(sale_price.replace(',', '.')) > 0:
+        display_price = sale_price
+    elif regular_price:
+        display_price = regular_price
+
+    # Draw only the final price, centered
+    if display_price:
+        price_text = f"₾{display_price}"
+        draw.text((width_px / 2, price_y), price_text, font=price_font, fill=text_color, anchor="mm")
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=3)
+    return img
+
+
 def create_price_tag(item_data, size_config, theme, language='en'):
+    """
+    Main function to create a price tag. It acts as a router, calling the appropriate
+    drawing function based on the selected paper size.
+    """
     width_cm, height_cm = size_config['dims']
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
-    img = Image.new('RGB', (width_px, height_px), 'white')
+    # --- ROUTER: Check for special accessory size ---
+    if (width_cm, height_cm) == (6, 3.5):
+        return _create_accessory_tag(item_data, width_px, height_px)
 
+    # --- DEFAULT LOGIC: For all other standard sizes ---
+    img = Image.new('RGB', (width_px, height_px), 'white')
     translator = Translator()
 
     # --- Theme Setup ---
@@ -81,13 +146,10 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     except FileNotFoundError:
         print(f"Warning: Logo file not found at '{logo_to_use}'")
 
-    # --- UPDATED: Draw Part Number in Top Right Corner ---
-    # Increased font size from 28 to 32
     part_num_font = get_font(PRIMARY_FONT_PATH, 32, FALLBACK_FONT_EN)
     part_number = item_data.get('part_number', '')
     if part_number:
         pn_text = f"P/N: {part_number}"
-        # Position it vertically centered with the logo area
         pn_y = logo_area_top + (logo_area_height / 2)
         draw.text((width_px - margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="rm")
 
@@ -134,16 +196,13 @@ def create_price_tag(item_data, size_config, theme, language='en'):
 
     # --- Draw Footer ---
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=3)
-
     footer_center_y = footer_area_top + (footer_area_height / 2)
 
-    # --- Draw left side (SKU only) ---
     sku_font = get_font(PRIMARY_FONT_BOLD_PATH, 60, FALLBACK_FONT_EN_BOLD)
     sku_label_text = translator.get_spec_label("SKU", language)
     sku_full_text = f"{sku_label_text}: {item_data.get('SKU', 'N/A')}"
     draw.text((margin, footer_center_y), sku_full_text, font=sku_font, fill=text_color, anchor="lm")
 
-    # --- Draw right side (Prices) ---
     price_font, strikethrough_font = get_font(PRIMARY_FONT_BOLD_PATH, 75, FALLBACK_FONT_EN_BOLD), get_font(
         PRIMARY_FONT_PATH, 60, FALLBACK_FONT_EN)
     sale_price, regular_price = item_data.get('Sale price', '').strip(), item_data.get('Regular price', '').strip()
