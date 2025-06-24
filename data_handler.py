@@ -9,11 +9,11 @@ DISPLAY_STATUS_FILE = 'display_status.json'
 TEMPLATES_FILE = 'templates.json'
 
 DEFAULT_PAPER_SIZES = {
-    '6x3.5cm': {'dims': (6, 3.5), 'specs': 0},
-    '10x8cm': {'dims': (10, 8), 'specs': 8},
-    '14.4x8cm': {'dims': (14.4, 8), 'specs': 12},
-    '15x10cm': {'dims': (15, 10), 'specs': 13},
-    '17x12cm': {'dims': (17, 12), 'specs': 11}
+    '6x3.5cm': {'dims': (6, 3.5), 'spec_limit': 0},
+    '10x8cm': {'dims': (10, 8), 'spec_limit': 8},
+    '14.4x8cm': {'dims': (14.4, 8), 'spec_limit': 12},
+    '15x10cm': {'dims': (15, 10), 'spec_limit': 13},
+    '17x12cm': {'dims': (17, 12), 'spec_limit': 11}
 }
 CSV_HEADERS = None
 
@@ -21,42 +21,25 @@ CSV_HEADERS = None
 # --- Template Management ---
 
 def get_item_templates():
-    """Loads item templates from a JSON file."""
     if not os.path.exists(TEMPLATES_FILE):
-        # Create a default templates file if it doesn't exist
         default_templates = {
-            "template_blank": {
-                "category_name": "Uncategorized",
-                "specs": []
-            },
-            "template_laptop": {
-                "category_name": "Laptops",
-                "specs": ["Brand", "Model", "Screen", "Processor", "Memory", "Storage", "Graphics", "Operating System",
-                          "Color", "Warranty"]
-            },
-            "template_monitor": {
-                "category_name": "Monitors",
-                "specs": ["Brand", "Model", "Screen Size", "Resolution", "Panel Type", "Refresh Rate", "Ports",
-                          "Warranty"]
-            },
-            "template_tv": {
-                "category_name": "TVs",
-                "specs": ["Brand", "Model", "Screen Size", "Resolution", "Smart TV", "Ports", "Warranty"]
-            },
-            "template_phone": {
-                "category_name": "Mobile Phones",
-                "specs": ["Brand", "Model", "Screen", "Processor", "RAM", "Storage", "Main Camera", "Front Camera",
-                          "Battery", "Color", "Warranty"]
-            },
-            "template_printer": {
-                "category_name": "Printers",
-                "specs": ["Brand", "Model", "Printer Type", "Print Technology", "Print Speed", "Connectivity",
-                          "Warranty"]
-            },
-            "template_ups": {
-                "category_name": "UPS",
-                "specs": ["Brand", "Model", "Capacity (VA)", "Capacity (Watts)", "Outlets", "Warranty"]
-            }
+            "template_blank": {"category_name": "Uncategorized", "specs": []},
+            "template_laptop": {"category_name": "Laptops",
+                                "specs": ["Brand", "Model", "Screen", "Processor", "Memory", "Storage", "Graphics",
+                                          "Operating System", "Color", "Warranty"]},
+            "template_monitor": {"category_name": "Monitors",
+                                 "specs": ["Brand", "Model", "Screen Size", "Resolution", "Panel Type", "Refresh Rate",
+                                           "Ports", "Warranty"]},
+            "template_tv": {"category_name": "TVs",
+                            "specs": ["Brand", "Model", "Screen Size", "Resolution", "Smart TV", "Ports", "Warranty"]},
+            "template_phone": {"category_name": "Mobile Phones",
+                               "specs": ["Brand", "Model", "Screen", "Processor", "RAM", "Storage", "Main Camera",
+                                         "Front Camera", "Battery", "Color", "Warranty"]},
+            "template_printer": {"category_name": "Printers",
+                                 "specs": ["Brand", "Model", "Printer Type", "Print Technology", "Print Speed",
+                                           "Connectivity", "Warranty"]},
+            "template_ups": {"category_name": "UPS",
+                             "specs": ["Brand", "Model", "Capacity (VA)", "Capacity (Watts)", "Outlets", "Warranty"]}
         }
         with open(TEMPLATES_FILE, 'w', encoding='utf-8') as f:
             json.dump(default_templates, f, indent=4)
@@ -72,7 +55,6 @@ def get_item_templates():
 # --- Display Status Management ---
 
 def get_display_status():
-    """Loads the list of SKUs currently on display from a JSON file."""
     if not os.path.exists(DISPLAY_STATUS_FILE):
         return []
     try:
@@ -83,13 +65,11 @@ def get_display_status():
 
 
 def save_display_status(sku_list):
-    """Saves the list of on-display SKUs to a JSON file."""
     with open(DISPLAY_STATUS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sorted(list(set(sku_list))), f, indent=4)
 
 
 def add_item_to_display(sku):
-    """Adds a SKU to the on-display list."""
     if not sku: return
     on_display_skus = get_display_status()
     if sku not in on_display_skus:
@@ -98,7 +78,6 @@ def add_item_to_display(sku):
 
 
 def remove_item_from_display(sku):
-    """Removes a SKU from the on-display list."""
     if not sku: return
     on_display_skus = get_display_status()
     if sku in on_display_skus:
@@ -107,14 +86,12 @@ def remove_item_from_display(sku):
 
 
 def is_item_on_display(sku):
-    """Checks if a given SKU is in the on-display list."""
     return sku in get_display_status()
 
 
 # --- Main Data and Settings ---
 
 def get_all_items():
-    """Loads all items from the CSV data file."""
     try:
         with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
             return list(csv.DictReader(infile))
@@ -123,10 +100,6 @@ def get_all_items():
 
 
 def get_replacement_suggestions(category, branch_stock_column):
-    """
-    Finds items of the same category that are in stock AT A SPECIFIC BRANCH
-    and not on display.
-    """
     if not category or not branch_stock_column:
         return []
 
@@ -175,7 +148,6 @@ def add_new_item(item_data):
 
 
 def get_settings():
-    """Gets user settings, adding defaults for branch if they don't exist."""
     if not os.path.exists(USER_SETTINGS_FILE):
         settings = {
             "default_size": "14.4x8cm",
