@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
@@ -286,6 +287,24 @@ class PriceTagDashboard(QMainWindow):
         self.name_input.clear(); self.price_input.clear(); self.sale_price_input.clear(); self.specs_list.clear(); self.preview_label.setText(
             self.tr("preview_default_text")); self.current_item_data = {}
 
+    def extract_part_number(self, description):
+        """Finds and returns the part number from the description string."""
+        if not description: return ""
+        match = re.search(r'\[p/n\s*([^\]]+)\]', description)
+        return match.group(1).strip() if match else ""
+
+    def process_specifications(self, specs):
+        first_warranty_found = False
+        filtered_specs = []
+        for spec in specs:
+            if spec.lower().startswith('warranty:'):
+                if not first_warranty_found:
+                    filtered_specs.append(spec)
+                    first_warranty_found = True
+            else:
+                filtered_specs.append(spec)
+        return filtered_specs
+
     def find_item(self):
         sku = self.sku_input.text().strip().upper()
         if not sku: return
@@ -303,9 +322,14 @@ class PriceTagDashboard(QMainWindow):
         self.name_input.setText(item_data.get("Name", ""));
         self.price_input.setText(item_data.get("Regular price", "").strip());
         self.sale_price_input.setText(item_data.get("Sale price", "").strip())
-        specs = data_handler.extract_specifications(item_data.get('Description'));
+
+        specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
+
+        self.current_item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
+        specs = self.process_specifications(specs)
+
         self.specs_list.clear();
         self.specs_list.addItems(specs);
         self.update_preview()
@@ -416,9 +440,12 @@ class PriceTagDashboard(QMainWindow):
                 specs = data_handler.extract_specifications(item_data.get('Description'));
                 warranty = item_data.get('Attribute 3 value(s)')
                 if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
-                item_data['specs'] = specs[:size_config['specs']]
 
-                # UPDATED: This logic now correctly handles single vs dual language in batch mode.
+                specs = self.process_specifications(specs)
+
+                item_data['specs'] = specs[:size_config['specs']]
+                item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
+
                 if self.dual_lang_checkbox.isChecked():
                     tag_images.append(
                         price_generator.create_price_tag(item_data, size_config, theme_config, language='en'))
