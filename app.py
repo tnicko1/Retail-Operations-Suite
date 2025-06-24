@@ -65,7 +65,7 @@ class BatchDialog(QDialog):
         input_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
         self.add_button = QPushButton()
-        self.add_button.clicked.connect(self.add_sku)
+        self.add_button.clicked.connect(self.add_item)
         input_layout.addWidget(self.sku_input);
         input_layout.addWidget(self.add_button)
         layout.addLayout(input_layout);
@@ -82,7 +82,7 @@ class BatchDialog(QDialog):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
             if self.sku_input.hasFocus():
-                self.add_sku()
+                self.add_item()
                 return
         super().keyPressEvent(event)
 
@@ -98,23 +98,29 @@ class BatchDialog(QDialog):
         self.add_button.setEnabled(not is_full)
         self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder") if not is_full else "")
 
-    def add_sku(self):
+    def add_item(self):
         if self.sku_list_widget.count() >= self.max_items: QMessageBox.information(self,
                                                                                    self.tr.get("batch_limit_title"),
                                                                                    self.tr.get("batch_limit_message",
                                                                                                self.max_items)); return
-        sku = self.sku_input.text().strip().upper()
-        if not sku: return
-        if sku in [self.sku_list_widget.item(i).text() for i in
-                   range(self.sku_list_widget.count())]: QMessageBox.warning(self, self.tr.get("batch_duplicate_title"),
-                                                                             self.tr.get("batch_duplicate_message",
-                                                                                         sku)); return
-        if data_handler.find_item_by_sku(sku):
-            self.sku_list_widget.addItem(sku);
-            self.sku_input.clear();
-            self.check_limit()
-        else:
-            QMessageBox.warning(self, self.tr.get("sku_not_found_title"), self.tr.get("sku_not_found_message", sku))
+        identifier = self.sku_input.text().strip().upper()
+        if not identifier: return
+
+        item_data = data_handler.find_item_by_sku_or_barcode(identifier)
+        if not item_data:
+            QMessageBox.warning(self, self.tr.get("sku_not_found_title"),
+                                self.tr.get("sku_not_found_message", identifier))
+            return
+
+        sku_to_add = item_data.get('SKU')
+        if sku_to_add in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
+            QMessageBox.warning(self, self.tr.get("batch_duplicate_title"),
+                                self.tr.get("batch_duplicate_message", sku_to_add))
+            return
+
+        self.sku_list_widget.addItem(sku_to_add);
+        self.sku_input.clear();
+        self.check_limit()
 
     def remove_sku(self):
         for item in self.sku_list_widget.selectedItems(): self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
@@ -273,14 +279,12 @@ class PriceTagDashboard(QMainWindow):
         self.update_preview()
 
     def toggle_dual_language(self, state):
-        # Only save setting if the checkbox is enabled
         if self.dual_lang_checkbox.isEnabled():
             self.settings["generate_dual_language"] = bool(state)
             data_handler.save_settings(self.settings)
 
     def update_paper_size_combo(self):
         self.paper_sizes = data_handler.get_all_paper_sizes();
-        # Sort paper sizes based on dimensions for logical order
         sorted_sizes = sorted(self.paper_sizes.keys(),
                               key=lambda s: self.paper_sizes[s]['dims'][0] * self.paper_sizes[s]['dims'][1])
         self.paper_size_combo.clear();
@@ -303,7 +307,6 @@ class PriceTagDashboard(QMainWindow):
         self.current_item_data = {}
 
     def extract_part_number(self, description):
-        """Finds and returns the part number from the description string."""
         if not description: return ""
         match = re.search(r'\[p/n\s*([^\]]+)\]', description)
         return match.group(1).strip() if match else ""
@@ -321,18 +324,27 @@ class PriceTagDashboard(QMainWindow):
         return filtered_specs
 
     def find_item(self):
-        sku = self.sku_input.text().strip().upper()
-        if not sku: return
-        item_data = data_handler.find_item_by_sku(sku)
+        identifier = self.sku_input.text().strip().upper()
+        if not identifier: return
+
+        item_data = data_handler.find_item_by_sku_or_barcode(identifier)
+
         if not item_data:
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
-                                         self.tr("sku_not_found_message", sku) + self.tr("register_new_item_prompt"),
+                                         self.tr("sku_not_found_message", identifier) + self.tr(
+                                             "register_new_item_prompt"),
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
-                self.register_new_item(sku)
+                # We can only register a new item if the identifier looks like a SKU, not a long barcode
+                if len(identifier) < 10:  # Arbitrary length check for SKU vs Barcode
+                    self.register_new_item(identifier)
+                else:
+                    QMessageBox.warning(self, self.tr("new_item_validation_error"),
+                                        self.tr("cannot_register_barcode_error"))
             else:
                 self.clear_all_fields()
             return
+
         self.current_item_data = item_data.copy()
         self.name_input.setText(item_data.get("Name", ""));
         self.price_input.setText(item_data.get("Regular price", "").strip());
@@ -363,19 +375,13 @@ class PriceTagDashboard(QMainWindow):
                 QMessageBox.critical(self, self.tr("new_item_validation_error"), self.tr.get("new_item_save_error"))
 
     def handle_paper_size_change(self, size_name):
-        """Disables dual language for special sizes and updates preview."""
         is_special_size = size_name == '6x3.5cm'
-
         self.dual_lang_checkbox.setEnabled(not is_special_size)
         if is_special_size:
             self.dual_lang_checkbox.setChecked(False)
         else:
-            # Restore the user's saved setting when switching to a normal size
             self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
-
-        # Also hide/show spec editor based on size
         self.specs_group.setVisible(not is_special_size)
-
         self.update_preview()
 
     def update_preview(self):
@@ -384,8 +390,10 @@ class PriceTagDashboard(QMainWindow):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config,
-                                                     language=self.translator.language)
+
+        current_lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+
+        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, language=current_lang)
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
@@ -439,7 +447,6 @@ class PriceTagDashboard(QMainWindow):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
 
-        # Check if dual language is selected and the size is NOT the special accessory size
         if self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm':
             tag_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
             tag_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
@@ -449,8 +456,9 @@ class PriceTagDashboard(QMainWindow):
                 page.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
                 self.handle_printing(QPixmap(filename))
         else:
+            lang_to_generate = 'en' if size_name == '6x3.5cm' else self.translator.language
             tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config,
-                                                         language=self.translator.language)
+                                                         language=lang_to_generate)
             a4_page = a4_layout_generator.create_a4_for_single(tag_image)
             filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png");
             a4_page.save(filename, dpi=(price_generator.DPI, price_generator.DPI))
@@ -464,7 +472,6 @@ class PriceTagDashboard(QMainWindow):
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
-        # Check if dual language is selected and the size is NOT the special accessory size
         dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
 
         dialog = BatchDialog(max_items=layout_info['total'], translator=self.translator,
@@ -476,8 +483,8 @@ class PriceTagDashboard(QMainWindow):
 
             tag_images = []
             for sku in skus:
-                item_data = data_handler.find_item_by_sku(sku)
-                # Only process specs for non-accessory sizes
+                item_data = data_handler.find_item_by_sku(sku)  # Batch list always contains SKUs
+
                 if size_name != '6x3.5cm':
                     specs = data_handler.extract_specifications(item_data.get('Description'));
                     warranty = item_data.get('Attribute 3 value(s)')
@@ -485,7 +492,7 @@ class PriceTagDashboard(QMainWindow):
                     specs = self.process_specifications(specs)
                     item_data['specs'] = specs[:size_config['specs']]
                 else:
-                    item_data['specs'] = []  # Ensure specs are empty for accessory tag
+                    item_data['specs'] = []
 
                 item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
 
@@ -495,8 +502,9 @@ class PriceTagDashboard(QMainWindow):
                     tag_images.append(
                         price_generator.create_price_tag(item_data, size_config, theme_config, language='ka'))
                 else:
+                    lang_to_generate = 'en' if size_name == '6x3.5cm' else self.translator.language
                     tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config,
-                                                                       language='en'))  # Default to English for special size
+                                                                       language=lang_to_generate))
 
             a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
             filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
