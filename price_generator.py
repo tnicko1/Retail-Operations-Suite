@@ -35,7 +35,7 @@ BASE_ACC_PRICE_FONT_SIZE = 65
 # --- HELPER FUNCTIONS ---
 def get_font(font_path, size, fallback_path=None):
     try:
-        return ImageFont.truetype(font_path, int(size))  # Ensure size is integer
+        return ImageFont.truetype(font_path, int(size))
     except IOError:
         if fallback_path:
             try:
@@ -72,22 +72,18 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     draw = ImageDraw.Draw(img)
     text_color = "black"
 
-    # --- DYNAMIC SCALING ---
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
 
-    # --- Scaled Fonts ---
     sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_SKU_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
     name_font = get_font(PRIMARY_FONT_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
     price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
 
-    # --- Scaled Layout ---
     margin = 0.06 * width_px
     top_area_height = 0.22 * height_px
     bottom_area_height = 0.28 * height_px
     border_width = max(2, int(3 * scale_factor))
 
-    # --- Draw Separators ---
     top_sep_y = top_area_height
     draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=text_color,
               width=max(1, int(2 * scale_factor)))
@@ -95,7 +91,6 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=text_color,
               width=max(1, int(2 * scale_factor)))
 
-    # --- Draw Content ---
     sku_text = item_data.get('SKU', 'N/A')
     draw.text((width_px / 2, top_sep_y / 2), sku_text, font=sku_font, fill=text_color, anchor="mm")
 
@@ -135,19 +130,15 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     width_cm, height_cm = size_config['dims']
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
-    # --- ROUTER: Check for special accessory size ---
     if (width_cm, height_cm) == (6, 3.5):
         return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
 
-    # --- DEFAULT LOGIC: For all other standard sizes ---
     img = Image.new('RGB', (width_px, height_px), 'white')
     translator = Translator()
 
-    # --- DYNAMIC SCALING ---
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_AREA)
 
-    # --- Scaled Fonts ---
     title_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_TITLE_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
     spec_font_regular = get_font(PRIMARY_FONT_PATH, BASE_SPEC_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
     spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, BASE_SPEC_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
@@ -156,11 +147,9 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     strikethrough_font = get_font(PRIMARY_FONT_PATH, BASE_STRIKETHROUGH_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
     part_num_font = get_font(PRIMARY_FONT_PATH, BASE_PN_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
 
-    # --- Scaled Layout ---
     border_width = max(2, int(5 * scale_factor))
     line_width = max(1, int(3 * scale_factor))
 
-    # --- Theme Setup ---
     text_color = theme.get("text_color", "black")
     price_color = theme.get('price_color', '#D32F2F')
     strikethrough_color = theme.get("strikethrough_color", "black")
@@ -200,6 +189,7 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     except FileNotFoundError:
         print(f"Warning: Logo file not found at '{logo_to_use}'")
 
+    # **FIXED**: Restore part number drawing logic
     part_number = item_data.get('part_number', '')
     if part_number:
         pn_text = f"P/N: {part_number}"
@@ -231,7 +221,8 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     if num_specs > 0:
         line_height = specs_area_height / num_specs
         for i, spec in enumerate(specs):
-            current_y, current_x = int(specs_area_top + (i * line_height) + (line_height / 2)), int(margin + 20)
+            current_y, current_x = int(specs_area_top + (i * line_height) + (line_height / 2)), int(
+                margin + 20 * scale_factor)
             if bullet_img:
                 bullet_size = int(line_height * 0.6)
                 bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
@@ -267,7 +258,7 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         orig_text = f"₾{regular_price}"
         sale_text = f"₾{sale_price}"
         sale_bbox = price_font.getbbox(sale_text)
-        orig_x = price_x - (sale_bbox[2] - sale_bbox[0]) - (20 * scale_factor)  # Scale padding
+        orig_x = price_x - (sale_bbox[2] - sale_bbox[0]) - (20 * scale_factor)
         draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
         drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
         draw.line([(drawn_orig_bbox[0], price_y), (drawn_orig_bbox[2], price_y)], fill=strikethrough_color,
