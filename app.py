@@ -51,21 +51,20 @@ class NewItemDialog(QDialog):
 class BatchDialog(QDialog):
     def __init__(self, max_items, translator, dual_lang_enabled, parent=None):
         super().__init__(parent)
-        self.tr = translator;
+        self.tr = translator
         self.max_items = max_items // 2 if dual_lang_enabled else max_items
         self.setWindowTitle(self.tr.get("batch_dialog_title"));
         self.setMinimumSize(400, 500)
-        layout = QVBoxLayout(self);
+        layout = QVBoxLayout(self)
         self.list_label = QLabel(self.tr.get("batch_list_label", self.max_items))
         self.sku_list_widget = QListWidget();
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(self.list_label);
         layout.addWidget(self.sku_list_widget);
         input_layout = QHBoxLayout()
-        self.sku_input = QLineEdit();
-        self.sku_input.returnPressed.connect(self.add_sku);
+        self.sku_input = QLineEdit()
         self.add_button = QPushButton()
-        self.add_button.clicked.connect(self.add_sku);
+        self.add_button.clicked.connect(self.add_sku)
         input_layout.addWidget(self.sku_input);
         input_layout.addWidget(self.add_button)
         layout.addLayout(input_layout);
@@ -74,10 +73,17 @@ class BatchDialog(QDialog):
         layout.addWidget(self.remove_button);
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept);
-        self.button_box.rejected.connect(self.reject);
+        self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
         self.retranslate_ui();
         self.check_limit()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            if self.sku_input.hasFocus():
+                self.add_sku()
+                return
+        super().keyPressEvent(event)
 
     def retranslate_ui(self):
         self.sku_input.setPlaceholderText(self.tr.get("sku_placeholder"));
@@ -261,6 +267,7 @@ class PriceTagDashboard(QMainWindow):
         self.settings["language"] = new_lang
         data_handler.save_settings(self.settings);
         self.retranslate_ui()
+        self.update_preview()
 
     def toggle_dual_language(self, state):
         self.settings["generate_dual_language"] = bool(state); data_handler.save_settings(self.settings)
@@ -402,6 +409,7 @@ class PriceTagDashboard(QMainWindow):
         if dialog.exec():
             skus = dialog.get_skus()
             if not skus: QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message")); return
+
             tag_images = []
             for sku in skus:
                 item_data = data_handler.find_item_by_sku(sku)
@@ -409,10 +417,16 @@ class PriceTagDashboard(QMainWindow):
                 warranty = item_data.get('Attribute 3 value(s)')
                 if warranty and warranty != '-': specs.append(f"Warranty: {warranty}")
                 item_data['specs'] = specs[:size_config['specs']]
-                tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config, language='en'))
+
+                # UPDATED: This logic now correctly handles single vs dual language in batch mode.
                 if self.dual_lang_checkbox.isChecked():
                     tag_images.append(
+                        price_generator.create_price_tag(item_data, size_config, theme_config, language='en'))
+                    tag_images.append(
                         price_generator.create_price_tag(item_data, size_config, theme_config, language='ka'))
+                else:
+                    tag_images.append(price_generator.create_price_tag(item_data, size_config, theme_config,
+                                                                       language=self.translator.language))
 
             a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
             filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
@@ -425,6 +439,7 @@ class PriceTagDashboard(QMainWindow):
 if __name__ == "__main__":
     for folder in ['output', 'assets', 'fonts']:
         if not os.path.exists(folder): os.makedirs(folder)
+
     app = QApplication(sys.argv)
     dashboard = PriceTagDashboard()
     dashboard.show()
