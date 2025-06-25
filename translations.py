@@ -9,8 +9,8 @@ TRANSLATIONS = {
         "branch_vaja": "Vaja Shop",
         "branch_marj": "Marjanishvili Shop",
         "branch_gldani": "Gldani Shop",
-        "find_item_group": "1. Find Item by SKU / Barcode",
-        "sku_placeholder": "Enter SKU or Barcode and press Enter...",
+        "find_item_group": "1. Find Item by SKU / Barcode / P/N",
+        "sku_placeholder": "Enter SKU, Barcode, or P/N and press Enter...",
         "find_button": "Find",
         "item_details_group": "Item Details",
         "name_label": "Name:",
@@ -28,9 +28,9 @@ TRANSLATIONS = {
         "display_manager_button": "Display Manager...",
         "generate_single_button": "Generate Single Tag (on A4)",
         "generate_batch_button": "Generate Full A4 Batch",
-        "preview_default_text": "Enter an SKU or Barcode to see a preview.",
+        "preview_default_text": "Enter an SKU, Barcode, or P/N to see a preview.",
         "sku_not_found_title": "Not Found",
-        "sku_not_found_message": "Item with ID '{}' was not found in the data file.",
+        "sku_not_found_message": "Item with ID '{}' was not found in the database.",
         "register_new_item_prompt": "Would you like to register it as a new item?",
         "cannot_register_barcode_error": "Cannot register a new item using a barcode. Please use a new, unique SKU.",
         "remove_spec_title": "Remove",
@@ -46,7 +46,18 @@ TRANSLATIONS = {
         "set_to_storage_button": "Set to Storage",
         "item_returned_message": "Item {} marked as 'In Storage'.",
         "new_item_save_success": "Item '{}' has been saved.",
-        "new_item_save_error": "Could not save the new item to the data file.",
+        "new_item_save_error": "Could not save the new item to the database.",
+
+        # Admin Tools
+        "admin_tools_menu": "Admin Tools",
+        "admin_upload_master_list": "Update Product List from File...",
+        "admin_manage_users": "Manage Users...",
+        "user_mgmt_header_email": "Email",
+        "user_mgmt_header_role": "Role",
+        "user_mgmt_header_action": "Action",
+        "user_mgmt_promote_button": "Promote to Admin",
+        "user_mgmt_confirm_promote_title": "Confirm Promotion",
+        "user_mgmt_confirm_promote_message": "Are you sure you want to promote {} to an Admin?",
 
         # New Item & Template Dialogs
         "new_item_dialog_title": "Register New Item",
@@ -124,8 +135,8 @@ TRANSLATIONS = {
         "branch_vaja": "ვაჟას ფილიალი",
         "branch_marj": "მარჯანიშვილის ფილიალი",
         "branch_gldani": "გლდანის ფილიალი",
-        "find_item_group": "1. ძებნა (კოდით / შტრიხკოდით)",
-        "sku_placeholder": "შეიყვანეთ კოდი ან შტრიხკოდი...",
+        "find_item_group": "1. ძებნა (კოდით / შტრიხკოდით / P/N)",
+        "sku_placeholder": "შეიყვანეთ კოდი, შტრიხკოდი, ან P/N...",
         "find_button": "ძებნა",
         "item_details_group": "პროდუქტის მონაცემები",
         "name_label": "დასახელება:",
@@ -143,7 +154,7 @@ TRANSLATIONS = {
         "display_manager_button": "ვიტრინის მენეჯერი...",
         "generate_single_button": "1 ფასმაჩვენებელი (A4-ზე)",
         "generate_batch_button": "სრული A4 გვერდი",
-        "preview_default_text": "შეიყვანეთ კოდი ან შტრიხკოდი, რომ ნახოთ.",
+        "preview_default_text": "შეიყვანეთ კოდი, შტრიხკოდი, ან P/N, რომ ნახოთ.",
         "sku_not_found_title": "ვერ მოიძებნა",
         "sku_not_found_message": "პროდუქტი ID-ით '{}' ვერ მოიძებნა.",
         "register_new_item_prompt": "გსურთ ახალი პროდუქტის დამატება?",
@@ -162,6 +173,17 @@ TRANSLATIONS = {
         "item_returned_message": "პროდუქტი {} აღინიშნა როგორც 'საწყობშია'.",
         "new_item_save_success": "პროდუქტი '{}' შენახულია.",
         "new_item_save_error": "პროდუქტის შენახვა ვერ მოხერხდა.",
+
+        # Admin Tools
+        "admin_tools_menu": "ადმინის ხელსაწყოები",
+        "admin_upload_master_list": "პროდუქტების სიის განახლება...",
+        "admin_manage_users": "მომხმარებლების მართვა...",
+        "user_mgmt_header_email": "მეილი",
+        "user_mgmt_header_role": "როლი",
+        "user_mgmt_header_action": "მოქმედება",
+        "user_mgmt_promote_button": "ადმინად დაყენება",
+        "user_mgmt_confirm_promote_title": "დადასტურება",
+        "user_mgmt_confirm_promote_message": "დარწმუნებული ხართ, რომ გსურთ {} გახადოთ ადმინისტრატორი?",
 
         # New Item & Template Dialogs
         "new_item_dialog_title": "ახალი პროდუქტის რეგისტრაცია",
@@ -253,7 +275,6 @@ class Translator:
                 return f"<{key}>"
 
     def get_key_from_value(self, value_to_find):
-        """Finds the base key for a given translated value."""
         if not value_to_find:
             return None
 
@@ -264,7 +285,6 @@ class Translator:
         return None
 
     def get_spec_label(self, label, target_lang):
-        """Translates a specification label into the target language."""
         try:
             for key_en, value_en in TRANSLATIONS["en"]["spec_labels"].items():
                 if value_en.lower() == label.lower():
