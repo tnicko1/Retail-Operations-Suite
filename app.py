@@ -169,7 +169,7 @@ class BatchDialog(QDialog):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = data_handler.find_item_by_sku_or_barcode(identifier)
+        item_data = data_handler.find_item_by_identifier(identifier)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -239,14 +239,14 @@ class DisplayManagerDialog(QDialog):
         if not identifier:
             return
 
-        item_data = data_handler.find_item_by_sku_or_barcode(identifier)
+        item_data = data_handler.find_item_by_identifier(identifier)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
             return
 
         sku = item_data.get('SKU')
-        data_handler.remove_item_from_display(sku)
+        data_handler.remove_item_from_display(sku, self.branch_stock_column)
         QMessageBox.information(self, self.translator.get("success_title"),
                                 self.translator.get("item_returned_message", sku))
         self.return_input.clear()
@@ -506,6 +506,7 @@ class PriceTagDashboard(QMainWindow):
         if key:
             self.settings["default_branch"] = key
             data_handler.save_settings(self.settings)
+        self.update_status_display()
 
     def get_current_branch_column(self):
         current_branch_name = self.branch_combo.currentText()
@@ -540,28 +541,11 @@ class PriceTagDashboard(QMainWindow):
         self.update_status_display()
         self.toggle_status_button.setVisible(False)
 
-    def extract_part_number(self, description):
-        if not description: return ""
-        match = re.search(r'\[p/n\s*([^\]]+)\]', description)
-        return match.group(1).strip() if match else ""
-
-    def process_specifications(self, specs):
-        first_warranty_found = False
-        filtered_specs = []
-        for spec in specs:
-            if 'warranty' in spec.lower():
-                if not first_warranty_found:
-                    filtered_specs.append(spec)
-                    first_warranty_found = True
-            else:
-                filtered_specs.append(spec)
-        return filtered_specs
-
     def find_item(self):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = data_handler.find_item_by_sku_or_barcode(identifier)
+        item_data = data_handler.find_item_by_identifier(identifier)
         if not item_data:
             self.clear_all_fields()
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
@@ -595,19 +579,200 @@ class PriceTagDashboard(QMainWindow):
 
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
-        self.current_item_data['part_number'] = self.extract_part_number(item_data.get('Description', ''))
+
         specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
         self.current_item_data['all_specs'] = self.process_specifications(specs)
+        self.current_item_data['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
+
         self.sku_input.setText(self.current_item_data.get('SKU'))
         self.name_input.setText(self.current_item_data.get("Name", ""))
         self.price_input.setText(self.current_item_data.get("Regular price", "").strip())
         self.sale_price_input.setText(self.current_item_data.get("Sale price", "").strip())
+
         self.update_specs_list()
         self.update_status_display()
         self.update_preview()
+
+    def update_status_display(self):
+        if not self.current_item_data:
+            self.status_label_value.setText("-")
+            self.status_label_value.setStyleSheet("")
+            self.toggle_status_button.setVisible(False)
+            return
+
+        sku = self.current_item_data.get('SKU')
+        branch_column = self.get_current_branch_column()
+        if data_handler.is_item_on_display(sku, branch_column):
+            self.status_label_value.setText(self.tr('status_on_display'))
+            self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
+            self.toggle_status_button.setText(self.tr('set_to_storage_button'))
+        else:
+            self.status_label_value.setText(self.tr('status_in_storage'))
+            self.status_label_value.setStyleSheet("color: red; font-weight: bold;")
+            self.toggle_status_button.setText(self.tr('set_to_display_button'))
+        self.toggle_status_button.setVisible(True)
+
+    def toggle_display_status(self):
+        if not self.current_item_data: return
+        sku = self.current_item_data.get('SKU')
+        branch_column = self.get_current_branch_column()
+        if data_handler.is_item_on_display(sku, branch_column):
+            data_handler.remove_item_from_display(sku, branch_column)
+        else:
+            data_handler.add_item_to_display(sku, branch_column)
+        self.update_status_display()
+
+    def generate_single(self):
+        if not self.current_item_data:
+            QMessageBox.warning(self, self.tr("no_item_title"), self.tr("no_item_message"))
+            return
+        sku = self.current_item_data.get('SKU')
+        self.generate_single_by_sku(sku, mark_on_display=True)
+
+    def generate_single_by_sku(self, sku, mark_on_display=False):
+        item_data = data_handler.find_item_by_identifier(sku)
+        if not item_data:
+            QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
+            return
+
+        data_to_print = self._prepare_data_for_printing(item_data)
+
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
+        filename = ""
+        if is_dual:
+            tag_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
+            tag_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
+            a4_pages = a4_layout_generator.create_a4_for_dual_single(tag_en, tag_ka)
+            for i, page in enumerate(a4_pages):
+                filename = os.path.join("output", f"A4_DUAL_{data_to_print['SKU']}_{i + 1}.png")
+                page.save(filename, dpi=(300, 300))
+                self.handle_printing(QPixmap(filename))
+        else:
+            lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+            tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
+            a4_page = a4_layout_generator.create_a4_for_single(tag_image)
+            filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
+            a4_page.save(filename, dpi=(300, 300))
+            self.handle_printing(QPixmap(filename))
+        QMessageBox.information(self, self.tr("success_title"),
+                                self.tr("file_saved_message", os.path.abspath(filename)))
+        if mark_on_display:
+            branch_column = self.get_current_branch_column()
+            data_handler.add_item_to_display(sku, branch_column)
+
+        if self.current_item_data.get('SKU') == sku:
+            self.update_status_display()
+
+    def generate_batch(self):
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        if not size_name or not theme_name: return
+        size_config = self.paper_sizes[size_name]
+        theme_config = self.themes[theme_name]
+        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
+        dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
+        dialog = BatchDialog(layout_info['total'], self.translator, dual_lang_enabled, self)
+        if not dialog.exec(): return
+        skus = dialog.get_skus()
+        if not skus:
+            QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message"))
+            return
+
+        tag_images, valid_skus = [], []
+        branch_column = self.get_current_branch_column()
+        for sku in skus:
+            item_data = data_handler.find_item_by_identifier(sku)
+            if not item_data:
+                QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
+                continue
+
+            data_to_print = self._prepare_data_for_printing(item_data)
+            valid_skus.append(data_to_print.get('SKU'))
+            if dual_lang_enabled:
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
+            else:
+                lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+                tag_images.append(
+                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
+
+        if not tag_images: return
+        a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
+        filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
+        a4_sheet.save(filename, dpi=(300, 300))
+        self.handle_printing(QPixmap(filename))
+        QMessageBox.information(self, self.tr("success_title"),
+                                self.tr("file_saved_message", os.path.abspath(filename)))
+        for sku in valid_skus:
+            data_handler.add_item_to_display(sku, branch_column)
+        if self.current_item_data.get('SKU') in valid_skus:
+            self.update_status_display()
+
+    def get_current_data_from_ui(self):
+        if not self.current_item_data: return None
+        data = self.current_item_data.copy()
+        data['Name'] = self.name_input.text()
+        data['Regular price'] = self.price_input.text()
+        data['Sale price'] = self.sale_price_input.text()
+        data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
+        data['part_number'] = self.current_item_data.get('part_number', '')
+        return data
+
+    def _prepare_data_for_printing(self, item_data):
+        data_to_print = item_data.copy()
+        data_to_print['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
+
+        specs = data_handler.extract_specifications(item_data.get('Description'))
+        warranty = item_data.get('Attribute 3 value(s)')
+        if warranty and warranty != '-':
+            specs.append(f"Warranty: {warranty}")
+
+        processed_specs = self.process_specifications(specs)
+        data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
+        return data_to_print
+
+    def update_preview(self):
+        data_to_preview = self.get_current_data_from_ui()
+        if not data_to_preview: return
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        if not size_name or not theme_name: return
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        current_lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, language=current_lang)
+        q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
+                         QImage.Format.Format_RGB888)
+        pixmap = QPixmap.fromImage(q_image)
+        scaled_pixmap = pixmap.scaledToWidth(self.preview_label.width(), Qt.TransformationMode.SmoothTransformation)
+        self.preview_label.setPixmap(scaled_pixmap)
+
+    def handle_paper_size_change(self, size_name):
+        is_special_size = size_name == '6x3.5cm'
+        self.dual_lang_checkbox.setEnabled(not is_special_size)
+        if is_special_size:
+            self.dual_lang_checkbox.setChecked(False)
+        else:
+            self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
+        self.specs_group.setVisible(not is_special_size)
+        self.update_specs_list()
+        self.update_preview()
+
+    def update_specs_list(self):
+        """Updates the specs QListWidget based on the current paper size limit."""
+        if not self.current_item_data:
+            self.specs_list.clear()
+            return
+
+        all_specs = self.current_item_data.get('all_specs', [])
+        display_specs = self._prepare_specs_for_display(all_specs)
+
+        self.specs_list.clear()
+        self.specs_list.addItems(display_specs)
 
     def _prepare_specs_for_display(self, all_specs):
         size_name = self.paper_size_combo.currentText()
@@ -635,181 +800,17 @@ class PriceTagDashboard(QMainWindow):
         else:
             return all_specs[:spec_limit]
 
-    def update_specs_list(self):
-        """Updates the specs QListWidget based on the current paper size limit."""
-        if not self.current_item_data:
-            self.specs_list.clear()
-            return
-
-        all_specs = self.current_item_data.get('all_specs', [])
-        display_specs = self._prepare_specs_for_display(all_specs)
-
-        self.specs_list.clear()
-        self.specs_list.addItems(display_specs)
-
-    def update_status_display(self):
-        if not self.current_item_data:
-            self.status_label_value.setText("-")
-            self.status_label_value.setStyleSheet("")
-            self.toggle_status_button.setVisible(False)
-            return
-
-        sku = self.current_item_data.get('SKU')
-        if data_handler.is_item_on_display(sku):
-            self.status_label_value.setText(self.tr('status_on_display'))
-            self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
-            self.toggle_status_button.setText(self.tr('set_to_storage_button'))
-        else:
-            self.status_label_value.setText(self.tr('status_in_storage'))
-            self.status_label_value.setStyleSheet("color: red; font-weight: bold;")
-            self.toggle_status_button.setText(self.tr('set_to_display_button'))
-        self.toggle_status_button.setVisible(True)
-
-    def toggle_display_status(self):
-        if not self.current_item_data: return
-        sku = self.current_item_data.get('SKU')
-        if data_handler.is_item_on_display(sku):
-            data_handler.remove_item_from_display(sku)
-        else:
-            data_handler.add_item_to_display(sku)
-        self.update_status_display()
-
-    def generate_single(self):
-        if not self.current_item_data:
-            QMessageBox.warning(self, self.tr("no_item_title"), self.tr("no_item_message"))
-            return
-        sku = self.current_item_data.get('SKU')
-        self.generate_single_by_sku(sku, mark_on_display=True)
-
-    def generate_single_by_sku(self, sku, mark_on_display=False):
-        item_data = data_handler.find_item_by_sku_or_barcode(sku)
-        if not item_data:
-            QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
-            return
-
-        data_to_print = item_data.copy()
-        data_to_print['part_number'] = self.extract_part_number(item_data.get('Description', ''))
-        specs = data_handler.extract_specifications(item_data.get('Description'))
-        warranty = item_data.get('Attribute 3 value(s)')
-        if warranty and warranty != '-':
-            specs.append(f"Warranty: {warranty}")
-        processed_specs = self.process_specifications(specs)
-        data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
-
-        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
-        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
-        filename = ""
-        if is_dual:
-            tag_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
-            tag_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
-            a4_pages = a4_layout_generator.create_a4_for_dual_single(tag_en, tag_ka)
-            for i, page in enumerate(a4_pages):
-                filename = os.path.join("output", f"A4_DUAL_{data_to_print['SKU']}_{i + 1}.png")
-                page.save(filename, dpi=(300, 300))
-                self.handle_printing(QPixmap(filename))
-        else:
-            lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-            tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
-            a4_page = a4_layout_generator.create_a4_for_single(tag_image)
-            filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
-            a4_page.save(filename, dpi=(300, 300))
-            self.handle_printing(QPixmap(filename))
-        QMessageBox.information(self, self.tr("success_title"),
-                                self.tr("file_saved_message", os.path.abspath(filename)))
-        if mark_on_display:
-            data_handler.add_item_to_display(sku)
-
-        if self.current_item_data.get('SKU') == sku:
-            self.update_status_display()
-
-    def generate_batch(self):
-        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
-        if not size_name or not theme_name: return
-        size_config = self.paper_sizes[size_name]
-        theme_config = self.themes[theme_name]
-        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
-        dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
-        dialog = BatchDialog(layout_info['total'], self.translator, dual_lang_enabled, self)
-        if not dialog.exec(): return
-        skus = dialog.get_skus()
-        if not skus:
-            QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message"))
-            return
-
-        tag_images, valid_skus = [], []
-        for sku in skus:
-            item_data = data_handler.find_item_by_sku_or_barcode(sku)
-            if not item_data:
-                QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
-                continue
-
-            data_to_print = item_data.copy()
-            data_to_print['part_number'] = self.extract_part_number(item_data.get('Description', ''))
-            specs = data_handler.extract_specifications(item_data.get('Description'))
-            warranty = item_data.get('Attribute 3 value(s)')
-            if warranty and warranty != '-':
-                specs.append(f"Warranty: {warranty}")
-            processed_specs = self.process_specifications(specs)
-            data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
-
-            valid_skus.append(data_to_print.get('SKU'))
-            if dual_lang_enabled:
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
+    def process_specifications(self, specs):
+        first_warranty_found = False
+        filtered_specs = []
+        for spec in specs:
+            if 'warranty' in spec.lower():
+                if not first_warranty_found:
+                    filtered_specs.append(spec)
+                    first_warranty_found = True
             else:
-                lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
-
-        if not tag_images: return
-        a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
-        filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
-        a4_sheet.save(filename, dpi=(300, 300))
-        self.handle_printing(QPixmap(filename))
-        QMessageBox.information(self, self.tr("success_title"),
-                                self.tr("file_saved_message", os.path.abspath(filename)))
-        for sku in valid_skus: data_handler.add_item_to_display(sku)
-        if self.current_item_data.get('SKU') in valid_skus: self.update_status_display()
-
-    def get_current_data_from_ui(self):
-        if not self.current_item_data: return None
-        data = self.current_item_data.copy()
-        data['Name'] = self.name_input.text()
-        data['Regular price'] = self.price_input.text()
-        data['Sale price'] = self.sale_price_input.text()
-
-        # Get specs from the UI list, not the full list in memory
-        data['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
-        data['part_number'] = self.current_item_data.get('part_number', '')
-        return data
-
-    def update_preview(self):
-        data_to_preview = self.get_current_data_from_ui()
-        if not data_to_preview: return
-        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
-        if not size_name or not theme_name: return
-        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        current_lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, language=current_lang)
-        q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
-                         QImage.Format.Format_RGB888)
-        pixmap = QPixmap.fromImage(q_image)
-        scaled_pixmap = pixmap.scaledToWidth(self.preview_label.width(), Qt.TransformationMode.SmoothTransformation)
-        self.preview_label.setPixmap(scaled_pixmap)
-
-    def handle_paper_size_change(self, size_name):
-        is_special_size = size_name == '6x3.5cm'
-        self.dual_lang_checkbox.setEnabled(not is_special_size)
-        if is_special_size:
-            self.dual_lang_checkbox.setChecked(False)
-        else:
-            self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
-        self.specs_group.setVisible(not is_special_size)
-        self.update_specs_list()
-        self.update_preview()
+                filtered_specs.append(spec)
+        return filtered_specs
 
     def add_spec(self):
         self.specs_list.addItem("New Specification: Edit Me");
