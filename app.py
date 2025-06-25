@@ -204,6 +204,10 @@ class DisplayManagerDialog(QDialog):
         self.setWindowTitle(self.translator.get("display_manager_title"))
         self.setMinimumSize(800, 600)
 
+        self.original_suggestions = []
+        self.current_sort_column = -1
+        self.current_sort_order = None
+
         layout = QVBoxLayout(self)
 
         return_group = QGroupBox(self.translator.get("return_tag_group"))
@@ -230,6 +234,7 @@ class DisplayManagerDialog(QDialog):
         ])
         self.suggestions_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.suggestions_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.suggestions_table.horizontalHeader().sectionClicked.connect(self.handle_header_click)
         suggestions_layout.addWidget(self.suggestions_table)
         suggestions_group.setLayout(suggestions_layout)
 
@@ -238,8 +243,7 @@ class DisplayManagerDialog(QDialog):
 
     def find_replacements(self):
         identifier = self.return_input.text().strip().upper()
-        if not identifier:
-            return
+        if not identifier: return
 
         item_data = firebase_handler.find_item_by_identifier(identifier)
         if not item_data:
@@ -254,38 +258,110 @@ class DisplayManagerDialog(QDialog):
         self.return_input.clear()
 
         category = item_data.get('Categories')
-        suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_column)
-        self.populate_suggestions(suggestions)
+        self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_column)
+
+        self.current_sort_column = -1
+        self.current_sort_order = None
+        self.populate_suggestions(self.original_suggestions)
+        self.update_header_indicators()
 
         if self.parent and self.parent.current_item_data.get('SKU') == sku:
             self.parent.update_status_display()
 
+    def handle_header_click(self, logicalIndex):
+        if logicalIndex == 4:  # Action column is not sortable
+            return
+
+        if self.current_sort_column == logicalIndex:
+            if self.current_sort_order == Qt.SortOrder.AscendingOrder:
+                self.current_sort_order = Qt.SortOrder.DescendingOrder
+            else:
+                self.current_sort_column = -1
+                self.current_sort_order = None
+        else:
+            self.current_sort_column = logicalIndex
+            self.current_sort_order = Qt.SortOrder.AscendingOrder
+
+        self.sort_and_repopulate()
+
+    def _get_sort_key(self, item):
+        column = self.current_sort_column
+        try:
+            if column == 0:  # SKU
+                return item.get('SKU', '')
+            elif column == 1:  # Name
+                return item.get('Name', '').lower()
+            elif column == 2:  # Stock
+                stock_str = str(item.get(self.branch_stock_column, '0'))
+                return int(stock_str.replace(',', ''))
+            elif column == 3:  # Price
+                sale_price = item.get('Sale price', '').strip()
+                if sale_price and float(sale_price.replace(',', '.')) > 0:
+                    return float(sale_price.replace(',', '.'))
+                regular_price = item.get('Regular price', '').strip()
+                if regular_price:
+                    return float(regular_price.replace(',', '.'))
+                return 0
+        except (ValueError, TypeError):
+            return 0
+        return item
+
+    def sort_and_repopulate(self):
+        display_list = self.original_suggestions.copy()
+
+        if self.current_sort_order is not None:
+            reverse = self.current_sort_order == Qt.SortOrder.DescendingOrder
+            display_list.sort(key=self._get_sort_key, reverse=reverse)
+
+        self.populate_suggestions(display_list)
+        self.update_header_indicators()
+
+    def update_header_indicators(self):
+        header = self.suggestions_table.horizontalHeader()
+        for i in range(header.count()):
+            original_text = self.translator.get(f"suggestions_header_{['sku', 'name', 'stock', 'price', 'action'][i]}")
+            if i == self.current_sort_column:
+                if self.current_sort_order == Qt.SortOrder.AscendingOrder:
+                    self.suggestions_table.horizontalHeaderItem(i).setText(f"{original_text} ▲")
+                else:
+                    self.suggestions_table.horizontalHeaderItem(i).setText(f"{original_text} ▼")
+            else:
+                self.suggestions_table.horizontalHeaderItem(i).setText(original_text)
+
     def populate_suggestions(self, suggestions):
         self.suggestions_table.setRowCount(0)
-        if not suggestions:
-            return
+        if not suggestions: return
 
         self.suggestions_table.setRowCount(len(suggestions))
         for row, item in enumerate(suggestions):
-            sale_price = item.get('Sale price', '').strip()
-            regular_price = item.get('Regular price', '').strip()
-            display_price = f"₾{sale_price}" if sale_price and float(
-                sale_price.replace(',', '.')) > 0 else f"₾{regular_price}"
+            price_value = self._get_price_for_sort(item)
+            display_price = f"₾{price_value:.2f}" if price_value > 0 else "N/A"
 
             self.suggestions_table.setItem(row, 0, QTableWidgetItem(item.get('SKU')))
             self.suggestions_table.setItem(row, 1, QTableWidgetItem(item.get('Name')))
-            self.suggestions_table.setItem(row, 2, QTableWidgetItem(item.get(self.branch_stock_column, '0')))
+            self.suggestions_table.setItem(row, 2, QTableWidgetItem(str(item.get(self.branch_stock_column, '0'))))
             self.suggestions_table.setItem(row, 3, QTableWidgetItem(display_price))
 
             print_button = QPushButton(self.translator.get("quick_print_button"))
-            print_button.clicked.connect(lambda _, r=row: self.quick_print_tag(r))
+            print_button.clicked.connect(lambda _, r=row, s=item.get('SKU'): self.quick_print_tag(r, s))
             self.suggestions_table.setCellWidget(row, 4, print_button)
 
-    def quick_print_tag(self, row):
-        sku = self.suggestions_table.item(row, 0).text()
+    def _get_price_for_sort(self, item):
+        try:
+            sale_price = item.get('Sale price', '').strip()
+            if sale_price and float(sale_price.replace(',', '.')) > 0:
+                return float(sale_price.replace(',', '.'))
+            regular_price = item.get('Regular price', '').strip()
+            if regular_price: return float(regular_price.replace(',', '.'))
+        except (ValueError, TypeError):
+            pass
+        return 0
+
+    def quick_print_tag(self, row, sku):
         if self.parent:
             self.parent.generate_single_by_sku(sku, mark_on_display=True)
-            self.suggestions_table.removeRow(row)
+            self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
+            self.sort_and_repopulate()
 
 
 class UserManagementDialog(QDialog):
@@ -332,7 +408,7 @@ class UserManagementDialog(QDialog):
                                      self.translator.get("user_mgmt_confirm_promote_message", email))
         if reply == QMessageBox.StandardButton.Yes:
             firebase_handler.promote_user_to_admin(uid)
-            self.load_users()  # Refresh table
+            self.load_users()
 
 
 class PriceTagDashboard(QMainWindow):
@@ -927,7 +1003,6 @@ class PriceTagDashboard(QMainWindow):
             painter.end()
 
 
-# The main execution flow is now handled by main.py
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     QMessageBox.critical(None, "Error", "This file is not the main entry point. Please run main.py")
