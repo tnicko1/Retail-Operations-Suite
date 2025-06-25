@@ -1,0 +1,9 @@
+{
+  "apiKey": "AIzaSyAOsaDczJjQ3zMFDyxuVocifCLJPDQK6Dw",
+  "authDomain": "price-tag-manager.firebaseapp.com",
+  "databaseURL": "https://price-tag-manager-default-rtdb.europe-west1.firebasedatabase.app",
+  "projectId": "price-tag-manager",
+  "storageBucket": "price-tag-manager.appspot.com",
+  "messagingSenderId": "234282658023",
+  "appId": "1:234282658023:web:53c408097a6c3412deda42"
+}
