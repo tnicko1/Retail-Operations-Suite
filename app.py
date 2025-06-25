@@ -5,11 +5,13 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
-                             QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog)
-from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter
+                             QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
+                             QMenuBar)
+from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
+import firebase_handler
 import data_handler
 import price_generator
 import a4_layout_generator
@@ -169,7 +171,7 @@ class BatchDialog(QDialog):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = data_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -239,20 +241,20 @@ class DisplayManagerDialog(QDialog):
         if not identifier:
             return
 
-        item_data = data_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
             return
 
         sku = item_data.get('SKU')
-        data_handler.remove_item_from_display(sku, self.branch_stock_column)
+        firebase_handler.remove_item_from_display(sku, self.branch_stock_column)
         QMessageBox.information(self, self.translator.get("success_title"),
                                 self.translator.get("item_returned_message", sku))
         self.return_input.clear()
 
         category = item_data.get('Categories')
-        suggestions = data_handler.get_replacement_suggestions(category, self.branch_stock_column)
+        suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_column)
         self.populate_suggestions(suggestions)
 
         if self.parent and self.parent.current_item_data.get('SKU') == sku:
@@ -286,9 +288,57 @@ class DisplayManagerDialog(QDialog):
             self.suggestions_table.removeRow(row)
 
 
+class UserManagementDialog(QDialog):
+    def __init__(self, translator, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.setWindowTitle(self.translator.get("admin_manage_users"))
+        self.setMinimumSize(600, 400)
+
+        layout = QVBoxLayout(self)
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels([
+            self.translator.get("user_mgmt_header_email"),
+            self.translator.get("user_mgmt_header_role"),
+            self.translator.get("user_mgmt_header_action")
+        ])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+        layout.addWidget(self.table)
+        self.load_users()
+
+    def load_users(self):
+        self.table.setRowCount(0)
+        users = firebase_handler.get_all_users()
+        if not users:
+            return
+
+        self.table.setRowCount(len(users))
+        for row_num, user in enumerate(users):
+            self.table.setItem(row_num, 0, QTableWidgetItem(user.get("email")))
+            self.table.setItem(row_num, 1, QTableWidgetItem(user.get("role")))
+
+            if user.get("role") != "Admin":
+                promote_button = QPushButton(self.translator.get("user_mgmt_promote_button"))
+                promote_button.clicked.connect(lambda _, u=user: self.promote_user(u))
+                self.table.setCellWidget(row_num, 2, promote_button)
+
+    def promote_user(self, user):
+        uid = user.get("uid")
+        email = user.get("email")
+        reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
+                                     self.translator.get("user_mgmt_confirm_promote_message", email))
+        if reply == QMessageBox.StandardButton.Yes:
+            firebase_handler.promote_user_to_admin(uid)
+            self.load_users()  # Refresh table
+
+
 class PriceTagDashboard(QMainWindow):
-    def __init__(self):
+    def __init__(self, user):
         super().__init__()
+        self.user = user
         self.settings = data_handler.get_settings()
         self.translator = Translator(self.settings.get("language", "en"))
         self.tr = self.translator.get
@@ -311,6 +361,7 @@ class PriceTagDashboard(QMainWindow):
                        "logo_path": "assets/logo-santa-hat.png", "logo_path_ka": "assets/logo-geo-santa-hat.png",
                        "logo_scale_factor": 1.1, "bullet_image_path": "assets/snowflake.png", "background_snow": True}
         }
+        self.create_menu()
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
@@ -318,6 +369,33 @@ class PriceTagDashboard(QMainWindow):
         main_layout.addWidget(self.create_right_panel(), 2)
         self.retranslate_ui()
         self.clear_all_fields()
+
+    def create_menu(self):
+        menu_bar = self.menuBar()
+        menu_bar.clear()
+        if self.user.get('role') == 'Admin':
+            admin_menu = menu_bar.addMenu(self.tr('admin_tools_menu'))
+
+            upload_action = QAction(self.tr('admin_upload_master_list'), self)
+            upload_action.triggered.connect(self.upload_master_list)
+            admin_menu.addAction(upload_action)
+
+            user_mgmt_action = QAction(self.tr('admin_manage_users'), self)
+            user_mgmt_action.triggered.connect(self.open_user_management)
+            admin_menu.addAction(user_mgmt_action)
+
+    def open_user_management(self):
+        dialog = UserManagementDialog(self.translator, self)
+        dialog.exec()
+
+    def upload_master_list(self):
+        filepath, _ = QFileDialog.getOpenFileName(self, "Open Master List", "", "Text Files (*.txt);;All Files (*)")
+        if filepath:
+            success, message = firebase_handler.sync_products_from_file(filepath)
+            if success:
+                QMessageBox.information(self, "Success", message)
+            else:
+                QMessageBox.critical(self, "Error", message)
 
     def create_left_panel(self):
         panel = QWidget()
@@ -452,6 +530,7 @@ class PriceTagDashboard(QMainWindow):
         self.update_branch_combo()
         self.update_paper_size_combo()
         self.update_theme_combo()
+        self.create_menu()
 
         self.find_item_group.setTitle(self.tr("find_item_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
@@ -545,7 +624,7 @@ class PriceTagDashboard(QMainWindow):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = data_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier)
         if not item_data:
             self.clear_all_fields()
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
@@ -570,7 +649,7 @@ class PriceTagDashboard(QMainWindow):
         dialog = NewItemDialog(sku, self.translator, template=template_specs, category_name=category_name, parent=self)
         if dialog.exec():
             new_data = dialog.new_item_data
-            if data_handler.add_new_item(new_data):
+            if firebase_handler.add_new_item(new_data):
                 QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
                 self.sku_input.setText(sku)
                 self.find_item()
@@ -580,12 +659,12 @@ class PriceTagDashboard(QMainWindow):
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
 
-        specs = data_handler.extract_specifications(item_data.get('Description'))
+        specs = firebase_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
         self.current_item_data['all_specs'] = self.process_specifications(specs)
-        self.current_item_data['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
+        self.current_item_data['part_number'] = firebase_handler.extract_part_number(item_data.get('Description', ''))
 
         self.sku_input.setText(self.current_item_data.get('SKU'))
         self.name_input.setText(self.current_item_data.get("Name", ""))
@@ -605,7 +684,7 @@ class PriceTagDashboard(QMainWindow):
 
         sku = self.current_item_data.get('SKU')
         branch_column = self.get_current_branch_column()
-        if data_handler.is_item_on_display(sku, branch_column):
+        if firebase_handler.is_item_on_display(sku, branch_column):
             self.status_label_value.setText(self.tr('status_on_display'))
             self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_storage_button'))
@@ -619,10 +698,10 @@ class PriceTagDashboard(QMainWindow):
         if not self.current_item_data: return
         sku = self.current_item_data.get('SKU')
         branch_column = self.get_current_branch_column()
-        if data_handler.is_item_on_display(sku, branch_column):
-            data_handler.remove_item_from_display(sku, branch_column)
+        if firebase_handler.is_item_on_display(sku, branch_column):
+            firebase_handler.remove_item_from_display(sku, branch_column)
         else:
-            data_handler.add_item_to_display(sku, branch_column)
+            firebase_handler.add_item_to_display(sku, branch_column)
         self.update_status_display()
 
     def generate_single(self):
@@ -633,7 +712,7 @@ class PriceTagDashboard(QMainWindow):
         self.generate_single_by_sku(sku, mark_on_display=True)
 
     def generate_single_by_sku(self, sku, mark_on_display=False):
-        item_data = data_handler.find_item_by_identifier(sku)
+        item_data = firebase_handler.find_item_by_identifier(sku)
         if not item_data:
             QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
@@ -663,7 +742,7 @@ class PriceTagDashboard(QMainWindow):
                                 self.tr("file_saved_message", os.path.abspath(filename)))
         if mark_on_display:
             branch_column = self.get_current_branch_column()
-            data_handler.add_item_to_display(sku, branch_column)
+            firebase_handler.add_item_to_display(sku, branch_column)
 
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
@@ -685,7 +764,7 @@ class PriceTagDashboard(QMainWindow):
         tag_images, valid_skus = [], []
         branch_column = self.get_current_branch_column()
         for sku in skus:
-            item_data = data_handler.find_item_by_identifier(sku)
+            item_data = firebase_handler.find_item_by_identifier(sku)
             if not item_data:
                 QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
                 continue
@@ -710,7 +789,7 @@ class PriceTagDashboard(QMainWindow):
         QMessageBox.information(self, self.tr("success_title"),
                                 self.tr("file_saved_message", os.path.abspath(filename)))
         for sku in valid_skus:
-            data_handler.add_item_to_display(sku, branch_column)
+            firebase_handler.add_item_to_display(sku, branch_column)
         if self.current_item_data.get('SKU') in valid_skus:
             self.update_status_display()
 
@@ -763,7 +842,6 @@ class PriceTagDashboard(QMainWindow):
         self.update_preview()
 
     def update_specs_list(self):
-        """Updates the specs QListWidget based on the current paper size limit."""
         if not self.current_item_data:
             self.specs_list.clear()
             return
@@ -849,10 +927,7 @@ class PriceTagDashboard(QMainWindow):
             painter.end()
 
 
+# The main execution flow is now handled by main.py
 if __name__ == "__main__":
-    for folder in ['output', 'assets', 'fonts']:
-        if not os.path.exists(folder): os.makedirs(folder)
     app = QApplication(sys.argv)
-    dashboard = PriceTagDashboard()
-    dashboard.show()
-    sys.exit(app.exec())
+    QMessageBox.critical(None, "Error", "This file is not the main entry point. Please run main.py")
