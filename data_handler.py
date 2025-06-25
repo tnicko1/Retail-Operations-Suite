@@ -1,6 +1,7 @@
 import csv
 import os
 import json
+import re
 from bs4 import BeautifulSoup
 
 DATA_FILE = 'Items for Web Mixed.txt'
@@ -16,6 +17,21 @@ DEFAULT_PAPER_SIZES = {
     '17x12cm': {'dims': (17, 12), 'spec_limit': 11}
 }
 CSV_HEADERS = None
+
+
+# --- Helper Functions ---
+def extract_part_number(description):
+    if not description: return ""
+    match = re.search(r'\[p/n\s*([^\]]+)\]', description, re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+
+def get_all_items():
+    try:
+        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
+            return list(csv.DictReader(infile))
+    except FileNotFoundError:
+        return []
 
 
 # --- Template Management ---
@@ -52,59 +68,67 @@ def get_item_templates():
         return {}
 
 
-# --- Display Status Management ---
+# --- Display Status Management (Branch-Specific) ---
 
 def get_display_status():
+    """Loads the display status dictionary from a JSON file. Keys are branches."""
     if not os.path.exists(DISPLAY_STATUS_FILE):
-        return []
+        return {}
     try:
         with open(DISPLAY_STATUS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Backward compatibility: convert old list format to new dict format
+            if isinstance(data, list):
+                print("Old display_status format detected, converting to new format.")
+                new_data = {"Stock Vaja": data, "Stock Marj": [], "Stock Gldan": []}
+                save_display_status(new_data)
+                return new_data
+            return data
     except (json.JSONDecodeError, FileNotFoundError):
-        return []
+        return {}
 
 
-def save_display_status(sku_list):
+def save_display_status(status_dict):
+    """Saves the display status dictionary to a JSON file."""
     with open(DISPLAY_STATUS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(sorted(list(set(sku_list))), f, indent=4)
+        json.dump(status_dict, f, indent=4)
 
 
-def add_item_to_display(sku):
-    if not sku: return
-    on_display_skus = get_display_status()
-    if sku not in on_display_skus:
-        on_display_skus.append(sku)
-        save_display_status(on_display_skus)
+def add_item_to_display(sku, branch_column):
+    """Adds a SKU to the on-display list for a specific branch."""
+    if not sku or not branch_column: return
+    status_dict = get_display_status()
+    if branch_column not in status_dict:
+        status_dict[branch_column] = []
+
+    if sku not in status_dict[branch_column]:
+        status_dict[branch_column].append(sku)
+        save_display_status(status_dict)
 
 
-def remove_item_from_display(sku):
-    if not sku: return
-    on_display_skus = get_display_status()
-    if sku in on_display_skus:
-        on_display_skus.remove(sku)
-        save_display_status(on_display_skus)
+def remove_item_from_display(sku, branch_column):
+    """Removes a SKU from the on-display list for a specific branch."""
+    if not sku or not branch_column: return
+    status_dict = get_display_status()
+    if branch_column in status_dict and sku in status_dict[branch_column]:
+        status_dict[branch_column].remove(sku)
+        save_display_status(status_dict)
 
 
-def is_item_on_display(sku):
-    return sku in get_display_status()
+def is_item_on_display(sku, branch_column):
+    """Checks if a given SKU is in the on-display list for a specific branch."""
+    status_dict = get_display_status()
+    return sku in status_dict.get(branch_column, [])
 
 
 # --- Main Data and Settings ---
-
-def get_all_items():
-    try:
-        with open(DATA_FILE, mode='r', encoding='utf-8-sig') as infile:
-            return list(csv.DictReader(infile))
-    except FileNotFoundError:
-        return []
-
 
 def get_replacement_suggestions(category, branch_stock_column):
     if not category or not branch_stock_column:
         return []
 
     all_items = get_all_items()
-    on_display_skus = get_display_status()
+    on_display_skus = get_display_status().get(branch_stock_column, [])
     suggestions = []
 
     for item in all_items:
@@ -180,7 +204,7 @@ def get_all_paper_sizes():
     return all_sizes
 
 
-def find_item_by_sku_or_barcode(identifier):
+def find_item_by_identifier(identifier):
     if not identifier:
         return None
 
@@ -194,6 +218,11 @@ def find_item_by_sku_or_barcode(identifier):
 
     for row in all_items:
         if row.get('Attribute 4 value(s)') == identifier:
+            return row
+
+    for row in all_items:
+        part_number = extract_part_number(row.get('Description', ''))
+        if part_number and part_number.upper() == identifier.upper():
             return row
 
     return None
