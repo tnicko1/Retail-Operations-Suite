@@ -1,2 +1,4 @@
-Pillow~=11.2.1
-beautifulsoup4~=4.13.4
+PyQt6
+Pillow
+beautifulsoup4
+Pyrebase4
