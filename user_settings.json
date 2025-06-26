@@ -3,6 +3,6 @@
     "custom_sizes": {},
     "default_theme": "Default",
     "language": "en",
-    "generate_dual_language": false,
-    "default_branch": "branch_marj"
+    "generate_dual_language": true,
+    "default_branch": "branch_gldani"
 }
