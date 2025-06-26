@@ -9,8 +9,12 @@ firebase_app = None
 auth = None
 db = None
 
+# A simple cache for category data to reduce downloads
+category_cache = {}
+
 
 def initialize_firebase():
+    """Initializes the Firebase app using credentials from config.json."""
     global firebase_app, auth, db
     try:
         with open('config.json', 'r') as f:
@@ -98,7 +102,6 @@ def sync_products_from_file(filepath):
 
 
 def add_new_item(item_data):
-    """Adds a single new item to the database."""
     sku = item_data.get("SKU")
     if not sku:
         return False
@@ -110,25 +113,30 @@ def add_new_item(item_data):
         return False
 
 
-def get_all_items():
-    all_items = db.child("items").get().val()
-    return list(all_items.values()) if all_items else []
-
-
 def find_item_by_identifier(identifier):
+    """
+    Optimized function to find an item by SKU, Barcode, or Part Number from Firebase.
+    """
     if not identifier: return None
 
+    # 1. Search by SKU (direct lookup, very fast)
+    item = db.child("items").child(identifier).get().val()
+    if item:
+        return item
+
+    # 2. Search by Barcode (uses database index, very fast)
+    try:
+        results = db.child("items").order_by_child("Attribute 4 value(s)").equal_to(identifier).get().val()
+        if results:
+            # The result is a dict {key: value}, we just need the first value
+            return list(results.values())[0]
+    except Exception as e:
+        print(f"Warning: Query on barcode failed. Is it indexed in Firebase Rules? Error: {e}")
+
+    # 3. Search by Part Number (least efficient, downloads all items as a last resort)
     all_items_dict = db.child("items").get().val()
     if not all_items_dict: return None
-
-    # 1. Search by SKU
-    if identifier in all_items_dict:
-        return all_items_dict[identifier]
-
-    # 2. Search by Barcode and Part Number
     for sku, item_data in all_items_dict.items():
-        if item_data.get('Attribute 4 value(s)') == identifier:
-            return item_data
         part_number = extract_part_number(item_data.get('Description', ''))
         if part_number and part_number.upper() == identifier.upper():
             return item_data
@@ -137,21 +145,39 @@ def find_item_by_identifier(identifier):
 
 
 def get_replacement_suggestions(category, branch_stock_column):
-    all_items = get_all_items()
-    if not all_items: return []
+    """
+    Optimized function to find suggestions. It downloads only the relevant category
+    and caches it for the session to avoid repeated downloads.
+    """
+    global category_cache
+    if not category or not branch_stock_column:
+        return []
+
+    # Use cached data if available
+    if category in category_cache:
+        category_items = category_cache[category]
+    else:
+        # If not cached, query Firebase for the category and cache the result
+        try:
+            results = db.child("items").order_by_child("Categories").equal_to(category).get().val()
+            category_items = list(results.values()) if results else []
+            category_cache[category] = category_items
+        except Exception as e:
+            print(f"Warning: Query on category failed. Is it indexed in Firebase Rules? Error: {e}")
+            category_items = []
 
     status_dict = get_display_status()
     on_display_skus = status_dict.get(branch_stock_column, [])
     suggestions = []
 
-    for item in all_items:
+    for item in category_items:
         stock_str = item.get(branch_stock_column, '0')
         is_in_stock = False
         if stock_str:
             stock_value_clean = str(stock_str).replace(',', '')
             is_in_stock = int(stock_value_clean) > 0 if stock_value_clean.isdigit() else False
 
-        if item.get('Categories') == category and item.get('SKU') not in on_display_skus and is_in_stock:
+        if item.get('SKU') not in on_display_skus and is_in_stock:
             suggestions.append(item)
 
     return suggestions
