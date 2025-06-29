@@ -84,7 +84,7 @@ TRANSLATIONS = {
 
         # Batch Dialog
         "batch_dialog_title": "Generate A4 Batch",
-        "batch_list_label": "Items to add (max {} for this paper size):",
+        "batch_list_label_unlimited": "Items to add (Count: {})",
         "batch_add_sku_button": "Add Item",
         "batch_remove_button": "Remove Selected",
         "batch_generate_button": "Generate",
@@ -210,7 +210,7 @@ TRANSLATIONS = {
 
         # Batch Dialog
         "batch_dialog_title": "A4 გვერდის გენერირება",
-        "batch_list_label": "დასამატებელი კოდები (მაქსიმუმ {} ამ ზომაზე):",
+        "batch_list_label_unlimited": "დამატებული კოდები (რაოდენობა: {})",
         "batch_add_sku_button": "დამატება",
         "batch_remove_button": "მონიშნულის წაშლა",
         "batch_generate_button": "გენერირება",
