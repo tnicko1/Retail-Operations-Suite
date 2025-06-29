@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar)
+                             QMenuBar, QTabWidget, QMenu)
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
@@ -30,9 +30,9 @@ class TemplateSelectionDialog(QDialog):
         layout.addWidget(QLabel(self.translator.get("template_selection_label")))
 
         self.template_list = QListWidget()
-        self.templates = data_handler.get_item_templates()
+        self.templates = data_handler.get_item_templates(parent.token if parent else None)
         for key in self.templates.keys():
-            self.template_list.addItem(self.translator.get(key))
+            self.template_list.addItem(self.templates[key]['category_name'])
         self.template_list.itemDoubleClicked.connect(self.accept)
         layout.addWidget(self.template_list)
 
@@ -48,8 +48,12 @@ class TemplateSelectionDialog(QDialog):
                                 self.translator.get("template_validation_error_message"))
             return
 
-        self.selected_template_key = self.translator.get_key_from_value(selected_item.text())
-        self.selected_template_data = self.templates.get(self.selected_template_key)
+        selected_name = selected_item.text()
+        for key, value in self.templates.items():
+            if value['category_name'] == selected_name:
+                self.selected_template_key = key
+                self.selected_template_data = value
+                break
 
         super().accept()
 
@@ -112,59 +116,89 @@ class NewItemDialog(QDialog):
         self.accept()
 
 
-class BatchDialog(QDialog):
-    def __init__(self, translator, parent=None):
+class PrintQueueDialog(QDialog):
+    def __init__(self, translator, user, parent=None):
         super().__init__(parent)
         self.translator = translator
-        self.setWindowTitle(self.translator.get("batch_dialog_title"));
-        self.setMinimumSize(400, 500)
-        layout = QVBoxLayout(self)
+        self.user = user
+        self.uid = self.user.get('localId')
+        self.token = self.user.get('idToken')
+        self.parent_window = parent
 
-        self.list_label = QLabel(self.translator.get("batch_list_label_unlimited", 0))
+        self.setWindowTitle(self.translator.get("print_queue_title"))
+        self.setMinimumSize(600, 700)
 
-        self.sku_list_widget = QListWidget();
-        self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        layout.addWidget(self.list_label);
-        layout.addWidget(self.sku_list_widget);
-        input_layout = QHBoxLayout()
+        main_layout = QVBoxLayout(self)
+
+        # --- Quick Add Group ---
+        add_group = QGroupBox(self.translator.get("print_queue_add_item_group"))
+        add_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
-        self.add_button = QPushButton()
-        self.add_button.clicked.connect(self.add_item)
-        input_layout.addWidget(self.sku_input);
-        input_layout.addWidget(self.add_button)
-        layout.addLayout(input_layout);
-        self.remove_button = QPushButton();
-        self.remove_button.clicked.connect(self.remove_sku)
-        layout.addWidget(self.remove_button);
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.accepted.connect(self.accept);
-        self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
-        self.retranslate_ui();
+        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder"))
+        self.add_button = QPushButton(self.translator.get("print_queue_add_button"))
+        self.add_button.clicked.connect(self.add_item_from_input)
+        add_layout.addWidget(self.sku_input)
+        add_layout.addWidget(self.add_button)
+        add_group.setLayout(add_layout)
+        main_layout.addWidget(add_group)
+
+        # --- Queue List ---
+        queue_group = QGroupBox(self.translator.get("print_queue_skus_group"))
+        queue_layout = QVBoxLayout()
+        self.sku_list_widget = QListWidget()
+        self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        queue_layout.addWidget(self.sku_list_widget)
+
+        buttons_layout = QHBoxLayout()
+        self.remove_button = QPushButton(self.translator.get("print_queue_remove_button"))
+        self.remove_button.clicked.connect(self.remove_selected)
+        self.clear_button = QPushButton(self.translator.get("print_queue_clear_button"))
+        self.clear_button.clicked.connect(self.clear_queue)
+        buttons_layout.addWidget(self.remove_button)
+        buttons_layout.addWidget(self.clear_button)
+        buttons_layout.addStretch()
+        queue_layout.addLayout(buttons_layout)
+        queue_group.setLayout(queue_layout)
+        main_layout.addWidget(queue_group)
+
+        # --- Saved Lists ---
+        saved_group = QGroupBox(self.translator.get("print_queue_load_save_group"))
+        saved_layout = QHBoxLayout()
+        self.saved_lists_combo = QComboBox()
+        self.load_button = QPushButton(self.translator.get("print_queue_load_button"))
+        self.load_button.clicked.connect(self.load_list)
+        self.save_button = QPushButton(self.translator.get("print_queue_save_button"))
+        self.save_button.clicked.connect(self.save_list)
+        self.delete_list_button = QPushButton(self.translator.get("print_queue_delete_button"))
+        self.delete_list_button.clicked.connect(self.delete_list)
+        saved_layout.addWidget(self.saved_lists_combo)
+        saved_layout.addWidget(self.load_button)
+        saved_layout.addWidget(self.save_button)
+        saved_layout.addWidget(self.delete_list_button)
+        saved_group.setLayout(saved_layout)
+        main_layout.addWidget(saved_group)
+
+        # --- Main Action Buttons ---
+        self.generate_button = QPushButton(self.translator.get("print_queue_generate_button"))
+        self.generate_button.setFixedHeight(40)
+        self.generate_button.clicked.connect(self.accept)
+        main_layout.addWidget(self.generate_button)
+
+        self.load_saved_lists()
+        self.load_queue()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
             if self.sku_input.hasFocus():
-                self.add_item()
+                self.add_item_from_input()
                 return
         super().keyPressEvent(event)
 
-    def retranslate_ui(self):
-        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder"));
-        self.add_button.setText(self.translator.get("batch_add_sku_button"))
-        self.remove_button.setText(self.translator.get("batch_remove_button"));
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.translator.get("batch_generate_button"))
-        self.update_item_count()
-
-    def update_item_count(self):
-        count = self.sku_list_widget.count()
-        self.list_label.setText(self.translator.get("batch_list_label_unlimited", count))
-
-    def add_item(self):
+    def add_item_from_input(self):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier, None)
+        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -176,16 +210,276 @@ class BatchDialog(QDialog):
                                 self.translator.get("batch_duplicate_message", sku_to_add))
             return
 
-        self.sku_list_widget.addItem(sku_to_add);
-        self.sku_input.clear();
-        self.update_item_count()
+        self.sku_list_widget.addItem(sku_to_add)
+        self.save_queue()  # Save changes to Firebase
+        self.sku_input.clear()
 
-    def remove_sku(self):
-        for item in self.sku_list_widget.selectedItems(): self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
-        self.update_item_count()
+    def load_queue(self):
+        self.sku_list_widget.clear()
+        queue_data = firebase_handler.get_print_queue(self.uid, self.token)
+        self.sku_list_widget.addItems(queue_data)
+
+    def save_queue(self):
+        queue_items = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+        firebase_handler.save_print_queue(self.uid, self.token, queue_items)
+
+    def load_saved_lists(self):
+        self.saved_lists_combo.clear()
+        saved_lists = firebase_handler.get_saved_batch_lists(self.uid, self.token)
+        if saved_lists:
+            self.saved_lists_combo.addItems(sorted(saved_lists.keys()))
+
+    def remove_selected(self):
+        for item in self.sku_list_widget.selectedItems():
+            self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
+        self.save_queue()
+
+    def clear_queue(self):
+        self.sku_list_widget.clear()
+        self.save_queue()
+
+    def load_list(self):
+        list_name = self.saved_lists_combo.currentText()
+        if not list_name: return
+
+        all_lists = firebase_handler.get_saved_batch_lists(self.uid, self.token)
+        skus_to_load = all_lists.get(list_name, [])
+        self.sku_list_widget.clear()
+        self.sku_list_widget.addItems(skus_to_load)
+        self.save_queue()
+
+    def save_list(self):
+        current_queue = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+        if not current_queue:
+            QMessageBox.warning(self, "Empty Queue", "Cannot save an empty queue.")
+            return
+
+        list_name, ok = QInputDialog.getText(self, self.translator.get("print_queue_save_prompt"), "List Name:")
+        if ok and list_name:
+            firebase_handler.save_batch_list(self.uid, self.token, list_name, current_queue)
+            self.load_saved_lists()
+            self.saved_lists_combo.setCurrentText(list_name)
+
+    def delete_list(self):
+        list_name = self.saved_lists_combo.currentText()
+        if not list_name: return
+
+        reply = QMessageBox.question(self, "Delete List", self.translator.get("print_queue_delete_confirm", list_name))
+        if reply == QMessageBox.StandardButton.Yes:
+            firebase_handler.delete_batch_list(self.uid, self.token, list_name)
+            self.load_saved_lists()
 
     def get_skus(self):
         return [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+
+
+class PriceHistoryDialog(QDialog):
+    def __init__(self, sku, translator, token, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(translator.get("price_history_title", sku))
+        self.setMinimumSize(500, 400)
+
+        layout = QVBoxLayout(self)
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels([
+            translator.get("price_history_header_date"),
+            translator.get("price_history_header_old"),
+            translator.get("price_history_header_new")
+        ])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table)
+
+        history_data = firebase_handler.get_item_price_history(sku, token)
+        self.table.setRowCount(len(history_data))
+
+        for row, entry in enumerate(sorted(history_data, key=lambda x: x['timestamp'], reverse=True)):
+            self.table.setItem(row, 0, QTableWidgetItem(entry.get("timestamp")))
+            self.table.setItem(row, 1, QTableWidgetItem(entry.get("old_price")))
+            self.table.setItem(row, 2, QTableWidgetItem(entry.get("new_price")))
+
+
+class TemplateManagerDialog(QDialog):
+    def __init__(self, translator, token, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.token = token
+        self.setWindowTitle(self.translator.get("template_manager_title"))
+        self.setMinimumSize(800, 600)
+
+        self.templates = data_handler.get_item_templates(self.token)
+
+        main_layout = QHBoxLayout(self)
+
+        cat_group = QGroupBox(self.translator.get("template_manager_categories_group"))
+        cat_layout = QVBoxLayout()
+        self.cat_list = QListWidget()
+        self.cat_list.currentTextChanged.connect(self.populate_specs)
+        cat_layout.addWidget(self.cat_list)
+
+        cat_buttons = QHBoxLayout()
+        add_cat_btn = QPushButton(self.translator.get("template_manager_add_cat_button"))
+        add_cat_btn.clicked.connect(self.add_category)
+        rename_cat_btn = QPushButton(self.translator.get("template_manager_rename_cat_button"))
+        rename_cat_btn.clicked.connect(self.rename_category)
+        del_cat_btn = QPushButton(self.translator.get("template_manager_delete_cat_button"))
+        del_cat_btn.clicked.connect(self.delete_category)
+        cat_buttons.addWidget(add_cat_btn)
+        cat_buttons.addWidget(rename_cat_btn)
+        cat_buttons.addWidget(del_cat_btn)
+        cat_layout.addLayout(cat_buttons)
+        cat_group.setLayout(cat_layout)
+
+        self.spec_group = QGroupBox()
+        spec_layout = QVBoxLayout()
+        self.spec_list = QListWidget()
+        spec_layout.addWidget(self.spec_list)
+
+        spec_buttons = QHBoxLayout()
+        add_spec_btn = QPushButton(self.translator.get("template_manager_add_spec_button"))
+        add_spec_btn.clicked.connect(self.add_spec)
+        del_spec_btn = QPushButton(self.translator.get("template_manager_remove_spec_button"))
+        del_spec_btn.clicked.connect(self.remove_spec)
+        spec_buttons.addWidget(add_spec_btn)
+        spec_buttons.addWidget(del_spec_btn)
+        spec_layout.addLayout(spec_buttons)
+        self.spec_group.setLayout(spec_layout)
+
+        main_layout.addWidget(cat_group, 1)
+        main_layout.addWidget(self.spec_group, 1)
+
+        bottom_layout = QVBoxLayout()
+        main_layout.addLayout(bottom_layout)
+
+        save_button = QPushButton(self.translator.get("template_manager_save_button"))
+        save_button.setFixedHeight(40)
+        save_button.clicked.connect(self.save_templates)
+
+        dialog_buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        dialog_buttons.rejected.connect(self.reject)
+
+        bottom_container = QWidget()
+        bottom_container_layout = QVBoxLayout(bottom_container)
+        bottom_container_layout.addStretch()
+        bottom_container_layout.addWidget(save_button)
+        bottom_container_layout.addWidget(dialog_buttons)
+
+        main_layout.addWidget(bottom_container)
+
+        self.populate_categories()
+
+    def populate_categories(self):
+        self.cat_list.clear()
+        for key in sorted(self.templates.keys()):
+            self.cat_list.addItem(self.templates[key]['category_name'])
+
+    def get_current_cat_key(self):
+        current_item = self.cat_list.currentItem()
+        if not current_item: return None
+        current_name = current_item.text()
+        for key, value in self.templates.items():
+            if value['category_name'] == current_name:
+                return key
+        return None
+
+    def populate_specs(self, cat_name):
+        self.spec_list.clear()
+        self.spec_group.setTitle(self.translator.get("template_manager_specs_group", cat_name))
+        key = self.get_current_cat_key()
+        if key and 'specs' in self.templates[key]:
+            self.spec_list.addItems(self.templates[key]['specs'])
+
+    def add_category(self):
+        text, ok = QInputDialog.getText(self, "Add Category", self.translator.get("template_manager_new_cat_prompt"))
+        if ok and text:
+            new_key = f"template_{text.lower().replace(' ', '_')}"
+            self.templates[new_key] = {"category_name": text, "specs": []}
+            self.populate_categories()
+            for i in range(self.cat_list.count()):
+                if self.cat_list.item(i).text() == text:
+                    self.cat_list.setCurrentRow(i)
+                    break
+
+    def rename_category(self):
+        key = self.get_current_cat_key()
+        if not key: return
+
+        old_name = self.templates[key]['category_name']
+        text, ok = QInputDialog.getText(self, "Rename Category",
+                                        self.translator.get("template_manager_rename_prompt", old_name), text=old_name)
+        if ok and text and text != old_name:
+            self.templates[key]['category_name'] = text
+            self.populate_categories()
+            for i in range(self.cat_list.count()):
+                if self.cat_list.item(i).text() == text:
+                    self.cat_list.setCurrentRow(i)
+                    break
+
+    def delete_category(self):
+        key = self.get_current_cat_key()
+        if not key: return
+
+        name = self.templates[key]['category_name']
+        reply = QMessageBox.question(self, self.translator.get("template_manager_delete_cat_confirm_title"),
+                                     self.translator.get("template_manager_delete_cat_confirm_msg", name))
+        if reply == QMessageBox.StandardButton.Yes:
+            del self.templates[key]
+            self.populate_categories()
+
+    def add_spec(self):
+        key = self.get_current_cat_key()
+        if not key: return
+
+        text, ok = QInputDialog.getText(self, "Add Specification",
+                                        self.translator.get("template_manager_new_spec_prompt"))
+        if ok and text:
+            if 'specs' not in self.templates[key]:
+                self.templates[key]['specs'] = []
+            self.templates[key]['specs'].append(text)
+            self.populate_specs(self.templates[key]['category_name'])
+
+    def remove_spec(self):
+        key = self.get_current_cat_key()
+        spec_item = self.spec_list.currentItem()
+        if not key or not spec_item: return
+
+        self.templates[key]['specs'].remove(spec_item.text())
+        self.populate_specs(self.templates[key]['category_name'])
+
+    def save_templates(self):
+        if firebase_handler.save_templates_to_firebase(self.templates, self.token):
+            QMessageBox.information(self, self.translator.get("success_title"),
+                                    self.translator.get("templates_saved_success"))
+        else:
+            QMessageBox.critical(self, "Error", self.translator.get("templates_saved_fail"))
+
+
+class ActivityLogDialog(QDialog):
+    def __init__(self, translator, token, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(translator.get("activity_log_title"))
+        self.setMinimumSize(800, 600)
+
+        layout = QVBoxLayout(self)
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels([
+            translator.get("activity_log_header_time"),
+            translator.get("activity_log_header_email"),
+            translator.get("activity_log_header_action")
+        ])
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(0, 150)
+        self.table.setColumnWidth(1, 200)
+        layout.addWidget(self.table)
+
+        log_data = firebase_handler.get_activity_log(token)
+        self.table.setRowCount(len(log_data))
+
+        for row, entry in enumerate(log_data):
+            self.table.setItem(row, 0, QTableWidgetItem(entry.get("timestamp")))
+            self.table.setItem(row, 1, QTableWidgetItem(entry.get("email")))
+            self.table.setItem(row, 2, QTableWidgetItem(entry.get("message")))
 
 
 class DisplayManagerDialog(QDialog):
@@ -254,8 +548,8 @@ class DisplayManagerDialog(QDialog):
         self.return_input.clear()
 
         category = item_data.get('Categories')
-        self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_col,
-                                                                                 self.token)
+        self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_db_key,
+                                                                                 self.branch_stock_col, self.token)
 
         self.current_sort_column = -1
         self.current_sort_order = None
@@ -360,58 +654,11 @@ class DisplayManagerDialog(QDialog):
             self.sort_and_repopulate()
 
 
-class UserManagementDialog(QDialog):
-    def __init__(self, translator, user, parent=None):
-        super().__init__(parent)
-        self.translator = translator
-        self.user = user
-        self.token = self.user.get('idToken') if self.user else None
-        self.setWindowTitle(self.translator.get("admin_manage_users"))
-        self.setMinimumSize(600, 400)
-
-        layout = QVBoxLayout(self)
-        self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels([
-            self.translator.get("user_mgmt_header_email"),
-            self.translator.get("user_mgmt_header_role"),
-            self.translator.get("user_mgmt_header_action")
-        ])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-
-        layout.addWidget(self.table)
-        self.load_users()
-
-    def load_users(self):
-        self.table.setRowCount(0)
-        users = firebase_handler.get_all_users(self.token)
-        if not users: return
-
-        self.table.setRowCount(len(users))
-        for row_num, user_data in enumerate(users):
-            self.table.setItem(row_num, 0, QTableWidgetItem(user_data.get("email")))
-            self.table.setItem(row_num, 1, QTableWidgetItem(user_data.get("role")))
-
-            if user_data.get("role") != "Admin":
-                promote_button = QPushButton(self.translator.get("user_mgmt_promote_button"))
-                promote_button.clicked.connect(lambda _, u=user_data: self.promote_user(u))
-                self.table.setCellWidget(row_num, 2, promote_button)
-
-    def promote_user(self, user_data):
-        uid = user_data.get("uid")
-        email = user_data.get("email")
-        reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
-                                     self.translator.get("user_mgmt_confirm_promote_message", email))
-        if reply == QMessageBox.StandardButton.Yes:
-            firebase_handler.promote_user_to_admin(uid, self.token)
-            self.load_users()
-
-
 class PriceTagDashboard(QMainWindow):
     def __init__(self, user):
         super().__init__()
         self.user = user
+        self.uid = self.user.get('localId')
         self.token = self.user.get('idToken')
         self.settings = data_handler.get_settings()
         self.translator = Translator(self.settings.get("language", "en"))
@@ -436,14 +683,94 @@ class PriceTagDashboard(QMainWindow):
                        "logo_path": "assets/logo-santa-hat.png", "logo_path_ka": "assets/logo-geo-santa-hat.png",
                        "logo_scale_factor": 1.1, "bullet_image_path": "assets/snowflake.png", "background_snow": True}
         }
+
+        self.tab_widget = QTabWidget()
+        self.setCentralWidget(self.tab_widget)
+
+        self.generator_tab = QWidget()
+        self.dashboard_tab = QWidget()
+
+        self.tab_widget.addTab(self.generator_tab, "Price Tag Generator")
+
+        self.setup_generator_ui()
+
+        if self.user.get('role') == 'Admin':
+            self.tab_widget.addTab(self.dashboard_tab, self.tr("admin_dashboard"))
+            self.setup_dashboard_ui()
+
         self.create_menu()
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
-        main_layout.addWidget(self.create_left_panel(), 1)
-        main_layout.addWidget(self.create_right_panel(), 2)
         self.retranslate_ui()
         self.clear_all_fields()
+
+    def setup_generator_ui(self):
+        main_layout = QHBoxLayout(self.generator_tab)
+        main_layout.addWidget(self.create_left_panel(), 1)
+        main_layout.addWidget(self.create_right_panel(), 2)
+
+    def setup_dashboard_ui(self):
+        layout = QVBoxLayout(self.dashboard_tab)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        refresh_layout = QHBoxLayout()
+        self.refresh_button = QPushButton(self.tr("dashboard_refresh_button"))
+        self.refresh_button.clicked.connect(self.update_dashboard_data)
+        refresh_layout.addStretch()
+        refresh_layout.addWidget(self.refresh_button)
+        layout.addLayout(refresh_layout)
+
+        stats_group = QGroupBox(self.tr("dashboard_stats_group"))
+        stats_layout = QFormLayout()
+        self.stats_labels = {}
+        for key, data in self.branch_data_map.items():
+            display_name = self.tr(key)
+            self.stats_labels[key] = QLabel("...")
+            stats_layout.addRow(f"{display_name} ({self.tr('dashboard_on_display_label')})", self.stats_labels[key])
+        stats_group.setLayout(stats_layout)
+        layout.addWidget(stats_group)
+
+        low_stock_group = QGroupBox()
+        low_stock_layout = QVBoxLayout()
+        self.low_stock_table = QTableWidget()
+        self.low_stock_table.setColumnCount(3)
+        self.low_stock_table.setHorizontalHeaderLabels(["SKU", "Name", "Stock"])
+        self.low_stock_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        low_stock_layout.addWidget(self.low_stock_table)
+        low_stock_group.setLayout(low_stock_layout)
+        layout.addWidget(low_stock_group)
+
+        self.low_stock_group = low_stock_group
+        self.update_dashboard_data()
+
+    def update_dashboard_data(self):
+        threshold = self.settings.get('low_stock_threshold', 3)
+        self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+
+        all_items = firebase_handler.db.child("items").get(self.token).val() or {}
+        display_statuses = firebase_handler.get_display_status(self.token)
+
+        for key, data in self.branch_data_map.items():
+            db_key = data['db_key']
+            count = len(display_statuses.get(db_key, []))
+            self.stats_labels[key].setText(str(count))
+
+        self.low_stock_table.setRowCount(0)
+        low_stock_items = []
+        for sku, item_data in all_items.items():
+            for branch_key, branch_info in self.branch_data_map.items():
+                stock_col = branch_info['stock_col']
+                stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
+                if stock_str.isdigit() and 0 < int(stock_str) <= threshold:
+                    low_stock_items.append({
+                        "sku": sku,
+                        "name": item_data.get("Name", "N/A"),
+                        "stock": f"{branch_info['db_key']}: {int(stock_str)}"
+                    })
+
+        self.low_stock_table.setRowCount(len(low_stock_items))
+        for row, item in enumerate(low_stock_items):
+            self.low_stock_table.setItem(row, 0, QTableWidgetItem(item['sku']))
+            self.low_stock_table.setItem(row, 1, QTableWidgetItem(item['name']))
+            self.low_stock_table.setItem(row, 2, QTableWidgetItem(item['stock']))
 
     def create_menu(self):
         menu_bar = self.menuBar()
@@ -461,12 +788,28 @@ class PriceTagDashboard(QMainWindow):
             upload_action.triggered.connect(self.upload_master_list)
             admin_menu.addAction(upload_action)
 
+            template_manager_action = QAction(self.tr("admin_template_manager"), self)
+            template_manager_action.triggered.connect(self.open_template_manager)
+            admin_menu.addAction(template_manager_action)
+
+            activity_log_action = QAction(self.tr("admin_activity_log"), self)
+            activity_log_action.triggered.connect(self.open_activity_log)
+            admin_menu.addAction(activity_log_action)
+
             user_mgmt_action = QAction(self.tr('admin_manage_users'), self)
             user_mgmt_action.triggered.connect(self.open_user_management)
             admin_menu.addAction(user_mgmt_action)
 
     def open_user_management(self):
         dialog = UserManagementDialog(self.translator, self.user, self)
+        dialog.exec()
+
+    def open_template_manager(self):
+        dialog = TemplateManagerDialog(self.translator, self.token, self)
+        dialog.exec()
+
+    def open_activity_log(self):
+        dialog = ActivityLogDialog(self.translator, self.token, self)
         dialog.exec()
 
     def upload_master_list(self):
@@ -507,18 +850,32 @@ class PriceTagDashboard(QMainWindow):
         self.sku_input.returnPressed.connect(self.find_item)
         self.find_button = QPushButton()
         self.find_button.clicked.connect(self.find_item)
+        self.add_to_queue_button = QPushButton()
+        self.add_to_queue_button.setFixedSize(40, self.find_button.sizeHint().height())
+        self.add_to_queue_button.clicked.connect(self.add_current_to_queue)
+
         sku_layout.addWidget(self.sku_input)
         sku_layout.addWidget(self.find_button)
+        sku_layout.addWidget(self.add_to_queue_button)
         find_layout.addLayout(sku_layout)
 
         status_layout = QHBoxLayout()
         self.status_label_title = QLabel()
         self.status_label_value = QLabel()
+        self.stock_label_title = QLabel(self.tr("stock_label"))
+        self.stock_label_value = QLabel("-")
+        self.low_stock_warning_label = QLabel()
+
         self.toggle_status_button = QPushButton()
         self.toggle_status_button.clicked.connect(self.toggle_display_status)
         self.toggle_status_button.setVisible(False)
+
         status_layout.addWidget(self.status_label_title)
         status_layout.addWidget(self.status_label_value)
+        status_layout.addStretch()
+        status_layout.addWidget(self.stock_label_title)
+        status_layout.addWidget(self.stock_label_value)
+        status_layout.addWidget(self.low_stock_warning_label)
         status_layout.addStretch()
         status_layout.addWidget(self.toggle_status_button)
         find_layout.addLayout(status_layout)
@@ -528,11 +885,18 @@ class PriceTagDashboard(QMainWindow):
         details_layout = QFormLayout()
         self.name_label_widget, self.price_label_widget, self.sale_price_label_widget = QLabel(), QLabel(), QLabel()
         self.name_input, self.price_input, self.sale_price_input = QLineEdit(), QLineEdit(), QLineEdit()
+        self.price_history_button = QPushButton(self.tr("price_history_button"))
+        self.price_history_button.clicked.connect(self.show_price_history)
+        self.price_history_button.setVisible(False)
+
         self.name_input.textChanged.connect(self.update_preview)
         self.price_input.textChanged.connect(self.update_preview)
         self.sale_price_input.textChanged.connect(self.update_preview)
         details_layout.addRow(self.name_label_widget, self.name_input)
-        details_layout.addRow(self.price_label_widget, self.price_input)
+        price_layout = QHBoxLayout()
+        price_layout.addWidget(self.price_input)
+        price_layout.addWidget(self.price_history_button)
+        details_layout.addRow(self.price_label_widget, price_layout)
         details_layout.addRow(self.sale_price_label_widget, self.sale_price_input)
         self.details_group.setLayout(details_layout)
 
@@ -557,11 +921,12 @@ class PriceTagDashboard(QMainWindow):
         self.specs_list = QListWidget()
         self.specs_list.itemChanged.connect(self.update_preview);
         specs_buttons_layout = QHBoxLayout();
-        self.add_button, self.edit_button, self.remove_button = QPushButton(), QPushButton(), QPushButton()
-        self.add_button.clicked.connect(self.add_spec);
+        self.add_spec_button = QPushButton()
+        self.add_spec_button.clicked.connect(self.add_spec)
+        self.edit_button, self.remove_button = QPushButton(), QPushButton()
         self.edit_button.clicked.connect(self.edit_spec);
         self.remove_button.clicked.connect(self.remove_spec)
-        specs_buttons_layout.addWidget(self.add_button);
+        specs_buttons_layout.addWidget(self.add_spec_button);
         specs_buttons_layout.addWidget(self.edit_button);
         specs_buttons_layout.addWidget(self.remove_button)
         specs_layout.addWidget(self.specs_list);
@@ -578,7 +943,7 @@ class PriceTagDashboard(QMainWindow):
         self.single_button.clicked.connect(self.generate_single)
         self.batch_button = QPushButton()
         self.batch_button.setFixedHeight(40)
-        self.batch_button.clicked.connect(self.generate_batch)
+        self.batch_button.clicked.connect(self.open_print_queue)
         actions_layout.addWidget(self.display_manager_button)
         actions_layout.addWidget(self.single_button)
         actions_layout.addWidget(self.batch_button)
@@ -605,6 +970,10 @@ class PriceTagDashboard(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
+        self.tab_widget.setTabText(0, self.tr("window_title"))
+        if self.user.get('role') == 'Admin':
+            self.tab_widget.setTabText(1, self.tr("admin_dashboard"))
+
         self.update_branch_combo()
         self.update_paper_size_combo()
         self.update_theme_combo()
@@ -613,6 +982,8 @@ class PriceTagDashboard(QMainWindow):
         self.find_item_group.setTitle(self.tr("find_item_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
         self.find_button.setText(self.tr("find_button"))
+        self.add_to_queue_button.setText("+")
+        self.add_to_queue_button.setToolTip(self.tr("add_to_queue_button"))
         self.details_group.setTitle(self.tr("item_details_group"))
         self.name_label_widget.setText(self.tr("name_label"))
         self.price_label_widget.setText(self.tr("price_label"))
@@ -622,7 +993,7 @@ class PriceTagDashboard(QMainWindow):
         self.theme_label.setText(self.tr("theme_label"))
         self.dual_lang_label.setText(self.tr("dual_language_label"))
         self.specs_group.setTitle(self.tr("specs_group"))
-        self.add_button.setText(self.tr("add_button"))
+        self.add_spec_button.setText(self.tr("add_button"))
         self.edit_button.setText(self.tr("edit_button"))
         self.remove_button.setText(self.tr("remove_button"))
         self.output_group.setTitle(self.tr("output_group"))
@@ -666,6 +1037,8 @@ class PriceTagDashboard(QMainWindow):
             self.settings["default_branch"] = key
             data_handler.save_settings(self.settings)
         self.update_status_display()
+        self.update_stock_display()
+        self.update_preview()
 
     def get_current_branch_stock_column(self):
         current_key = self.branch_combo.currentData()
@@ -679,6 +1052,33 @@ class PriceTagDashboard(QMainWindow):
         branch_db_key = self.get_current_branch_db_key()
         branch_stock_col = self.get_current_branch_stock_column()
         dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
+        dialog.exec()
+
+    def open_print_queue(self):
+        dialog = PrintQueueDialog(self.translator, self.user, self)
+        if dialog.exec():
+            skus_to_print = dialog.get_skus()
+            if skus_to_print:
+                self.generate_batch(skus_to_print)
+
+    def add_current_to_queue(self):
+        if not self.current_item_data:
+            QMessageBox.warning(self, "No Item", "Please find an item to add to the queue.")
+            return
+
+        sku = self.current_item_data.get("SKU")
+        queue = firebase_handler.get_print_queue(self.uid, self.token)
+        if sku not in queue:
+            queue.append(sku)
+            firebase_handler.save_print_queue(self.uid, self.token, queue)
+            QMessageBox.information(self, "Success", f"Item {sku} added to the print queue.")
+        else:
+            QMessageBox.information(self, "Duplicate", f"Item {sku} is already in the print queue.")
+
+    def show_price_history(self):
+        if not self.current_item_data: return
+        sku = self.current_item_data.get("SKU")
+        dialog = PriceHistoryDialog(sku, self.translator, self.token, self)
         dialog.exec()
 
     def update_paper_size_combo(self):
@@ -703,6 +1103,8 @@ class PriceTagDashboard(QMainWindow):
         self.specs_list.clear()
         self.preview_label.setText(self.tr("preview_default_text"))
         self.update_status_display()
+        self.update_stock_display()
+        self.price_history_button.setVisible(False)
         self.toggle_status_button.setVisible(False)
 
     def find_item(self):
@@ -758,7 +1160,35 @@ class PriceTagDashboard(QMainWindow):
 
         self.update_specs_list()
         self.update_status_display()
+        self.update_stock_display()
+        self.price_history_button.setVisible(True)
         self.update_preview()
+
+    def update_stock_display(self):
+        if not self.current_item_data:
+            self.stock_label_value.setText("-")
+            self.low_stock_warning_label.setText("")
+            return
+
+        stock_col = self.get_current_branch_stock_column()
+        if not stock_col:
+            self.stock_label_value.setText("N/A")
+            self.low_stock_warning_label.setText("")
+            return
+
+        stock_str = str(self.current_item_data.get(stock_col, '0')).replace(',', '')
+        if stock_str.isdigit():
+            stock_val = int(stock_str)
+            self.stock_label_value.setText(str(stock_val))
+            threshold = self.settings.get('low_stock_threshold', 3)
+            if 0 < stock_val <= threshold:
+                self.low_stock_warning_label.setText(self.tr("low_stock_warning"))
+                self.low_stock_warning_label.setStyleSheet("color: red; font-weight: bold;")
+            else:
+                self.low_stock_warning_label.setText("")
+        else:
+            self.stock_label_value.setText(stock_str)
+            self.low_stock_warning_label.setText("")
 
     def update_status_display(self):
         if not self.current_item_data:
@@ -837,22 +1267,21 @@ class PriceTagDashboard(QMainWindow):
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+            firebase_handler.log_activity(self.token, f"User printed and marked {sku} as on display.")
 
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
-    def generate_batch(self):
+    def generate_batch(self, skus_to_print):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
 
-        size_config = self.paper_sizes[size_name]
-        theme_config = self.themes[theme_name]
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
         tags_per_sheet = layout_info.get('total', 0)
 
         if tags_per_sheet <= 0:
-            QMessageBox.warning(self, "Layout Error",
-                                "The selected paper size cannot fit any tags. Please choose a larger paper size or smaller tag size.")
+            QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
             return
 
         dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
@@ -860,27 +1289,13 @@ class PriceTagDashboard(QMainWindow):
         if dual_lang_enabled:
             items_per_sheet //= 2
 
-        dialog = BatchDialog(self.translator, self)
-        if not dialog.exec(): return
-
-        skus = dialog.get_skus()
-        if not skus:
-            QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message"))
-            return
-
-        all_valid_skus = [sku for sku in skus if firebase_handler.find_item_by_identifier(sku, self.token)]
-        if not all_valid_skus:
-            QMessageBox.warning(self, self.tr("sku_not_found_title"),
-                                "None of the provided SKUs were found in the database.")
-            return
-
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
             QMessageBox.warning(self, "Printing Cancelled",
                                 "The batch print job was cancelled because no printer was selected.")
             return
 
-        sku_pages = list(a4_layout_generator.chunks(all_valid_skus, items_per_sheet))
+        sku_pages = list(a4_layout_generator.chunks(skus_to_print, items_per_sheet))
         total_pages = len(sku_pages)
         branch_db_key = self.get_current_branch_db_key()
 
@@ -915,10 +1330,11 @@ class PriceTagDashboard(QMainWindow):
         else:
             QMessageBox.information(self, "Batch Complete",
                                     self.tr("print_job_sent", total_pages, self.printer.printerName()))
+            firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items.")
 
-        for sku in all_valid_skus:
+        for sku in skus_to_print:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
-        if self.current_item_data.get('SKU') in all_valid_skus:
+        if self.current_item_data.get('SKU') in skus_to_print:
             self.update_status_display()
 
     def get_current_data_from_ui(self):
@@ -1019,9 +1435,36 @@ class PriceTagDashboard(QMainWindow):
         return filtered_specs
 
     def add_spec(self):
-        self.specs_list.addItem("New Specification: Edit Me");
-        self.specs_list.setCurrentRow(self.specs_list.count() - 1);
-        self.edit_spec()
+        if not self.current_item_data: return
+
+        menu = QMenu()
+        templates = data_handler.get_item_templates(self.token)
+        category = self.current_item_data.get("Categories", "Uncategorized")
+
+        template_key = None
+        for key, value in templates.items():
+            if value.get("category_name") == category:
+                template_key = key
+                break
+
+        if template_key and templates[template_key].get("specs"):
+            for spec in templates[template_key]["specs"]:
+                menu.addAction(spec)
+            menu.addSeparator()
+
+        custom_action = menu.addAction("Custom...")
+
+        action = menu.exec(self.add_spec_button.mapToGlobal(self.add_spec_button.rect().bottomLeft()))
+
+        if action:
+            spec_text = action.text()
+            if action == custom_action:
+                text, ok = QInputDialog.getText(self, "Add Custom Specification", "Specification:")
+                if ok and text:
+                    self.specs_list.addItem(text)
+            else:
+                self.specs_list.addItem(spec_text + ":")
+            self.update_preview()
 
     def edit_spec(self):
         item = self.specs_list.currentItem()
