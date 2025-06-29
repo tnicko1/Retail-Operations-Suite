@@ -6,8 +6,8 @@ TRANSLATIONS = {
         "window_title": "Price Tag Dashboard by Nikoloz Taturashvili",
         "branch_group_title": "Store Branch",
         "branch_label": "Current Branch:",
-        "branch_vaja": "Vaja Shop",
-        "branch_marj": "Marjanishvili Shop",
+        "branch_vaja": "Vazha-Pshavela Shop",
+        "branch_marj": "Marjanishvili",
         "branch_gldani": "Gldani Shop",
         "find_item_group": "1. Find Item by SKU / Barcode / P/N",
         "sku_placeholder": "Enter SKU, Barcode, or P/N and press Enter...",
@@ -47,11 +47,18 @@ TRANSLATIONS = {
         "item_returned_message": "Item {} marked as 'In Storage'.",
         "new_item_save_success": "Item '{}' has been saved.",
         "new_item_save_error": "Could not save the new item to the database.",
+        "print_job_sent": "Sent {0} page(s) to printer: {1}",
+        "sync_results_message": "Sync complete.\nUpdated/Added: {0} items.\nRemoved: {1} obsolete items.",
 
-        # Admin Tools
+        # Menus
+        "file_menu": "&File",
+        "select_printer_menu": "&Select Printer...",
+        "open_master_list_title": "Open Master Product List",
         "admin_tools_menu": "Admin Tools",
         "admin_upload_master_list": "Update Product List from File...",
         "admin_manage_users": "Manage Users...",
+
+        # User Management
         "user_mgmt_header_email": "Email",
         "user_mgmt_header_role": "Role",
         "user_mgmt_header_action": "Action",
@@ -132,8 +139,8 @@ TRANSLATIONS = {
         "window_title": "ფასმაჩვენებლის დაფა - ნიკოლოზ ტატურაშვილი",
         "branch_group_title": "ფილიალი",
         "branch_label": "მიმდინარე ფილიალი:",
-        "branch_vaja": "ვაჟას ფილიალი",
-        "branch_marj": "მარჯანიშვილის ფილიალი",
+        "branch_vaja": "ვაჟა-ფშაველას ფილიალი",
+        "branch_marj": "მარჯანიშვილი",
         "branch_gldani": "გლდანის ფილიალი",
         "find_item_group": "1. ძებნა (კოდით / შტრიხკოდით / P/N)",
         "sku_placeholder": "შეიყვანეთ კოდი, შტრიხკოდი, ან P/N...",
@@ -173,11 +180,18 @@ TRANSLATIONS = {
         "item_returned_message": "პროდუქტი {} აღინიშნა როგორც 'საწყობშია'.",
         "new_item_save_success": "პროდუქტი '{}' შენახულია.",
         "new_item_save_error": "პროდუქტის შენახვა ვერ მოხერხდა.",
+        "print_job_sent": "დაიბეჭდა {0} გვერდი პრინტერზე: {1}",
+        "sync_results_message": "სინქრონიზაცია დასრულდა.\nგანახლდა/დაემატა: {0} პროდუქტი.\nწაიშალა: {1} ძველი პროდუქტი.",
 
-        # Admin Tools
+        # Menus
+        "file_menu": "&ფაილი",
+        "select_printer_menu": "&პრინტერის არჩევა...",
+        "open_master_list_title": "პროდუქტების სიის გახსნა",
         "admin_tools_menu": "ადმინის ხელსაწყოები",
         "admin_upload_master_list": "პროდუქტების სიის განახლება...",
         "admin_manage_users": "მომხმარებლების მართვა...",
+
+        # User Management
         "user_mgmt_header_email": "მეილი",
         "user_mgmt_header_role": "როლი",
         "user_mgmt_header_action": "მოქმედება",
@@ -267,11 +281,11 @@ class Translator:
         try:
             translation = TRANSLATIONS[self.language][key]
             return translation.format(*args)
-        except KeyError:
+        except (KeyError, IndexError):
             try:
                 translation = TRANSLATIONS["en"][key]
                 return translation.format(*args)
-            except KeyError:
+            except (KeyError, IndexError):
                 return f"<{key}>"
 
     def get_key_from_value(self, value_to_find):
