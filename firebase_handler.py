@@ -4,6 +4,8 @@ import os
 import csv
 from bs4 import BeautifulSoup
 import re
+from datetime import datetime
+import pytz
 
 firebase_app = None
 auth = None
@@ -44,6 +46,7 @@ def login_user(email, password):
             user['role'] = user_profile.get('role', 'User')
         else:
             user['role'] = 'User'
+        log_activity(user.get('idToken'), f"User {email} logged in.")
         return user
     except Exception as e:
         print(f"Login error: {e}")
@@ -76,6 +79,7 @@ def register_user(email, password, is_first):
             user_data = {"email": email, "role": role}
             db.child("users").child(user['localId']).set(user_data, user['idToken'])
             user['role'] = role
+            log_activity(user.get('idToken'), f"New user registered: {email}")
             return user
     except Exception as e:
         print(f"Registration error: {e}")
@@ -117,8 +121,27 @@ def sync_products_from_file(filepath, admin_token):
                     file_skus.add(sku)
                     file_items[sku] = row
 
-        firebase_items = db.child("items").get(admin_token).val()
-        firebase_skus = set(firebase_items.keys()) if firebase_items else set()
+        firebase_items = db.child("items").get(admin_token).val() or {}
+        firebase_skus = set(firebase_items.keys())
+
+        # --- Price History Logging ---
+        price_history_payload = {}
+        tbilisi_tz = pytz.timezone('Asia/Tbilisi')
+        timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
+
+        for sku, new_item_data in file_items.items():
+            old_item_data = firebase_items.get(sku)
+            if old_item_data:
+                old_price = old_item_data.get("Regular price", "N/A")
+                new_price = new_item_data.get("Regular price", "N/A")
+                if old_price != new_price:
+                    history_entry = {
+                        "timestamp": timestamp,
+                        "old_price": old_price,
+                        "new_price": new_price
+                    }
+                    price_history_payload[f"price_history/{sku}/{timestamp.replace('.', ':')}"] = history_entry
+        # --- End Price History ---
 
         skus_to_delete = firebase_skus - file_skus
 
@@ -129,12 +152,17 @@ def sync_products_from_file(filepath, admin_token):
         for sku, item_data in file_items.items():
             update_payload[f"items/{sku}"] = item_data
 
+        # Add price history to the main payload
+        update_payload.update(price_history_payload)
+
         if update_payload:
             db.update(update_payload, admin_token)
 
         num_synced = len(file_items)
         num_deleted = len(skus_to_delete)
 
+        log_activity(admin_token,
+                     f"Admin performed database sync. Updated/Added: {num_synced}, Removed: {num_deleted}.")
         return True, num_synced, num_deleted
 
     except FileNotFoundError:
@@ -149,6 +177,7 @@ def add_new_item(item_data, token):
         return False
     try:
         db.child("items").child(sku).set(item_data, token)
+        log_activity(token, f"User added new item: {sku}")
         return True
     except Exception as e:
         print(f"Error adding new item to Firebase: {e}")
@@ -157,6 +186,7 @@ def add_new_item(item_data, token):
 
 def find_item_by_identifier(identifier, token):
     if not identifier: return None
+    # Token can be None for anonymous read in batch dialog, but will fail if rules are tightened
 
     item = db.child("items").child(identifier).get(token).val()
     if item:
@@ -179,24 +209,33 @@ def find_item_by_identifier(identifier, token):
     return None
 
 
-def get_replacement_suggestions(category, branch_stock_column, token):
-    global category_cache
-    if not category or not branch_stock_column or not token:
+def get_item_price_history(sku, token):
+    if not sku or not token: return []
+    try:
+        history = db.child("price_history").child(sku).get(token).val()
+        return list(history.values()) if history else []
+    except Exception as e:
+        print(f"Error fetching price history for {sku}: {e}")
+        return []
+
+
+def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token):
+    if not category or not branch_stock_col or not token:
         return []
 
     try:
         results = db.child("items").order_by_child("Categories").equal_to(category).get(token).val()
         category_items = list(results.values()) if results else []
     except Exception as e:
-        print(f"Warning: Query on category failed. Is it indexed in Firebase Rules? Error: {e}")
+        print(f"Warning: Query on category failed. Error: {e}")
         category_items = []
 
     status_dict = get_display_status(token)
-    on_display_skus = status_dict.get(branch_stock_column, [])
+    on_display_skus = status_dict.get(branch_db_key, [])
     suggestions = []
 
     for item in category_items:
-        stock_str = item.get(branch_stock_column, '0')
+        stock_str = item.get(branch_stock_col, '0')
         is_in_stock = False
         if stock_str:
             stock_value_clean = str(stock_str).replace(',', '')
@@ -208,6 +247,7 @@ def get_replacement_suggestions(category, branch_stock_column, token):
     return suggestions
 
 
+# --- Display Status ---
 def get_display_status(token):
     if not token: return {}
     status = db.child("displayStatus").get(token).val()
@@ -239,11 +279,84 @@ def remove_item_from_display(sku, branch_db_key, token):
 
 
 def is_item_on_display(sku, branch_db_key, token):
-    if not token: return False
+    if not token or not branch_db_key: return False
     status_dict = get_display_status(token)
     return sku in status_dict.get(branch_db_key, [])
 
 
+# --- Template Management ---
+def get_templates_from_firebase(token):
+    if not token: return None
+    return db.child("product_templates").get(token).val()
+
+
+def save_templates_to_firebase(templates, token):
+    if not token: return False
+    try:
+        db.child("product_templates").set(templates, token)
+        log_activity(token, "Admin updated product templates.")
+        return True
+    except Exception as e:
+        print(f"Error saving templates to firebase: {e}")
+        return False
+
+
+# --- Activity Log ---
+def log_activity(token, message):
+    if not token: return
+    try:
+        user_info = auth.get_account_info(token)
+        email = user_info['users'][0].get('email', 'unknown_user')
+        tbilisi_tz = pytz.timezone('Asia/Tbilisi')
+        timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
+        log_entry = {"timestamp": timestamp, "email": email, "message": message}
+        db.child("activity_log").push(log_entry, token)
+    except Exception as e:
+        print(f"Error logging activity: {e}")
+
+
+def get_activity_log(token, limit=100):
+    if not token: return []
+    try:
+        logs = db.child("activity_log").order_by_key().limit_to_last(limit).get(token).val()
+        if logs:
+            # Firebase returns a dictionary, convert to a list and sort descending
+            return sorted(list(logs.values()), key=lambda x: x['timestamp'], reverse=True)
+        return []
+    except Exception as e:
+        print(f"Error fetching activity log: {e}")
+        return []
+
+
+# --- Print Queue ---
+def get_print_queue(uid, token):
+    if not uid or not token: return []
+    queue = db.child("user_data").child(uid).child("print_queue").get(token).val()
+    return queue if isinstance(queue, list) else []
+
+
+def save_print_queue(uid, token, queue_data):
+    if not uid or not token: return
+    db.child("user_data").child(uid).child("print_queue").set(queue_data, token)
+
+
+def get_saved_batch_lists(uid, token):
+    if not uid or not token: return {}
+    lists = db.child("user_data").child(uid).child("saved_lists").get(token).val()
+    return lists if lists else {}
+
+
+def save_batch_list(uid, token, list_name, skus):
+    if not uid or not token or not list_name: return
+    db.child("user_data").child(uid).child("saved_lists").child(list_name).set(skus, token)
+
+
+def delete_batch_list(uid, token, list_name):
+    if not uid or not token or not list_name: return
+    db.child("user_data").child(uid).child("saved_lists").child(list_name).remove(token)
+
+
+# --- Other Helpers ---
 def extract_part_number(description):
     if not description: return ""
     match = re.search(r'\[p/n\s*([^\]]+)\]', description, re.IGNORECASE)
