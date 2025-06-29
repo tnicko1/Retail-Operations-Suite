@@ -33,9 +33,13 @@ def initialize_firebase():
 
 
 def login_user(email, password):
+    """
+    Signs the user in and fetches their profile using their auth token.
+    """
     try:
         user = auth.sign_in_with_email_and_password(email, password)
-        user_profile = db.child("users").child(user['localId']).get().val()
+        user_profile = db.child("users").child(user['localId']).get(user['idToken']).val()
+
         if user_profile:
             user['role'] = user_profile.get('role', 'User')
         else:
@@ -47,25 +51,40 @@ def login_user(email, password):
 
 
 def is_first_user():
-    users = db.child("users").get().val()
-    return not users
+    """
+    Checks if any users exist. With the new rules, this will only succeed
+    if the /users node does not exist, otherwise it will be denied and return False.
+    """
+    try:
+        users = db.child("users").get().val()
+        return not users
+    except Exception as e:
+        print(f"Info: Checking for first user received expected error: {e}")
+        return False
 
 
 def register_user(email, password, is_first):
-    user = auth.create_user_with_email_and_password(email, password)
-    if user:
-        role = "Admin" if is_first else "User"
-        user_data = {
-            "email": email,
-            "role": role
-        }
-        db.child("users").child(user['localId']).set(user_data)
-        return user
+    """
+    Creates a user, immediately signs them in to get a token,
+    and uses the token to create their database profile securely.
+    """
+    try:
+        user_auth = auth.create_user_with_email_and_password(email, password)
+        if user_auth:
+            user = auth.sign_in_with_email_and_password(email, password)
+            role = "Admin" if is_first else "User"
+            user_data = {"email": email, "role": role}
+            db.child("users").child(user['localId']).set(user_data, user['idToken'])
+            user['role'] = role
+            return user
+    except Exception as e:
+        print(f"Registration error: {e}")
     return None
 
 
-def get_all_users():
-    users_data = db.child("users").get().val()
+def get_all_users(token):
+    if not token: return []
+    users_data = db.child("users").get(token).val()
     if not users_data:
         return []
 
@@ -79,62 +98,78 @@ def get_all_users():
     return user_list
 
 
-def promote_user_to_admin(uid):
-    db.child("users").child(uid).update({"role": "Admin"})
+def promote_user_to_admin(uid, admin_token):
+    if not admin_token: return
+    db.child("users").child(uid).update({"role": "Admin"}, admin_token)
 
 
-def sync_products_from_file(filepath):
+def sync_products_from_file(filepath, admin_token):
+    if not admin_token:
+        return False, "Authentication token is missing. Cannot sync.", 0
     try:
+        file_skus = set()
+        file_items = {}
         with open(filepath, mode='r', encoding='utf-8-sig') as infile:
             reader = csv.DictReader(infile)
-            updates = {}
             for row in reader:
                 sku = row.get("SKU")
                 if sku:
-                    updates[f"items/{sku}"] = row
+                    file_skus.add(sku)
+                    file_items[sku] = row
 
-            db.update(updates)
-            return True, f"Successfully synced {len(updates)} items."
+        firebase_items = db.child("items").get(admin_token).val()
+        firebase_skus = set(firebase_items.keys()) if firebase_items else set()
+
+        skus_to_delete = firebase_skus - file_skus
+
+        update_payload = {}
+        for sku in skus_to_delete:
+            update_payload[f"items/{sku}"] = None
+
+        for sku, item_data in file_items.items():
+            update_payload[f"items/{sku}"] = item_data
+
+        if update_payload:
+            db.update(update_payload, admin_token)
+
+        num_synced = len(file_items)
+        num_deleted = len(skus_to_delete)
+
+        return True, num_synced, num_deleted
+
     except FileNotFoundError:
-        return False, "File not found."
+        return False, "File not found.", 0
     except Exception as e:
-        return False, f"An error occurred: {e}"
+        return False, f"An error occurred: {e}", 0
 
 
-def add_new_item(item_data):
+def add_new_item(item_data, token):
     sku = item_data.get("SKU")
-    if not sku:
+    if not sku or not token:
         return False
     try:
-        db.child("items").child(sku).set(item_data)
+        db.child("items").child(sku).set(item_data, token)
         return True
     except Exception as e:
         print(f"Error adding new item to Firebase: {e}")
         return False
 
 
-def find_item_by_identifier(identifier):
-    """
-    Optimized function to find an item by SKU, Barcode, or Part Number from Firebase.
-    """
+def find_item_by_identifier(identifier, token):
     if not identifier: return None
 
-    # 1. Search by SKU (direct lookup, very fast)
-    item = db.child("items").child(identifier).get().val()
+    item = db.child("items").child(identifier).get(token).val()
     if item:
         return item
 
-    # 2. Search by Barcode (uses database index, very fast)
     try:
-        results = db.child("items").order_by_child("Attribute 4 value(s)").equal_to(identifier).get().val()
+        results = db.child("items").order_by_child("Attribute 4 value(s)").equal_to(identifier).get(token).val()
         if results:
-            # The result is a dict {key: value}, we just need the first value
             return list(results.values())[0]
     except Exception as e:
         print(f"Warning: Query on barcode failed. Is it indexed in Firebase Rules? Error: {e}")
 
-    # 3. Search by Part Number (least efficient, downloads all items as a last resort)
-    all_items_dict = db.child("items").get().val()
+    all_items_dict = db.child("items").get(token).val()
     if not all_items_dict: return None
     for sku, item_data in all_items_dict.items():
         part_number = extract_part_number(item_data.get('Description', ''))
@@ -144,29 +179,19 @@ def find_item_by_identifier(identifier):
     return None
 
 
-def get_replacement_suggestions(category, branch_stock_column):
-    """
-    Optimized function to find suggestions. It downloads only the relevant category
-    and caches it for the session to avoid repeated downloads.
-    """
+def get_replacement_suggestions(category, branch_stock_column, token):
     global category_cache
-    if not category or not branch_stock_column:
+    if not category or not branch_stock_column or not token:
         return []
 
-    # Use cached data if available
-    if category in category_cache:
-        category_items = category_cache[category]
-    else:
-        # If not cached, query Firebase for the category and cache the result
-        try:
-            results = db.child("items").order_by_child("Categories").equal_to(category).get().val()
-            category_items = list(results.values()) if results else []
-            category_cache[category] = category_items
-        except Exception as e:
-            print(f"Warning: Query on category failed. Is it indexed in Firebase Rules? Error: {e}")
-            category_items = []
+    try:
+        results = db.child("items").order_by_child("Categories").equal_to(category).get(token).val()
+        category_items = list(results.values()) if results else []
+    except Exception as e:
+        print(f"Warning: Query on category failed. Is it indexed in Firebase Rules? Error: {e}")
+        category_items = []
 
-    status_dict = get_display_status()
+    status_dict = get_display_status(token)
     on_display_skus = status_dict.get(branch_stock_column, [])
     suggestions = []
 
@@ -183,41 +208,42 @@ def get_replacement_suggestions(category, branch_stock_column):
     return suggestions
 
 
-# --- Display Status ---
-def get_display_status():
-    status = db.child("displayStatus").get().val()
+def get_display_status(token):
+    if not token: return {}
+    status = db.child("displayStatus").get(token).val()
     return status if status else {}
 
 
-def save_display_status(status_dict):
-    db.child("displayStatus").set(status_dict)
+def save_display_status(status_dict, token):
+    if not token: return
+    db.child("displayStatus").set(status_dict, token)
 
 
-def add_item_to_display(sku, branch_column):
-    if not sku or not branch_column: return
-    status_dict = get_display_status()
-    if branch_column not in status_dict:
-        status_dict[branch_column] = []
+def add_item_to_display(sku, branch_db_key, token):
+    if not sku or not branch_db_key or not token: return
+    status_dict = get_display_status(token)
+    if branch_db_key not in status_dict:
+        status_dict[branch_db_key] = []
 
-    if sku not in status_dict[branch_column]:
-        status_dict[branch_column].append(sku)
-        save_display_status(status_dict)
-
-
-def remove_item_from_display(sku, branch_column):
-    if not sku or not branch_column: return
-    status_dict = get_display_status()
-    if branch_column in status_dict and sku in status_dict[branch_column]:
-        status_dict[branch_column].remove(sku)
-        save_display_status(status_dict)
+    if sku not in status_dict[branch_db_key]:
+        status_dict[branch_db_key].append(sku)
+        save_display_status(status_dict, token)
 
 
-def is_item_on_display(sku, branch_column):
-    status_dict = get_display_status()
-    return sku in status_dict.get(branch_column, [])
+def remove_item_from_display(sku, branch_db_key, token):
+    if not sku or not branch_db_key or not token: return
+    status_dict = get_display_status(token)
+    if branch_db_key in status_dict and sku in status_dict[branch_db_key]:
+        status_dict[branch_db_key].remove(sku)
+        save_display_status(status_dict, token)
 
 
-# --- Other Helpers ---
+def is_item_on_display(sku, branch_db_key, token):
+    if not token: return False
+    status_dict = get_display_status(token)
+    return sku in status_dict.get(branch_db_key, [])
+
+
 def extract_part_number(description):
     if not description: return ""
     match = re.search(r'\[p/n\s*([^\]]+)\]', description, re.IGNORECASE)
