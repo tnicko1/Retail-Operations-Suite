@@ -113,14 +113,15 @@ class NewItemDialog(QDialog):
 
 
 class BatchDialog(QDialog):
-    def __init__(self, max_items, translator, dual_lang_enabled, parent=None):
+    def __init__(self, translator, parent=None):
         super().__init__(parent)
         self.translator = translator
-        self.max_items = max_items // 2 if dual_lang_enabled else max_items
         self.setWindowTitle(self.translator.get("batch_dialog_title"));
         self.setMinimumSize(400, 500)
         layout = QVBoxLayout(self)
-        self.list_label = QLabel(self.translator.get("batch_list_label", self.max_items))
+
+        self.list_label = QLabel(self.translator.get("batch_list_label_unlimited", 0))
+
         self.sku_list_widget = QListWidget();
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(self.list_label);
@@ -140,7 +141,6 @@ class BatchDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
         self.retranslate_ui();
-        self.check_limit()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
@@ -154,24 +154,17 @@ class BatchDialog(QDialog):
         self.add_button.setText(self.translator.get("batch_add_sku_button"))
         self.remove_button.setText(self.translator.get("batch_remove_button"));
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.translator.get("batch_generate_button"))
+        self.update_item_count()
 
-    def check_limit(self):
-        is_full = self.sku_list_widget.count() >= self.max_items
-        self.sku_input.setEnabled(not is_full);
-        self.add_button.setEnabled(not is_full)
-        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder") if not is_full else "")
+    def update_item_count(self):
+        count = self.sku_list_widget.count()
+        self.list_label.setText(self.translator.get("batch_list_label_unlimited", count))
 
     def add_item(self):
-        if self.sku_list_widget.count() >= self.max_items: QMessageBox.information(self,
-                                                                                   self.translator.get(
-                                                                                       "batch_limit_title"),
-                                                                                   self.translator.get(
-                                                                                       "batch_limit_message",
-                                                                                       self.max_items)); return
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier, None)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -185,22 +178,25 @@ class BatchDialog(QDialog):
 
         self.sku_list_widget.addItem(sku_to_add);
         self.sku_input.clear();
-        self.check_limit()
+        self.update_item_count()
 
     def remove_sku(self):
         for item in self.sku_list_widget.selectedItems(): self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
-        self.check_limit()
+        self.update_item_count()
 
     def get_skus(self):
         return [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
 
 
 class DisplayManagerDialog(QDialog):
-    def __init__(self, translator, branch_stock_column, parent=None):
+    def __init__(self, translator, branch_db_key, branch_stock_col, user, parent=None):
         super().__init__(parent)
         self.translator = translator
         self.parent = parent
-        self.branch_stock_column = branch_stock_column
+        self.branch_db_key = branch_db_key
+        self.branch_stock_col = branch_stock_col
+        self.user = user
+        self.token = self.user.get('idToken') if self.user else None
         self.setWindowTitle(self.translator.get("display_manager_title"))
         self.setMinimumSize(800, 600)
 
@@ -245,20 +241,21 @@ class DisplayManagerDialog(QDialog):
         identifier = self.return_input.text().strip().upper()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
             return
 
         sku = item_data.get('SKU')
-        firebase_handler.remove_item_from_display(sku, self.branch_stock_column)
+        firebase_handler.remove_item_from_display(sku, self.branch_db_key, self.token)
         QMessageBox.information(self, self.translator.get("success_title"),
                                 self.translator.get("item_returned_message", sku))
         self.return_input.clear()
 
         category = item_data.get('Categories')
-        self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_column)
+        self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_stock_col,
+                                                                                 self.token)
 
         self.current_sort_column = -1
         self.current_sort_order = None
@@ -269,8 +266,7 @@ class DisplayManagerDialog(QDialog):
             self.parent.update_status_display()
 
     def handle_header_click(self, logicalIndex):
-        if logicalIndex == 4:  # Action column is not sortable
-            return
+        if logicalIndex == 4: return
 
         if self.current_sort_column == logicalIndex:
             if self.current_sort_order == Qt.SortOrder.AscendingOrder:
@@ -287,14 +283,14 @@ class DisplayManagerDialog(QDialog):
     def _get_sort_key(self, item):
         column = self.current_sort_column
         try:
-            if column == 0:  # SKU
+            if column == 0:
                 return item.get('SKU', '')
-            elif column == 1:  # Name
+            elif column == 1:
                 return item.get('Name', '').lower()
-            elif column == 2:  # Stock
-                stock_str = str(item.get(self.branch_stock_column, '0'))
+            elif column == 2:
+                stock_str = str(item.get(self.branch_stock_col, '0'))
                 return int(stock_str.replace(',', ''))
-            elif column == 3:  # Price
+            elif column == 3:
                 sale_price = item.get('Sale price', '').strip()
                 if sale_price and float(sale_price.replace(',', '.')) > 0:
                     return float(sale_price.replace(',', '.'))
@@ -339,7 +335,7 @@ class DisplayManagerDialog(QDialog):
 
             self.suggestions_table.setItem(row, 0, QTableWidgetItem(item.get('SKU')))
             self.suggestions_table.setItem(row, 1, QTableWidgetItem(item.get('Name')))
-            self.suggestions_table.setItem(row, 2, QTableWidgetItem(str(item.get(self.branch_stock_column, '0'))))
+            self.suggestions_table.setItem(row, 2, QTableWidgetItem(str(item.get(self.branch_stock_col, '0'))))
             self.suggestions_table.setItem(row, 3, QTableWidgetItem(display_price))
 
             print_button = QPushButton(self.translator.get("quick_print_button"))
@@ -365,9 +361,11 @@ class DisplayManagerDialog(QDialog):
 
 
 class UserManagementDialog(QDialog):
-    def __init__(self, translator, parent=None):
+    def __init__(self, translator, user, parent=None):
         super().__init__(parent)
         self.translator = translator
+        self.user = user
+        self.token = self.user.get('idToken') if self.user else None
         self.setWindowTitle(self.translator.get("admin_manage_users"))
         self.setMinimumSize(600, 400)
 
@@ -387,27 +385,26 @@ class UserManagementDialog(QDialog):
 
     def load_users(self):
         self.table.setRowCount(0)
-        users = firebase_handler.get_all_users()
-        if not users:
-            return
+        users = firebase_handler.get_all_users(self.token)
+        if not users: return
 
         self.table.setRowCount(len(users))
-        for row_num, user in enumerate(users):
-            self.table.setItem(row_num, 0, QTableWidgetItem(user.get("email")))
-            self.table.setItem(row_num, 1, QTableWidgetItem(user.get("role")))
+        for row_num, user_data in enumerate(users):
+            self.table.setItem(row_num, 0, QTableWidgetItem(user_data.get("email")))
+            self.table.setItem(row_num, 1, QTableWidgetItem(user_data.get("role")))
 
-            if user.get("role") != "Admin":
+            if user_data.get("role") != "Admin":
                 promote_button = QPushButton(self.translator.get("user_mgmt_promote_button"))
-                promote_button.clicked.connect(lambda _, u=user: self.promote_user(u))
+                promote_button.clicked.connect(lambda _, u=user_data: self.promote_user(u))
                 self.table.setCellWidget(row_num, 2, promote_button)
 
-    def promote_user(self, user):
-        uid = user.get("uid")
-        email = user.get("email")
+    def promote_user(self, user_data):
+        uid = user_data.get("uid")
+        email = user_data.get("email")
         reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
                                      self.translator.get("user_mgmt_confirm_promote_message", email))
         if reply == QMessageBox.StandardButton.Yes:
-            firebase_handler.promote_user_to_admin(uid)
+            firebase_handler.promote_user_to_admin(uid, self.token)
             self.load_users()
 
 
@@ -415,14 +412,16 @@ class PriceTagDashboard(QMainWindow):
     def __init__(self, user):
         super().__init__()
         self.user = user
+        self.token = self.user.get('idToken')
         self.settings = data_handler.get_settings()
         self.translator = Translator(self.settings.get("language", "en"))
         self.tr = self.translator.get
+        self.printer = QPrinter(QPrinter.PrinterMode.HighResolution)
 
-        self.branch_map = {
-            self.tr("branch_vaja"): "Stock Vaja",
-            self.tr("branch_marj"): "Stock Marj",
-            self.tr("branch_gldani"): "Stock Gldan"
+        self.branch_data_map = {
+            "branch_vaja": {"db_key": "Vazha-Pshavela Shop", "stock_col": "Stock Vaja"},
+            "branch_marj": {"db_key": "Marjanishvili", "stock_col": "Stock Marj"},
+            "branch_gldani": {"db_key": "Gldani Shop", "stock_col": "Stock Gldan"},
         }
 
         self.setWindowIcon(QIcon("assets/logo.png"))
@@ -449,6 +448,12 @@ class PriceTagDashboard(QMainWindow):
     def create_menu(self):
         menu_bar = self.menuBar()
         menu_bar.clear()
+
+        file_menu = menu_bar.addMenu(self.tr("file_menu"))
+        select_printer_action = QAction(self.tr("select_printer_menu"), self)
+        select_printer_action.triggered.connect(self.select_printer)
+        file_menu.addAction(select_printer_action)
+
         if self.user.get('role') == 'Admin':
             admin_menu = menu_bar.addMenu(self.tr('admin_tools_menu'))
 
@@ -461,17 +466,19 @@ class PriceTagDashboard(QMainWindow):
             admin_menu.addAction(user_mgmt_action)
 
     def open_user_management(self):
-        dialog = UserManagementDialog(self.translator, self)
+        dialog = UserManagementDialog(self.translator, self.user, self)
         dialog.exec()
 
     def upload_master_list(self):
-        filepath, _ = QFileDialog.getOpenFileName(self, "Open Master List", "", "Text Files (*.txt);;All Files (*)")
+        filepath, _ = QFileDialog.getOpenFileName(self, self.tr("open_master_list_title"), "",
+                                                  "Text Files (*.txt);;All Files (*)")
         if filepath:
-            success, message = firebase_handler.sync_products_from_file(filepath)
+            success, val1, val2 = firebase_handler.sync_products_from_file(filepath, self.token)
             if success:
-                QMessageBox.information(self, "Success", message)
+                message = self.tr("sync_results_message", val1, val2)
+                QMessageBox.information(self, self.tr("success_title"), message)
             else:
-                QMessageBox.critical(self, "Error", message)
+                QMessageBox.critical(self, "Error", val1)
 
     def create_left_panel(self):
         panel = QWidget()
@@ -489,7 +496,7 @@ class PriceTagDashboard(QMainWindow):
         branch_group = QGroupBox(self.tr("branch_group_title"))
         branch_layout = QFormLayout()
         self.branch_combo = QComboBox()
-        self.branch_combo.currentTextChanged.connect(self.handle_branch_change)
+        self.branch_combo.currentIndexChanged.connect(self.handle_branch_change)
         branch_layout.addRow(self.tr("branch_label"), self.branch_combo)
         branch_group.setLayout(branch_layout)
 
@@ -598,11 +605,6 @@ class PriceTagDashboard(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
-        self.branch_map = {
-            self.tr("branch_vaja"): "Stock Vaja",
-            self.tr("branch_marj"): "Stock Marj",
-            self.tr("branch_gldani"): "Stock Gldan"
-        }
         self.update_branch_combo()
         self.update_paper_size_combo()
         self.update_theme_combo()
@@ -640,36 +642,43 @@ class PriceTagDashboard(QMainWindow):
         self.settings["language"] = new_lang
         data_handler.save_settings(self.settings)
         self.retranslate_ui()
-        self.branch_combo.setCurrentText(self.tr(branch_key))
+        index = self.branch_combo.findData(branch_key)
+        if index != -1:
+            self.branch_combo.setCurrentIndex(index)
         self.update_preview()
 
     def update_branch_combo(self):
         self.branch_combo.blockSignals(True)
-        current_selection = self.branch_combo.currentText()
+        current_key = self.branch_combo.currentData() or self.settings.get("default_branch", "branch_vaja")
         self.branch_combo.clear()
-        self.branch_combo.addItems(self.branch_map.keys())
-        if current_selection and current_selection in self.branch_map.keys():
-            self.branch_combo.setCurrentText(current_selection)
-        else:
-            default_branch_key = self.settings.get("default_branch", "branch_vaja")
-            self.branch_combo.setCurrentText(self.tr(default_branch_key))
+        for key in self.branch_data_map.keys():
+            self.branch_combo.addItem(self.tr(key), key)
+
+        index = self.branch_combo.findData(current_key)
+        if index != -1:
+            self.branch_combo.setCurrentIndex(index)
+
         self.branch_combo.blockSignals(False)
 
-    def handle_branch_change(self, branch_name):
-        if not branch_name: return
-        key = self.translator.get_key_from_value(branch_name)
+    def handle_branch_change(self, index):
+        key = self.branch_combo.currentData()
         if key:
             self.settings["default_branch"] = key
             data_handler.save_settings(self.settings)
         self.update_status_display()
 
-    def get_current_branch_column(self):
-        current_branch_name = self.branch_combo.currentText()
-        return self.branch_map.get(current_branch_name, "Stock Vaja")
+    def get_current_branch_stock_column(self):
+        current_key = self.branch_combo.currentData()
+        return self.branch_data_map.get(current_key, {}).get("stock_col")
+
+    def get_current_branch_db_key(self):
+        current_key = self.branch_combo.currentData()
+        return self.branch_data_map.get(current_key, {}).get("db_key")
 
     def open_display_manager(self):
-        branch_column = self.get_current_branch_column()
-        dialog = DisplayManagerDialog(self.translator, branch_column, self)
+        branch_db_key = self.get_current_branch_db_key()
+        branch_stock_col = self.get_current_branch_stock_column()
+        dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
         dialog.exec()
 
     def update_paper_size_combo(self):
@@ -700,7 +709,7 @@ class PriceTagDashboard(QMainWindow):
         identifier = self.sku_input.text().strip().upper()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier)
+        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
         if not item_data:
             self.clear_all_fields()
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
@@ -719,13 +728,13 @@ class PriceTagDashboard(QMainWindow):
             return
 
         template_data = template_dialog.selected_template_data
-        template_specs = template_data.get("specs") if template_data else []
-        category_name = template_data.get("category_name") if template_data else ""
+        template_specs = template_data.get("specs", [])
+        category_name = template_data.get("category_name", "")
 
         dialog = NewItemDialog(sku, self.translator, template=template_specs, category_name=category_name, parent=self)
         if dialog.exec():
             new_data = dialog.new_item_data
-            if firebase_handler.add_new_item(new_data):
+            if firebase_handler.add_new_item(new_data, self.token):
                 QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
                 self.sku_input.setText(sku)
                 self.find_item()
@@ -759,8 +768,8 @@ class PriceTagDashboard(QMainWindow):
             return
 
         sku = self.current_item_data.get('SKU')
-        branch_column = self.get_current_branch_column()
-        if firebase_handler.is_item_on_display(sku, branch_column):
+        branch_db_key = self.get_current_branch_db_key()
+        if firebase_handler.is_item_on_display(sku, branch_db_key, self.token):
             self.status_label_value.setText(self.tr('status_on_display'))
             self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_storage_button'))
@@ -773,11 +782,11 @@ class PriceTagDashboard(QMainWindow):
     def toggle_display_status(self):
         if not self.current_item_data: return
         sku = self.current_item_data.get('SKU')
-        branch_column = self.get_current_branch_column()
-        if firebase_handler.is_item_on_display(sku, branch_column):
-            firebase_handler.remove_item_from_display(sku, branch_column)
+        branch_db_key = self.get_current_branch_db_key()
+        if firebase_handler.is_item_on_display(sku, branch_db_key, self.token):
+            firebase_handler.remove_item_from_display(sku, branch_db_key, self.token)
         else:
-            firebase_handler.add_item_to_display(sku, branch_column)
+            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
         self.update_status_display()
 
     def generate_single(self):
@@ -788,7 +797,7 @@ class PriceTagDashboard(QMainWindow):
         self.generate_single_by_sku(sku, mark_on_display=True)
 
     def generate_single_by_sku(self, sku, mark_on_display=False):
-        item_data = firebase_handler.find_item_by_identifier(sku)
+        item_data = firebase_handler.find_item_by_identifier(sku, self.token)
         if not item_data:
             QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
@@ -798,7 +807,10 @@ class PriceTagDashboard(QMainWindow):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
-        filename = ""
+
+        pixmaps_to_print = []
+        filenames = []
+
         if is_dual:
             tag_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
             tag_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
@@ -806,19 +818,25 @@ class PriceTagDashboard(QMainWindow):
             for i, page in enumerate(a4_pages):
                 filename = os.path.join("output", f"A4_DUAL_{data_to_print['SKU']}_{i + 1}.png")
                 page.save(filename, dpi=(300, 300))
-                self.handle_printing(QPixmap(filename))
+                pixmaps_to_print.append(QPixmap(filename))
+                filenames.append(filename)
         else:
             lang = 'en' if size_name == '6x3.5cm' else self.translator.language
             tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
             a4_page = a4_layout_generator.create_a4_for_single(tag_image)
             filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
             a4_page.save(filename, dpi=(300, 300))
-            self.handle_printing(QPixmap(filename))
+            pixmaps_to_print.append(QPixmap(filename))
+            filenames.append(filename)
+
+        self.handle_single_print_with_dialog(pixmaps_to_print)
+
         QMessageBox.information(self, self.tr("success_title"),
-                                self.tr("file_saved_message", os.path.abspath(filename)))
+                                self.tr("file_saved_message", "\n".join(map(os.path.abspath, filenames))))
+
         if mark_on_display:
-            branch_column = self.get_current_branch_column()
-            firebase_handler.add_item_to_display(sku, branch_column)
+            branch_db_key = self.get_current_branch_db_key()
+            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
 
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
@@ -826,47 +844,81 @@ class PriceTagDashboard(QMainWindow):
     def generate_batch(self):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
+
         size_config = self.paper_sizes[size_name]
         theme_config = self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
+        tags_per_sheet = layout_info.get('total', 0)
+
+        if tags_per_sheet <= 0:
+            QMessageBox.warning(self, "Layout Error",
+                                "The selected paper size cannot fit any tags. Please choose a larger paper size or smaller tag size.")
+            return
+
         dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
-        dialog = BatchDialog(layout_info['total'], self.translator, dual_lang_enabled, self)
+        items_per_sheet = tags_per_sheet
+        if dual_lang_enabled:
+            items_per_sheet //= 2
+
+        dialog = BatchDialog(self.translator, self)
         if not dialog.exec(): return
+
         skus = dialog.get_skus()
         if not skus:
             QMessageBox.warning(self, self.tr("batch_empty_title"), self.tr("batch_empty_message"))
             return
 
-        tag_images, valid_skus = [], []
-        branch_column = self.get_current_branch_column()
-        for sku in skus:
-            item_data = firebase_handler.find_item_by_identifier(sku)
-            if not item_data:
-                QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
-                continue
+        all_valid_skus = [sku for sku in skus if firebase_handler.find_item_by_identifier(sku, self.token)]
+        if not all_valid_skus:
+            QMessageBox.warning(self, self.tr("sku_not_found_title"),
+                                "None of the provided SKUs were found in the database.")
+            return
 
-            data_to_print = self._prepare_data_for_printing(item_data)
-            valid_skus.append(data_to_print.get('SKU'))
-            if dual_lang_enabled:
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
-            else:
-                lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-                tag_images.append(
-                    price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
+        dialog = QPrintDialog(self.printer, self)
+        if dialog.exec() != QPrintDialog.DialogCode.Accepted:
+            QMessageBox.warning(self, "Printing Cancelled",
+                                "The batch print job was cancelled because no printer was selected.")
+            return
 
-        if not tag_images: return
-        a4_sheet = a4_layout_generator.create_a4_sheet(tag_images, layout_info)
-        filename = os.path.join("output", f"A4_BATCH_{size_name}.png")
-        a4_sheet.save(filename, dpi=(300, 300))
-        self.handle_printing(QPixmap(filename))
-        QMessageBox.information(self, self.tr("success_title"),
-                                self.tr("file_saved_message", os.path.abspath(filename)))
-        for sku in valid_skus:
-            firebase_handler.add_item_to_display(sku, branch_column)
-        if self.current_item_data.get('SKU') in valid_skus:
+        sku_pages = list(a4_layout_generator.chunks(all_valid_skus, items_per_sheet))
+        total_pages = len(sku_pages)
+        branch_db_key = self.get_current_branch_db_key()
+
+        for page_num, page_skus in enumerate(sku_pages, 1):
+            tag_images_for_page = []
+            for sku in page_skus:
+                item_data = firebase_handler.find_item_by_identifier(sku, self.token)
+                if not item_data: continue
+
+                data_to_print = self._prepare_data_for_printing(item_data)
+
+                if dual_lang_enabled:
+                    tag_images_for_page.append(
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
+                    tag_images_for_page.append(
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
+                else:
+                    lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+                    tag_images_for_page.append(
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
+
+            if not tag_images_for_page: continue
+
+            a4_sheet = a4_layout_generator.create_a4_sheet(tag_images_for_page, layout_info)
+            filename = os.path.join("output", f"A4_BATCH_{size_name}_Page_{page_num}_of_{total_pages}.png")
+            a4_sheet.save(filename, dpi=(300, 300))
+
+            if not self._execute_print_job(QPixmap(filename), self.printer):
+                QMessageBox.critical(self, "Printing Error",
+                                     f"Failed to print page {page_num}. The batch job has been aborted.")
+                break
+        else:
+            QMessageBox.information(self, "Batch Complete",
+                                    self.tr("print_job_sent", total_pages, self.printer.printerName()))
+
+        for sku in all_valid_skus:
+            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+        if self.current_item_data.get('SKU') in all_valid_skus:
             self.update_status_display()
 
     def get_current_data_from_ui(self):
@@ -988,19 +1040,31 @@ class PriceTagDashboard(QMainWindow):
             self.settings["generate_dual_language"] = bool(state)
             data_handler.save_settings(self.settings)
 
-    def handle_printing(self, pixmap):
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        dialog = QPrintDialog(printer, self)
+    def select_printer(self):
+        dialog = QPrintDialog(self.printer, self)
         if dialog.exec() == QPrintDialog.DialogCode.Accepted:
-            painter = QPainter()
-            painter.begin(printer)
-            rect = painter.viewport()
-            size = pixmap.size()
-            size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-            painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
-            painter.setWindow(pixmap.rect())
-            painter.drawPixmap(0, 0, pixmap)
+            QMessageBox.information(self, "Printer Selected",
+                                    f"Printer '{self.printer.printerName()}' has been selected for subsequent print jobs.")
+
+    def _execute_print_job(self, pixmap, printer):
+        painter = QPainter()
+        if painter.begin(printer):
+            printer.setResolution(300)
+            page_rect_pixels = printer.pageRect(QPrinter.Unit.DevicePixel)
+            x_offset = (page_rect_pixels.width() - pixmap.width()) / 2
+            y_offset = (page_rect_pixels.height() - pixmap.height()) / 2
+            painter.drawPixmap(int(x_offset), int(y_offset), pixmap)
             painter.end()
+            return True
+        return False
+
+    def handle_single_print_with_dialog(self, pixmaps):
+        dialog = QPrintDialog(self.printer, self)
+        if dialog.exec() == QPrintDialog.DialogCode.Accepted:
+            for pixmap in pixmaps:
+                if not self._execute_print_job(pixmap, self.printer):
+                    QMessageBox.critical(self, "Printing Error", f"Could not print on '{self.printer.printerName()}'.")
+                    break
 
 
 if __name__ == "__main__":
