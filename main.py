@@ -2,7 +2,7 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMessageBox
 import firebase_handler
 from auth_ui import LoginWindow
-from app import PriceTagDashboard
+from app import RetailOperationsSuite
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     # Keep the application running until the login window is closed
     if login_window.exec() == LoginWindow.DialogCode.Accepted:
         user = login_window.user
-        dashboard = PriceTagDashboard(user)
+        dashboard = RetailOperationsSuite(user)
         dashboard.show()
         sys.exit(app.exec())
     else:
