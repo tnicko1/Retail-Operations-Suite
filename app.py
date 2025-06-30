@@ -130,7 +130,6 @@ class PrintQueueDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
 
-        # --- Quick Add Group ---
         add_group = QGroupBox(self.translator.get("print_queue_add_item_group"))
         add_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
@@ -142,7 +141,6 @@ class PrintQueueDialog(QDialog):
         add_group.setLayout(add_layout)
         main_layout.addWidget(add_group)
 
-        # --- Queue List ---
         queue_group = QGroupBox(self.translator.get("print_queue_skus_group"))
         queue_layout = QVBoxLayout()
         self.sku_list_widget = QListWidget()
@@ -161,7 +159,6 @@ class PrintQueueDialog(QDialog):
         queue_group.setLayout(queue_layout)
         main_layout.addWidget(queue_group)
 
-        # --- Saved Lists ---
         saved_group = QGroupBox(self.translator.get("print_queue_load_save_group"))
         saved_layout = QHBoxLayout()
         self.saved_lists_combo = QComboBox()
@@ -178,7 +175,6 @@ class PrintQueueDialog(QDialog):
         saved_group.setLayout(saved_layout)
         main_layout.addWidget(saved_group)
 
-        # --- Main Action Buttons ---
         self.generate_button = QPushButton(self.translator.get("print_queue_generate_button"))
         self.generate_button.setFixedHeight(40)
         self.generate_button.clicked.connect(self.accept)
@@ -211,7 +207,7 @@ class PrintQueueDialog(QDialog):
             return
 
         self.sku_list_widget.addItem(sku_to_add)
-        self.save_queue()  # Save changes to Firebase
+        self.save_queue()
         self.sku_input.clear()
 
     def load_queue(self):
@@ -652,6 +648,54 @@ class DisplayManagerDialog(QDialog):
             self.parent.generate_single_by_sku(sku, mark_on_display=True)
             self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
             self.sort_and_repopulate()
+
+
+class UserManagementDialog(QDialog):
+    def __init__(self, translator, user, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.user = user
+        self.token = self.user.get('idToken') if self.user else None
+        self.setWindowTitle(self.translator.get("admin_manage_users"))
+        self.setMinimumSize(600, 400)
+
+        layout = QVBoxLayout(self)
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels([
+            self.translator.get("user_mgmt_header_email"),
+            self.translator.get("user_mgmt_header_role"),
+            self.translator.get("user_mgmt_header_action")
+        ])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+        layout.addWidget(self.table)
+        self.load_users()
+
+    def load_users(self):
+        self.table.setRowCount(0)
+        users = firebase_handler.get_all_users(self.token)
+        if not users: return
+
+        self.table.setRowCount(len(users))
+        for row_num, user_data in enumerate(users):
+            self.table.setItem(row_num, 0, QTableWidgetItem(user_data.get("email", "")))
+            self.table.setItem(row_num, 1, QTableWidgetItem(user_data.get("role", "")))
+
+            if user_data.get("role") != "Admin":
+                promote_button = QPushButton(self.translator.get("user_mgmt_promote_button"))
+                promote_button.clicked.connect(lambda _, u=user_data: self.promote_user(u))
+                self.table.setCellWidget(row_num, 2, promote_button)
+
+    def promote_user(self, user_data):
+        uid = user_data.get("uid")
+        email = user_data.get("email")
+        reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
+                                     self.translator.get("user_mgmt_confirm_promote_message", email))
+        if reply == QMessageBox.StandardButton.Yes:
+            firebase_handler.promote_user_to_admin(uid, self.token)
+            self.load_users()
 
 
 class PriceTagDashboard(QMainWindow):
