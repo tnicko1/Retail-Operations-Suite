@@ -1,14 +1,15 @@
 import sys
 import os
 import re
+from collections import deque
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar, QTabWidget, QMenu)
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox)
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize
-from PyQt6.QtCore import Qt, QSize, QRect, QRectF, QSizeF
+from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 import firebase_handler
@@ -16,6 +17,210 @@ import data_handler
 import price_generator
 import a4_layout_generator
 from translations import Translator
+
+
+class AddEditSizeDialog(QDialog):
+    def __init__(self, translator, size_data=None, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.setWindowTitle(self.translator.get("size_dialog_edit_title") if size_data else self.translator.get(
+            "size_dialog_add_title"))
+
+        self.size_data = {}
+        layout = QFormLayout(self)
+
+        self.name_input = QLineEdit()
+        self.width_input = QDoubleSpinBox()
+        self.width_input.setRange(1, 50)
+        self.width_input.setDecimals(2)
+        self.width_input.setSuffix(" cm")
+        self.height_input = QDoubleSpinBox()
+        self.height_input.setRange(1, 50)
+        self.height_input.setDecimals(2)
+        self.height_input.setSuffix(" cm")
+        self.speclimit_input = QInputDialog()
+        self.speclimit_input.setIntRange(0, 50)
+        self.accessory_checkbox = QCheckBox()
+
+        if size_data:
+            self.name_input.setText(size_data.get('name'))
+            self.width_input.setValue(size_data.get('dims', [0, 0])[0])
+            self.height_input.setValue(size_data.get('dims', [0, 0])[1])
+            self.speclimit_input.setIntValue(size_data.get('spec_limit', 0))
+            self.accessory_checkbox.setChecked(size_data.get('is_accessory_style', False))
+
+        layout.addRow(self.translator.get("size_dialog_name"), self.name_input)
+        layout.addRow(self.translator.get("size_dialog_width"), self.width_input)
+        layout.addRow(self.translator.get("size_dialog_height"), self.height_input)
+        layout.addRow(self.translator.get("size_dialog_spec_limit"), self.speclimit_input)
+        layout.addRow(self.translator.get("size_dialog_accessory_style"), self.accessory_checkbox)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addRow(self.button_box)
+
+    def accept(self):
+        name = self.name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Input Error", "Size name cannot be empty.")
+            return
+
+        self.size_data = {
+            "name": name,
+            "dims": [self.width_input.value(), self.height_input.value()],
+            "spec_limit": self.speclimit_input.intValue(),
+            "is_accessory_style": self.accessory_checkbox.isChecked()
+        }
+        super().accept()
+
+    def get_size_data(self):
+        return self.size_data
+
+
+class CustomSizeManagerDialog(QDialog):
+    def __init__(self, translator, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.settings = data_handler.get_settings()
+        self.setWindowTitle(self.translator.get("size_manager_title"))
+        self.setMinimumSize(600, 400)
+
+        layout = QVBoxLayout(self)
+
+        self.size_list = QListWidget()
+        self.populate_list()
+        layout.addWidget(self.size_list)
+
+        button_layout = QHBoxLayout()
+        add_btn = QPushButton(self.translator.get("add_button"))
+        add_btn.clicked.connect(self.add_size)
+        edit_btn = QPushButton(self.translator.get("edit_button"))
+        edit_btn.clicked.connect(self.edit_size)
+        remove_btn = QPushButton(self.translator.get("remove_button"))
+        remove_btn.clicked.connect(self.remove_size)
+
+        button_layout.addWidget(add_btn)
+        button_layout.addWidget(edit_btn)
+        button_layout.addWidget(remove_btn)
+        layout.addLayout(button_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def populate_list(self):
+        self.size_list.clear()
+        for name in sorted(self.settings.get("custom_sizes", {}).keys()):
+            self.size_list.addItem(name)
+
+    def add_size(self):
+        dialog = AddEditSizeDialog(self.translator, parent=self)
+        if dialog.exec():
+            new_size = dialog.get_size_data()
+            self.settings["custom_sizes"][new_size['name']] = {
+                "dims": new_size['dims'],
+                "spec_limit": new_size['spec_limit'],
+                "is_accessory_style": new_size['is_accessory_style']
+            }
+            self.populate_list()
+
+    def edit_size(self):
+        current_item = self.size_list.currentItem()
+        if not current_item:
+            return
+
+        name = current_item.text()
+        size_data_to_edit = self.settings["custom_sizes"][name]
+        size_data_to_edit['name'] = name
+
+        dialog = AddEditSizeDialog(self.translator, size_data=size_data_to_edit, parent=self)
+        if dialog.exec():
+            edited_size = dialog.get_size_data()
+            # Remove old entry if name changed
+            if name != edited_size['name']:
+                del self.settings["custom_sizes"][name]
+
+            self.settings["custom_sizes"][edited_size['name']] = {
+                "dims": edited_size['dims'],
+                "spec_limit": edited_size['spec_limit'],
+                "is_accessory_style": edited_size['is_accessory_style']
+            }
+            self.populate_list()
+
+    def remove_size(self):
+        current_item = self.size_list.currentItem()
+        if not current_item:
+            return
+
+        name = current_item.text()
+        reply = QMessageBox.question(self, self.translator.get("remove_size_title"),
+                                     self.translator.get("remove_size_message", name))
+        if reply == QMessageBox.StandardButton.Yes:
+            del self.settings["custom_sizes"][name]
+            self.populate_list()
+
+    def accept(self):
+        data_handler.save_settings(self.settings)
+        super().accept()
+
+
+class QuickStockDialog(QDialog):
+    def __init__(self, translator, token, branch_map, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.token = token
+        self.branch_map = branch_map
+        self.setWindowTitle(self.translator.get("stock_checker_title"))
+        self.setMinimumWidth(450)
+
+        layout = QVBoxLayout(self)
+
+        # Input section
+        input_layout = QHBoxLayout()
+        self.sku_input = QLineEdit()
+        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder"))
+        self.sku_input.returnPressed.connect(self.check_stock)
+        self.check_button = QPushButton(self.translator.get("stock_checker_button"))
+        self.check_button.clicked.connect(self.check_stock)
+        input_layout.addWidget(self.sku_input)
+        input_layout.addWidget(self.check_button)
+        layout.addLayout(input_layout)
+
+        # Results table
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(2)
+        self.results_table.setHorizontalHeaderLabels([
+            self.translator.get("stock_checker_branch_header"),
+            self.translator.get("stock_checker_stock_header")
+        ])
+        self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        layout.addWidget(self.results_table)
+
+    def check_stock(self):
+        self.results_table.setRowCount(0)
+        identifier = self.sku_input.text().strip().upper()
+        if not identifier:
+            return
+
+        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        if not item_data:
+            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
+                                self.translator.get("sku_not_found_message", identifier))
+            return
+
+        self.setWindowTitle(f"{self.translator.get('stock_checker_title')} - {item_data.get('Name')}")
+        self.results_table.setRowCount(len(self.branch_map))
+
+        for i, (branch_key, branch_info) in enumerate(self.branch_map.items()):
+            branch_name = self.translator.get(branch_key)
+            stock_col = branch_info['stock_col']
+            stock_level = item_data.get(stock_col, "0")
+
+            self.results_table.setItem(i, 0, QTableWidgetItem(branch_name))
+            self.results_table.setItem(i, 1, QTableWidgetItem(str(stock_level)))
 
 
 class TemplateSelectionDialog(QDialog):
@@ -508,7 +713,6 @@ class DisplayManagerDialog(QDialog):
         return_layout.addWidget(self.find_replacements_button)
         return_group.setLayout(return_layout)
 
-        # **FIX**: Make suggestions_group an instance variable to update its title
         self.suggestions_group = QGroupBox(self.translator.get("suggestions_group_empty"))
         suggestions_layout = QVBoxLayout()
         self.suggestions_table = QTableWidget()
@@ -547,7 +751,6 @@ class DisplayManagerDialog(QDialog):
 
         category = item_data.get('Categories', 'N/A')
         branch_name = self.parent.branch_combo.currentText()
-        # **FIX**: Update the group title dynamically
         self.suggestions_group.setTitle(self.translator.get("suggestions_group_filled", category, branch_name))
 
         self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_db_key,
@@ -647,7 +850,6 @@ class DisplayManagerDialog(QDialog):
     def quick_print_tag(self, sku):
         if self.parent:
             self.parent.generate_single_by_sku(sku, mark_on_display=True)
-            # Remove the printed item from the suggestions list and repopulate the table
             self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
             self.sort_and_repopulate()
 
@@ -702,7 +904,7 @@ class UserManagementDialog(QDialog):
                 QMessageBox.critical(self, "Error", "Failed to promote user.")
 
 
-class PriceTagDashboard(QMainWindow):
+class RetailOperationsSuite(QMainWindow):
     def __init__(self, user):
         super().__init__()
         self.user = user
@@ -723,6 +925,7 @@ class PriceTagDashboard(QMainWindow):
         self.setGeometry(100, 100, 1400, 800)
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
+        self.all_items_cache = {}
         self.themes = {
             "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
                         "logo_path": "assets/logo.png", "logo_path_ka": "assets/logo-geo.png",
@@ -749,6 +952,7 @@ class PriceTagDashboard(QMainWindow):
         self.create_menu()
         self.retranslate_ui()
         self.clear_all_fields()
+        self.update_recently_printed_list()
 
     def setup_generator_ui(self):
         main_layout = QHBoxLayout(self.generator_tab)
@@ -759,41 +963,72 @@ class PriceTagDashboard(QMainWindow):
         layout = QVBoxLayout(self.dashboard_tab)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        refresh_layout = QHBoxLayout()
+        # --- Controls ---
+        controls_layout = QHBoxLayout()
         self.refresh_button = QPushButton(self.tr("dashboard_refresh_button"))
         self.refresh_button.clicked.connect(self.update_dashboard_data)
-        refresh_layout.addStretch()
-        refresh_layout.addWidget(self.refresh_button)
-        layout.addLayout(refresh_layout)
+        controls_layout.addWidget(self.refresh_button)
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
 
-        stats_group = QGroupBox(self.tr("dashboard_stats_group"))
+        # --- Stats ---
+        self.stats_group = QGroupBox(self.tr("dashboard_stats_group"))
         stats_layout = QFormLayout()
         self.stats_labels = {}
         for key, data in self.branch_data_map.items():
             display_name = self.tr(key)
             self.stats_labels[key] = QLabel("...")
             stats_layout.addRow(f"{display_name} ({self.tr('dashboard_on_display_label')})", self.stats_labels[key])
-        stats_group.setLayout(stats_layout)
-        layout.addWidget(stats_group)
+        self.stats_group.setLayout(stats_layout)
+        layout.addWidget(self.stats_group)
 
-        low_stock_group = QGroupBox()
+        # --- Low Stock ---
+        self.low_stock_group = QGroupBox()
         low_stock_layout = QVBoxLayout()
-        self.low_stock_table = QTableWidget()
-        self.low_stock_table.setColumnCount(3)
-        self.low_stock_table.setHorizontalHeaderLabels(["SKU", "Name", "Stock"])
-        self.low_stock_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        low_stock_layout.addWidget(self.low_stock_table)
-        low_stock_group.setLayout(low_stock_layout)
-        layout.addWidget(low_stock_group)
 
-        self.low_stock_group = low_stock_group
+        # Filters
+        filters_layout = QHBoxLayout()
+        self.branch_filter_combo = QComboBox()
+        self.branch_filter_combo.addItem(self.tr("dashboard_all_branches"), "all")
+        for key, data in self.branch_data_map.items():
+            self.branch_filter_combo.addItem(self.tr(key), key)
+        self.branch_filter_combo.currentIndexChanged.connect(self.filter_low_stock_list)
+
+        self.category_filter_combo = QComboBox()
+        self.category_filter_combo.currentIndexChanged.connect(self.filter_low_stock_list)
+
+        filters_layout.addWidget(QLabel(self.tr("dashboard_filter_branch")))
+        filters_layout.addWidget(self.branch_filter_combo)
+        filters_layout.addWidget(QLabel(self.tr("dashboard_filter_category")))
+        filters_layout.addWidget(self.category_filter_combo)
+        filters_layout.addStretch()
+        low_stock_layout.addLayout(filters_layout)
+
+        # Table
+        self.low_stock_table = QTableWidget()
+        self.low_stock_table.setColumnCount(4)
+        self.low_stock_table.setHorizontalHeaderLabels(
+            [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"), self.tr("dashboard_header_category"),
+             self.tr("dashboard_header_stock")])
+        header = self.low_stock_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(1, 350)  # Give name column a good starting width
+        self.low_stock_table.setSortingEnabled(False)
+        header.sectionClicked.connect(self.sort_low_stock_table)
+        self.current_sort_col = -1
+        self.current_sort_order = Qt.SortOrder.AscendingOrder
+
+        low_stock_layout.addWidget(self.low_stock_table)
+        self.low_stock_group.setLayout(low_stock_layout)
+        layout.addWidget(self.low_stock_group)
+
         self.update_dashboard_data()
 
     def update_dashboard_data(self):
-        threshold = self.settings.get('low_stock_threshold', 3)
-        self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
-
-        all_items = firebase_handler.db.child("items").get(self.token).val() or {}
+        self.all_items_cache = firebase_handler.get_all_items(self.token) or {}
         display_statuses = firebase_handler.get_display_status(self.token)
 
         for key, data in self.branch_data_map.items():
@@ -801,33 +1036,88 @@ class PriceTagDashboard(QMainWindow):
             count = len(display_statuses.get(db_key, []))
             self.stats_labels[key].setText(str(count))
 
-        self.low_stock_table.setRowCount(0)
+        self.category_filter_combo.blockSignals(True)
+        self.category_filter_combo.clear()
+        self.category_filter_combo.addItem(self.tr("dashboard_all_categories"), "all")
+        categories = sorted(list(set(item.get("Categories", "N/A") for item in self.all_items_cache.values())))
+        for cat in categories:
+            self.category_filter_combo.addItem(cat)
+        self.category_filter_combo.blockSignals(False)
+
+        self.filter_low_stock_list()
+
+    def filter_low_stock_list(self):
+        threshold = self.settings.get('low_stock_threshold', 3)
+        self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+
+        selected_branch_key = self.branch_filter_combo.currentData()
+        selected_category = self.category_filter_combo.currentText()
+        if self.category_filter_combo.currentData() == "all":
+            selected_category = "all"
+
         low_stock_items = []
-        for sku, item_data in all_items.items():
-            for branch_key, branch_info in self.branch_data_map.items():
+        for sku, item_data in self.all_items_cache.items():
+            if selected_category != "all" and item_data.get("Categories") != selected_category:
+                continue
+
+            branches_to_check = [selected_branch_key] if selected_branch_key != "all" else self.branch_data_map.keys()
+
+            for branch_key in branches_to_check:
+                branch_info = self.branch_data_map[branch_key]
                 stock_col = branch_info['stock_col']
                 stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
                 if stock_str.isdigit() and 0 < int(stock_str) <= threshold:
                     low_stock_items.append({
                         "sku": sku,
                         "name": item_data.get("Name", "N/A"),
-                        "stock": f"{branch_info['db_key']}: {int(stock_str)}"
+                        "category": item_data.get("Categories", "N/A"),
+                        "stock_val": int(stock_str),
+                        "stock_display": f"{branch_info['db_key']}: {int(stock_str)}"
                     })
 
-        self.low_stock_table.setRowCount(len(low_stock_items))
-        for row, item in enumerate(low_stock_items):
-            self.low_stock_table.setItem(row, 0, QTableWidgetItem(item['sku']))
-            self.low_stock_table.setItem(row, 1, QTableWidgetItem(item['name']))
-            self.low_stock_table.setItem(row, 2, QTableWidgetItem(item['stock']))
+        self.populate_low_stock_table(low_stock_items)
+
+    def sort_low_stock_table(self, column_index):
+        if self.current_sort_col == column_index:
+            self.current_sort_order = Qt.SortOrder.DescendingOrder if self.current_sort_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
+        else:
+            self.current_sort_col = column_index
+            self.current_sort_order = Qt.SortOrder.AscendingOrder
+
+        self.low_stock_table.sortItems(column_index, self.current_sort_order)
+
+    def populate_low_stock_table(self, items):
+        self.low_stock_table.setRowCount(0)
+        self.low_stock_table.setRowCount(len(items))
+
+        for row, item in enumerate(items):
+            sku_item = QTableWidgetItem(item['sku'])
+            name_item = QTableWidgetItem(item['name'])
+            category_item = QTableWidgetItem(item['category'])
+            stock_item = QTableWidgetItem()
+            stock_item.setData(Qt.ItemDataRole.DisplayRole, item['stock_display'])
+            stock_item.setData(Qt.ItemDataRole.UserRole, item['stock_val'])
+
+            self.low_stock_table.setItem(row, 0, sku_item)
+            self.low_stock_table.setItem(row, 1, name_item)
+            self.low_stock_table.setItem(row, 2, category_item)
+            self.low_stock_table.setItem(row, 3, stock_item)
 
     def create_menu(self):
         menu_bar = self.menuBar()
         menu_bar.clear()
 
         file_menu = menu_bar.addMenu(self.tr("file_menu"))
+
+        stock_checker_action = QAction(self.tr("stock_checker_menu"), self)
+        stock_checker_action.triggered.connect(self.open_quick_stock_checker)
+        file_menu.addAction(stock_checker_action)
+
         select_printer_action = QAction(self.tr("select_printer_menu"), self)
         select_printer_action.triggered.connect(self.select_printer)
         file_menu.addAction(select_printer_action)
+
+        file_menu.addSeparator()
 
         if self.user.get('role') == 'Admin':
             admin_menu = menu_bar.addMenu(self.tr('admin_tools_menu'))
@@ -840,6 +1130,10 @@ class PriceTagDashboard(QMainWindow):
             template_manager_action.triggered.connect(self.open_template_manager)
             admin_menu.addAction(template_manager_action)
 
+            size_manager_action = QAction(self.tr("size_manager_menu"), self)
+            size_manager_action.triggered.connect(self.open_size_manager)
+            admin_menu.addAction(size_manager_action)
+
             activity_log_action = QAction(self.tr("admin_activity_log"), self)
             activity_log_action.triggered.connect(self.open_activity_log)
             admin_menu.addAction(activity_log_action)
@@ -847,6 +1141,15 @@ class PriceTagDashboard(QMainWindow):
             user_mgmt_action = QAction(self.tr('admin_manage_users'), self)
             user_mgmt_action.triggered.connect(self.open_user_management)
             admin_menu.addAction(user_mgmt_action)
+
+    def open_quick_stock_checker(self):
+        dialog = QuickStockDialog(self.translator, self.token, self.branch_data_map, self)
+        dialog.exec()
+
+    def open_size_manager(self):
+        dialog = CustomSizeManagerDialog(self.translator, self)
+        if dialog.exec():
+            self.update_paper_size_combo()
 
     def open_user_management(self):
         dialog = UserManagementDialog(self.translator, self.user, self)
@@ -868,6 +1171,7 @@ class PriceTagDashboard(QMainWindow):
             if success:
                 message = self.tr("sync_results_message", val1, val2)
                 QMessageBox.information(self, self.tr("success_title"), message)
+                self.update_dashboard_data()
             else:
                 QMessageBox.critical(self, "Error", val1)
 
@@ -928,6 +1232,14 @@ class PriceTagDashboard(QMainWindow):
         status_layout.addWidget(self.toggle_status_button)
         find_layout.addLayout(status_layout)
         self.find_item_group.setLayout(find_layout)
+
+        # Recently Printed Group
+        self.recently_printed_group = QGroupBox(self.tr("recently_printed_group"))
+        recent_layout = QVBoxLayout()
+        self.recently_printed_list = QListWidget()
+        self.recently_printed_list.itemDoubleClicked.connect(self.find_item_from_recent_list)
+        recent_layout.addWidget(self.recently_printed_list)
+        self.recently_printed_group.setLayout(recent_layout)
 
         self.details_group = QGroupBox()
         details_layout = QFormLayout()
@@ -999,10 +1311,12 @@ class PriceTagDashboard(QMainWindow):
 
         layout.addWidget(branch_group)
         layout.addWidget(self.find_item_group)
+        layout.addWidget(self.recently_printed_group)
         layout.addWidget(self.details_group)
         layout.addWidget(self.style_group)
         layout.addWidget(self.specs_group)
         layout.addWidget(self.output_group)
+        layout.addStretch()
 
         return panel
 
@@ -1018,9 +1332,16 @@ class PriceTagDashboard(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
-        self.tab_widget.setTabText(0, self.tr("window_title"))
+        self.tab_widget.setTabText(0, self.tr("generator_tab_title"))
         if self.user.get('role') == 'Admin':
             self.tab_widget.setTabText(1, self.tr("admin_dashboard"))
+            self.refresh_button.setText(self.tr("dashboard_refresh_button"))
+            self.stats_group.setTitle(self.tr("dashboard_stats_group"))
+            threshold = self.settings.get('low_stock_threshold', 3)
+            self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+            self.low_stock_table.setHorizontalHeaderLabels(
+                [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"),
+                 self.tr("dashboard_header_category"), self.tr("dashboard_header_stock")])
 
         self.update_branch_combo()
         self.update_paper_size_combo()
@@ -1028,6 +1349,7 @@ class PriceTagDashboard(QMainWindow):
         self.create_menu()
 
         self.find_item_group.setTitle(self.tr("find_item_group"))
+        self.recently_printed_group.setTitle(self.tr("recently_printed_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
         self.find_button.setText(self.tr("find_button"))
         self.add_to_queue_button.setText("+")
@@ -1130,12 +1452,20 @@ class PriceTagDashboard(QMainWindow):
         dialog.exec()
 
     def update_paper_size_combo(self):
+        self.paper_size_combo.blockSignals(True)
+        current_text = self.paper_size_combo.currentText()
         self.paper_size_combo.clear()
         self.paper_sizes = data_handler.get_all_paper_sizes()
         sorted_sizes = sorted(self.paper_sizes.keys(),
                               key=lambda s: self.paper_sizes[s]['dims'][0] * self.paper_sizes[s]['dims'][1])
         self.paper_size_combo.addItems(sorted_sizes)
-        self.paper_size_combo.setCurrentText(self.settings.get("default_size", "14.4x8cm"))
+
+        index = self.paper_size_combo.findText(current_text)
+        if index != -1:
+            self.paper_size_combo.setCurrentIndex(index)
+        else:
+            self.paper_size_combo.setCurrentText(self.settings.get("default_size", "14.4x8cm"))
+        self.paper_size_combo.blockSignals(False)
 
     def update_theme_combo(self):
         self.theme_combo.clear()
@@ -1171,6 +1501,16 @@ class PriceTagDashboard(QMainWindow):
             return
 
         self.populate_ui_with_item_data(item_data)
+
+    def find_item_from_recent_list(self, item):
+        sku = item.text()
+        self.sku_input.setText(sku)
+        self.find_item()
+
+    def update_recently_printed_list(self):
+        self.recently_printed_list.clear()
+        skus = firebase_handler.get_recently_printed(self.uid, self.token)
+        self.recently_printed_list.addItems(skus)
 
     def register_new_item(self, sku):
         template_dialog = TemplateSelectionDialog(self.translator, self)
@@ -1280,7 +1620,6 @@ class PriceTagDashboard(QMainWindow):
             QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
 
-        # Use the UI state for printing, not just the raw DB data
         if self.current_item_data and self.current_item_data.get('SKU') == sku:
             data_to_print = self.get_current_data_from_ui()
         else:
@@ -1288,7 +1627,7 @@ class PriceTagDashboard(QMainWindow):
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
+        is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
 
         q_pixmaps = []
         if is_dual:
@@ -1300,12 +1639,15 @@ class PriceTagDashboard(QMainWindow):
                                 QImage.Format.Format_RGB888)
             q_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
         else:
-            lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+            lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
             img = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             q_pixmaps.append(QPixmap.fromImage(q_image))
 
         self.handle_single_print_with_dialog(q_pixmaps, size_config)
+
+        firebase_handler.add_to_recently_printed(self.uid, self.token, sku)
+        self.update_recently_printed_list()
 
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
@@ -1327,7 +1669,7 @@ class PriceTagDashboard(QMainWindow):
             QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
             return
 
-        dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
+        dual_lang_enabled = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
 
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
@@ -1373,7 +1715,7 @@ class PriceTagDashboard(QMainWindow):
                     pil_images_for_sku.append(
                         price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
                 else:
-                    lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+                    lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                     pil_images_for_sku.append(
                         price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
 
@@ -1406,6 +1748,9 @@ class PriceTagDashboard(QMainWindow):
         branch_db_key = self.get_current_branch_db_key()
         for sku in skus_to_print:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+            firebase_handler.add_to_recently_printed(self.uid, self.token, sku)
+
+        self.update_recently_printed_list()
         if self.current_item_data.get('SKU') in skus_to_print:
             self.update_status_display()
 
@@ -1438,7 +1783,7 @@ class PriceTagDashboard(QMainWindow):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
-        current_lang = 'en' if size_name == '6x3.5cm' else self.translator.language
+        current_lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
         pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, language=current_lang)
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
@@ -1448,13 +1793,17 @@ class PriceTagDashboard(QMainWindow):
         self.preview_label.setPixmap(scaled_pixmap)
 
     def handle_paper_size_change(self, size_name):
-        is_special_size = size_name == '6x3.5cm'
-        self.dual_lang_checkbox.setEnabled(not is_special_size)
-        if is_special_size:
+        if not size_name: return
+        size_config = self.paper_sizes.get(size_name, {})
+        is_accessory_style = size_config.get("is_accessory_style", False)
+
+        self.dual_lang_checkbox.setEnabled(not is_accessory_style)
+        if is_accessory_style:
             self.dual_lang_checkbox.setChecked(False)
         else:
             self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
-        self.specs_group.setVisible(not is_special_size)
+
+        self.specs_group.setVisible(not is_accessory_style)
         self.update_specs_list()
         self.update_preview()
 
@@ -1522,7 +1871,6 @@ class PriceTagDashboard(QMainWindow):
 
         if template_key and templates[template_key].get("specs"):
             for spec_name in templates[template_key]["specs"]:
-                # Ensure we have a default value for spec name
                 if spec_name:
                     action = QAction(spec_name, self)
                     action.triggered.connect(lambda checked, s=spec_name: self.add_spec_from_template(s))
