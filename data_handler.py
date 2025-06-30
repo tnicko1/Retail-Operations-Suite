@@ -9,11 +9,11 @@ USER_SETTINGS_FILE = 'user_settings.json'
 TEMPLATES_FILE = 'templates.json' # Local fallback
 
 DEFAULT_PAPER_SIZES = {
-    '6x3.5cm': {'dims': (6, 3.5), 'spec_limit': 0},
+    '6x3.5cm': {'dims': (6, 3.5), 'spec_limit': 0, 'is_accessory_style': True},
     '10x8cm': {'dims': (10, 8), 'spec_limit': 8},
     '14.4x8cm': {'dims': (14.4, 8), 'spec_limit': 12},
     '15x10cm': {'dims': (15, 10), 'spec_limit': 13},
-    '17x12cm': {'dims': (17, 12), 'spec_limit': 11}
+    '17.5x12.5cm': {'dims': (17.5, 12.5), 'spec_limit': 11}
 }
 
 def extract_part_number(description):
@@ -74,7 +74,8 @@ def get_settings():
             "default_theme": "Default",
             "language": "en",
             "generate_dual_language": False,
-            "default_branch": "branch_vaja"
+            "default_branch": "branch_vaja",
+            "low_stock_threshold": 3
         }
         save_settings(settings)
         return settings
@@ -85,6 +86,7 @@ def get_settings():
         if "generate_dual_language" not in settings: settings["generate_dual_language"] = False
         if "default_branch" not in settings: settings["default_branch"] = "branch_vaja"
         if "low_stock_threshold" not in settings: settings["low_stock_threshold"] = 3
+        if "custom_sizes" not in settings: settings["custom_sizes"] = {}
         return settings
 
 
