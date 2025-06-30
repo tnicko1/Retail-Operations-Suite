@@ -58,7 +58,9 @@ def wrap_text(text, font, max_width):
         return []
     current_line = words[0]
     for word in words[1:]:
-        if font.getlength(current_line + " " + word) <= max_width:
+        # FIX: Use font.getbbox() which is the modern way in Pillow,
+        # replacing the deprecated font.getlength(). The [2] gets the 'right' coordinate.
+        if font.getbbox(current_line + " " + word)[2] <= max_width:
             current_line += " " + word
         else:
             lines.append(current_line)
