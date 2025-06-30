@@ -2,10 +2,9 @@ import json
 import pyrebase
 import os
 import csv
-from bs4 import BeautifulSoup
-import re
 from datetime import datetime
 import pytz
+from data_handler import extract_part_number, extract_specifications
 
 firebase_app = None
 auth = None
@@ -230,18 +229,18 @@ def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token
         print(f"Warning: Query on category failed. Error: {e}")
         category_items = []
 
+    # Get the list of SKUs currently on display for the specified branch
     status_dict = get_display_status(token)
-    on_display_skus = status_dict.get(branch_db_key, [])
+    on_display_skus = set(status_dict.get(branch_db_key, []))
     suggestions = []
 
     for item in category_items:
-        stock_str = item.get(branch_stock_col, '0')
-        is_in_stock = False
-        if stock_str:
-            stock_value_clean = str(stock_str).replace(',', '')
-            is_in_stock = int(stock_value_clean) > 0 if stock_value_clean.isdigit() else False
+        # Check for stock
+        stock_str = str(item.get(branch_stock_col, '0')).replace(',', '')
+        is_in_stock = int(stock_str) > 0 if stock_str.isdigit() else False
 
-        if item.get('SKU') not in on_display_skus and is_in_stock:
+        # **FIX**: Check if the item is in stock AND is NOT on display.
+        if is_in_stock and item.get('SKU') not in on_display_skus:
             suggestions.append(item)
 
     return suggestions
@@ -265,7 +264,9 @@ def add_item_to_display(sku, branch_db_key, token):
     if branch_db_key not in status_dict:
         status_dict[branch_db_key] = []
 
-    if sku not in status_dict[branch_db_key]:
+    # Use a set for efficient checking and adding
+    display_set = set(status_dict[branch_db_key])
+    if sku not in display_set:
         status_dict[branch_db_key].append(sku)
         save_display_status(status_dict, token)
 
@@ -354,16 +355,3 @@ def save_batch_list(uid, token, list_name, skus):
 def delete_batch_list(uid, token, list_name):
     if not uid or not token or not list_name: return
     db.child("user_data").child(uid).child("saved_lists").child(list_name).remove(token)
-
-
-# --- Other Helpers ---
-def extract_part_number(description):
-    if not description: return ""
-    match = re.search(r'\[p/n\s*([^\]]+)\]', description, re.IGNORECASE)
-    return match.group(1).strip() if match else ""
-
-
-def extract_specifications(html_description):
-    if not html_description: return []
-    soup = BeautifulSoup(html_description, 'html.parser')
-    return [li.get_text(strip=True).replace(':', ': ').replace('  ', ' ') for li in soup.find_all('li')]
