@@ -6,7 +6,7 @@ import firebase_handler
 class LoginWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Login - Price Tag Dashboard")
+        self.setWindowTitle("Login - Retail Operations Suite")
         self.setModal(True)
         self.user = None
 
@@ -101,4 +101,3 @@ class RegisterDialog(QDialog):
                 self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Registration Failed", f"Could not create account: {e}")
-
