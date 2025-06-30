@@ -4,10 +4,6 @@ from price_generator import cm_to_pixels
 # Standard A4 size in cm
 A4_WIDTH_CM, A4_HEIGHT_CM = 21.0, 29.7
 DPI = 300
-# Define a safe margin to account for physical printer limitations.
-# This prevents content at the very edge from being cut off.
-SAFE_MARGIN_CM = 0.5
-
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -25,14 +21,10 @@ def create_a4_for_dual_single(tag_en, tag_ka):
     a4_h_px = cm_to_pixels(A4_HEIGHT_CM, DPI)
     tag_w, tag_h = tag_en.width, tag_en.height
 
-    # Calculate the safe printable area in pixels
-    safe_a4_w_px = cm_to_pixels(A4_WIDTH_CM - (2 * SAFE_MARGIN_CM))
-    safe_a4_h_px = cm_to_pixels(A4_HEIGHT_CM - (2 * SAFE_MARGIN_CM))
-
     a4_sheet = Image.new('RGB', (a4_w_px, a4_h_px), 'white')
 
-    # Try to fit side-by-side within the safe area
-    if (tag_w * 2) <= safe_a4_w_px and tag_h <= safe_a4_h_px:
+    # Try to fit side-by-side
+    if (tag_w * 2) <= a4_w_px and tag_h <= a4_h_px:
         # Center the combined block of two tags on the full A4 page
         start_x = (a4_w_px - (tag_w * 2)) // 2
         y_pos = (a4_h_px - tag_h) // 2
@@ -40,8 +32,8 @@ def create_a4_for_dual_single(tag_en, tag_ka):
         a4_sheet.paste(tag_ka, (start_x + tag_w, y_pos))
         return [a4_sheet]
 
-    # Try to fit top-and-bottom within the safe area
-    elif tag_w <= safe_a4_w_px and (tag_h * 2) <= safe_a4_h_px:
+    # Try to fit top-and-bottom
+    elif tag_w <= a4_w_px and (tag_h * 2) <= a4_h_px:
         # Center the combined block of two tags on the full A4 page
         x_pos = (a4_w_px - tag_w) // 2
         start_y = (a4_h_px - (tag_h * 2)) // 2
@@ -70,24 +62,20 @@ def create_a4_for_single(tag_image):
 
 def calculate_layout(tag_width_cm, tag_height_cm):
     """
-    Calculates how many tags can fit on a single A4 sheet within safe margins.
+    Calculates how many tags can fit on a single A4 sheet.
     """
-    # Calculate the dimensions of the safe printable area
-    safe_a4_w_cm = A4_WIDTH_CM - (2 * SAFE_MARGIN_CM)
-    safe_a4_h_cm = A4_HEIGHT_CM - (2 * SAFE_MARGIN_CM)
-
-    safe_a4_w_px, safe_a4_h_px = cm_to_pixels(safe_a4_w_cm), cm_to_pixels(safe_a4_h_cm)
+    a4_w_px, a4_h_px = cm_to_pixels(A4_WIDTH_CM), cm_to_pixels(A4_HEIGHT_CM)
     tag_w_px, tag_h_px = cm_to_pixels(tag_width_cm), cm_to_pixels(tag_height_cm)
 
     if tag_w_px <= 0 or tag_h_px <= 0:
         return {"total": 0, "cols": 0, "rows": 0, "tag_dims": (0, 0), "rotated": False}
 
-    # Portrait: Calculate fit within the safe area
-    cols_p, rows_p = safe_a4_w_px // tag_w_px, safe_a4_h_px // tag_h_px
+    # Portrait: Calculate fit
+    cols_p, rows_p = a4_w_px // tag_w_px, a4_h_px // tag_h_px
     total_p = cols_p * rows_p
 
-    # Landscape (tags rotated): Calculate fit within the safe area
-    cols_l, rows_l = safe_a4_w_px // tag_h_px, safe_a4_h_px // tag_w_px
+    # Landscape (tags rotated): Calculate fit
+    cols_l, rows_l = a4_w_px // tag_h_px, a4_h_px // tag_w_px
     total_l = cols_l * rows_l
 
     if total_l > total_p:
@@ -108,14 +96,13 @@ def create_a4_sheet(tag_images, layout_info):
     cols, rows = layout_info['cols'], layout_info['rows']
 
     # Center the entire grid of tags on the full A4 page.
-    # The margin is now implicit because the grid itself is smaller.
     grid_width, grid_height = cols * tag_w, rows * tag_h
     start_x, start_y = (a4_w_px - grid_width) // 2, (a4_h_px - grid_height) // 2
 
     x, y = start_x, start_y
     for i, tag_img in enumerate(tag_images):
         if i > 0 and i % cols == 0:
-            y += tag_h;
+            y += tag_h
             x = start_x
         if layout_info['rotated']:
             tag_img = tag_img.rotate(90, expand=True)
