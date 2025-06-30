@@ -1,13 +1,12 @@
 import sys
 import os
 import re
-from collections import deque
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox)
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox)
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
@@ -38,15 +37,15 @@ class AddEditSizeDialog(QDialog):
         self.height_input.setRange(1, 50)
         self.height_input.setDecimals(2)
         self.height_input.setSuffix(" cm")
-        self.speclimit_input = QInputDialog()
-        self.speclimit_input.setIntRange(0, 50)
+        self.speclimit_input = QSpinBox()
+        self.speclimit_input.setRange(0, 50)
         self.accessory_checkbox = QCheckBox()
 
         if size_data:
             self.name_input.setText(size_data.get('name'))
             self.width_input.setValue(size_data.get('dims', [0, 0])[0])
             self.height_input.setValue(size_data.get('dims', [0, 0])[1])
-            self.speclimit_input.setIntValue(size_data.get('spec_limit', 0))
+            self.speclimit_input.setValue(size_data.get('spec_limit', 0))
             self.accessory_checkbox.setChecked(size_data.get('is_accessory_style', False))
 
         layout.addRow(self.translator.get("size_dialog_name"), self.name_input)
@@ -69,7 +68,7 @@ class AddEditSizeDialog(QDialog):
         self.size_data = {
             "name": name,
             "dims": [self.width_input.value(), self.height_input.value()],
-            "spec_limit": self.speclimit_input.intValue(),
+            "spec_limit": self.speclimit_input.value(),
             "is_accessory_style": self.accessory_checkbox.isChecked()
         }
         super().accept()
@@ -952,7 +951,6 @@ class RetailOperationsSuite(QMainWindow):
         self.create_menu()
         self.retranslate_ui()
         self.clear_all_fields()
-        self.update_recently_printed_list()
 
     def setup_generator_ui(self):
         main_layout = QHBoxLayout(self.generator_tab)
@@ -1195,7 +1193,7 @@ class RetailOperationsSuite(QMainWindow):
         branch_layout.addRow(self.tr("branch_label"), self.branch_combo)
         branch_group.setLayout(branch_layout)
 
-        self.find_item_group = QGroupBox()
+        self.find_item_group = QGroupBox(self.tr("find_item_group"))
         find_layout = QVBoxLayout()
         sku_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
@@ -1232,14 +1230,6 @@ class RetailOperationsSuite(QMainWindow):
         status_layout.addWidget(self.toggle_status_button)
         find_layout.addLayout(status_layout)
         self.find_item_group.setLayout(find_layout)
-
-        # Recently Printed Group
-        self.recently_printed_group = QGroupBox(self.tr("recently_printed_group"))
-        recent_layout = QVBoxLayout()
-        self.recently_printed_list = QListWidget()
-        self.recently_printed_list.itemDoubleClicked.connect(self.find_item_from_recent_list)
-        recent_layout.addWidget(self.recently_printed_list)
-        self.recently_printed_group.setLayout(recent_layout)
 
         self.details_group = QGroupBox()
         details_layout = QFormLayout()
@@ -1311,7 +1301,6 @@ class RetailOperationsSuite(QMainWindow):
 
         layout.addWidget(branch_group)
         layout.addWidget(self.find_item_group)
-        layout.addWidget(self.recently_printed_group)
         layout.addWidget(self.details_group)
         layout.addWidget(self.style_group)
         layout.addWidget(self.specs_group)
@@ -1349,7 +1338,6 @@ class RetailOperationsSuite(QMainWindow):
         self.create_menu()
 
         self.find_item_group.setTitle(self.tr("find_item_group"))
-        self.recently_printed_group.setTitle(self.tr("recently_printed_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
         self.find_button.setText(self.tr("find_button"))
         self.add_to_queue_button.setText("+")
@@ -1502,16 +1490,6 @@ class RetailOperationsSuite(QMainWindow):
 
         self.populate_ui_with_item_data(item_data)
 
-    def find_item_from_recent_list(self, item):
-        sku = item.text()
-        self.sku_input.setText(sku)
-        self.find_item()
-
-    def update_recently_printed_list(self):
-        self.recently_printed_list.clear()
-        skus = firebase_handler.get_recently_printed(self.uid, self.token)
-        self.recently_printed_list.addItems(skus)
-
     def register_new_item(self, sku):
         template_dialog = TemplateSelectionDialog(self.translator, self)
         if not template_dialog.exec():
@@ -1646,9 +1624,6 @@ class RetailOperationsSuite(QMainWindow):
 
         self.handle_single_print_with_dialog(q_pixmaps, size_config)
 
-        firebase_handler.add_to_recently_printed(self.uid, self.token, sku)
-        self.update_recently_printed_list()
-
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
@@ -1748,9 +1723,7 @@ class RetailOperationsSuite(QMainWindow):
         branch_db_key = self.get_current_branch_db_key()
         for sku in skus_to_print:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
-            firebase_handler.add_to_recently_printed(self.uid, self.token, sku)
 
-        self.update_recently_printed_list()
         if self.current_item_data.get('SKU') in skus_to_print:
             self.update_status_display()
 
