@@ -3,7 +3,8 @@
 TRANSLATIONS = {
     "en": {
         # UI Text
-        "window_title": "Price Tag Dashboard by Nikoloz Taturashvili",
+        "window_title": "Retail Operations Suite by Nikoloz Taturashvili",
+        "generator_tab_title": "Price Tag Generator",
         "branch_group_title": "Store Branch",
         "branch_label": "Current Branch:",
         "branch_vaja": "Vazha-Pshavela Shop",
@@ -56,6 +57,14 @@ TRANSLATIONS = {
         "price_history_header_new": "New Price",
         "low_stock_warning": "Low Stock!",
         "stock_label": "Stock:",
+        "recently_printed_group": "Recently Printed",
+
+        # Quick Stock Checker
+        "stock_checker_title": "Quick Stock Checker",
+        "stock_checker_button": "Check Stock",
+        "stock_checker_branch_header": "Branch",
+        "stock_checker_stock_header": "Stock",
+        "stock_checker_menu": "Quick Stock Checker...",
 
         # Display Manager
         "display_manager_title": "Display Manager",
@@ -82,6 +91,20 @@ TRANSLATIONS = {
         "admin_dashboard": "Dashboard",
         "admin_activity_log": "User Activity Log",
         "admin_template_manager": "Category & Template Manager",
+        "size_manager_menu": "Manage Custom Sizes...",
+
+        # Custom Size Manager
+        "size_manager_title": "Custom Print Size Manager",
+        "size_dialog_add_title": "Add Custom Size",
+        "size_dialog_edit_title": "Edit Custom Size",
+        "size_dialog_name": "Size Name:",
+        "size_dialog_width": "Width:",
+        "size_dialog_height": "Height:",
+        "size_dialog_spec_limit": "Spec Limit:",
+        "size_dialog_accessory_style": "Accessory price design:",
+        "remove_size_title": "Remove Custom Size",
+        "remove_size_message": "Are you sure you want to remove the custom size '{}'?",
+
 
         # Admin Dashboard
         "dashboard_title": "Admin Dashboard",
@@ -90,6 +113,15 @@ TRANSLATIONS = {
         "dashboard_on_display_label": "Items on Display:",
         "dashboard_stock_levels_group": "Stock Levels",
         "dashboard_low_stock_label": "Items with Low Stock (<= {}):",
+        "dashboard_filter_branch": "Filter by Branch:",
+        "dashboard_filter_category": "Filter by Category:",
+        "dashboard_all_branches": "All Branches",
+        "dashboard_all_categories": "All Categories",
+        "dashboard_header_sku": "SKU",
+        "dashboard_header_name": "Name",
+        "dashboard_header_category": "Category",
+        "dashboard_header_stock": "Stock",
+
 
         # Activity Log
         "activity_log_title": "User Activity Log",
@@ -183,7 +215,8 @@ TRANSLATIONS = {
     },
     "ka": {
         # UI Text
-        "window_title": "ფასმაჩვენებლის დაფა - ნიკოლოზ ტატურაშვილი",
+        "window_title": "საცალო ოპერაციების კომპლექსი - ნიკოლოზ ტატურაშვილი",
+        "generator_tab_title": "ფასმაჩვენებლის გენერატორი",
         "branch_group_title": "ფილიალი",
         "branch_label": "მიმდინარე ფილიალი:",
         "branch_vaja": "ვაჟა-ფშაველას ფილიალი",
@@ -236,6 +269,14 @@ TRANSLATIONS = {
         "price_history_header_new": "ახალი ფასი",
         "low_stock_warning": "მცირე მარაგი!",
         "stock_label": "მარაგი:",
+        "recently_printed_group": "ბოლოს დაბეჭდილი",
+
+        # Quick Stock Checker
+        "stock_checker_title": "მარაგის სწრაფი შემოწმება",
+        "stock_checker_button": "შემოწმება",
+        "stock_checker_branch_header": "ფილიალი",
+        "stock_checker_stock_header": "მარაგი",
+        "stock_checker_menu": "მარაგის სწრაფი შემოწმება...",
 
         # Display Manager
         "display_manager_title": "ვიტრინის მენეჯერი",
@@ -262,6 +303,19 @@ TRANSLATIONS = {
         "admin_dashboard": "დაფა",
         "admin_activity_log": "მომხმარებელთა აქტივობა",
         "admin_template_manager": "კატეგორიების მართვა",
+        "size_manager_menu": "ზომების მართვა...",
+
+        # Custom Size Manager
+        "size_manager_title": "საბეჭდი ზომების მართვა",
+        "size_dialog_add_title": "ახალი ზომის დამატება",
+        "size_dialog_edit_title": "ზომის რედაქტირება",
+        "size_dialog_name": "ზომის სახელი:",
+        "size_dialog_width": "სიგანე:",
+        "size_dialog_height": "სიმაღლე:",
+        "size_dialog_spec_limit": "მონაცემების ლიმიტი:",
+        "size_dialog_accessory_style": "აქსესუარის დიზაინი:",
+        "remove_size_title": "ზომის წაშლა",
+        "remove_size_message": "დარწმუნებული ხართ, რომ გსურთ წაშალოთ ზომა '{}'?",
 
         # Admin Dashboard
         "dashboard_title": "ადმინისტრატორის დაფა",
@@ -270,6 +324,14 @@ TRANSLATIONS = {
         "dashboard_on_display_label": "ვიტრინაშია:",
         "dashboard_stock_levels_group": "მარაგების მდგომარეობა",
         "dashboard_low_stock_label": "პროდუქცია მცირე მარაგით (<= {}):",
+        "dashboard_filter_branch": "ფილიალის ფილტრი:",
+        "dashboard_filter_category": "კატეგორიის ფილტრი:",
+        "dashboard_all_branches": "ყველა ფილიალი",
+        "dashboard_all_categories": "ყველა კატეგორია",
+        "dashboard_header_sku": "კოდი",
+        "dashboard_header_name": "დასახელება",
+        "dashboard_header_category": "კატეგორია",
+        "dashboard_header_stock": "მარაგი",
 
         # Activity Log
         "activity_log_title": "მომხმარებელთა აქტივობის ისტორია",
