@@ -57,6 +57,21 @@ TRANSLATIONS = {
         "low_stock_warning": "Low Stock!",
         "stock_label": "Stock:",
 
+        # Display Manager
+        "display_manager_title": "Display Manager",
+        "return_tag_group": "Return Item & Find Replacements",
+        "return_tag_label": "Item to Return:",
+        "return_tag_placeholder": "Enter SKU/Barcode of item being returned...",
+        "find_replacements_button": "Find Replacements",
+        "suggestions_group_empty": "Replacement Suggestions",
+        "suggestions_group_filled": "Suggestions for '{}' in {} branch",
+        "suggestions_header_sku": "SKU",
+        "suggestions_header_name": "Name",
+        "suggestions_header_stock": "Stock",
+        "suggestions_header_price": "Price",
+        "suggestions_header_action": "Action",
+        "quick_print_button": "Print & Display",
+
         # Menus
         "file_menu": "&File",
         "select_printer_menu": "&Select Printer...",
@@ -222,6 +237,21 @@ TRANSLATIONS = {
         "low_stock_warning": "მცირე მარაგი!",
         "stock_label": "მარაგი:",
 
+        # Display Manager
+        "display_manager_title": "ვიტრინის მენეჯერი",
+        "return_tag_group": "ნივთის დაბრუნება და ჩანაცვლება",
+        "return_tag_label": "დასაბრუნებელი ნივთი:",
+        "return_tag_placeholder": "შეიყვანეთ დასაბრუნებელი ნივთის კოდი/შტრიხკოდი...",
+        "find_replacements_button": "ჩანაცვლების ძებნა",
+        "suggestions_group_empty": "შესაძლო ჩანაცვლებები",
+        "suggestions_group_filled": "ჩანაცვლება '{}'-სთვის ფილიალში: {}",
+        "suggestions_header_sku": "კოდი",
+        "suggestions_header_name": "დასახელება",
+        "suggestions_header_stock": "მარაგი",
+        "suggestions_header_price": "ფასი",
+        "suggestions_header_action": "მოქმედება",
+        "quick_print_button": "ბეჭდვა და ვიტრინაზე დაყენება",
+
         # Menus
         "file_menu": "&ფაილი",
         "select_printer_menu": "&პრინტერის არჩევა...",
@@ -347,9 +377,11 @@ class Translator:
             return translation.format(*args)
         except (KeyError, IndexError):
             try:
+                # Fallback to English if key not in current language
                 translation = TRANSLATIONS["en"][key]
                 return translation.format(*args)
             except (KeyError, IndexError):
+                # Return the key itself if not found anywhere
                 return f"<{key}>"
 
     def get_key_from_value(self, value_to_find):
@@ -364,9 +396,13 @@ class Translator:
 
     def get_spec_label(self, label, target_lang):
         try:
+            # Find the English key for the given label
             for key_en, value_en in TRANSLATIONS["en"]["spec_labels"].items():
                 if value_en.lower() == label.lower():
+                    # Use the found key to get the label in the target language
                     return TRANSLATIONS[target_lang]["spec_labels"][key_en]
+            # If no match found, return the original label
             return label
         except KeyError:
+            # If a language or key doesn't exist, return the original label
             return label
