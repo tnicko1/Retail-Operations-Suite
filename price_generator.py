@@ -58,8 +58,6 @@ def wrap_text(text, font, max_width):
         return []
     current_line = words[0]
     for word in words[1:]:
-        # FIX: Use font.getbbox() which is the modern way in Pillow,
-        # replacing the deprecated font.getlength(). The [2] gets the 'right' coordinate.
         if font.getbbox(current_line + " " + word)[2] <= max_width:
             current_line += " " + word
         else:
@@ -132,7 +130,7 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     width_cm, height_cm = size_config['dims']
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
-    if (width_cm, height_cm) == (6, 3.5):
+    if size_config.get('is_accessory_style', False):
         return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
 
     img = Image.new('RGB', (width_px, height_px), 'white')
@@ -191,7 +189,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     except FileNotFoundError:
         print(f"Warning: Logo file not found at '{logo_to_use}'")
 
-    # **FIXED**: Restore part number drawing logic
     part_number = item_data.get('part_number', '')
     if part_number:
         pn_text = f"P/N: {part_number}"
