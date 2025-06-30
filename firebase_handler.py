@@ -4,6 +4,7 @@ import os
 import csv
 from datetime import datetime
 import pytz
+from collections import deque
 from data_handler import extract_part_number, extract_specifications
 
 firebase_app = None
@@ -123,7 +124,6 @@ def sync_products_from_file(filepath, admin_token):
         firebase_items = db.child("items").get(admin_token).val() or {}
         firebase_skus = set(firebase_items.keys())
 
-        # --- Price History Logging ---
         price_history_payload = {}
         tbilisi_tz = pytz.timezone('Asia/Tbilisi')
         timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
@@ -140,7 +140,6 @@ def sync_products_from_file(filepath, admin_token):
                         "new_price": new_price
                     }
                     price_history_payload[f"price_history/{sku}/{timestamp.replace('.', ':')}"] = history_entry
-        # --- End Price History ---
 
         skus_to_delete = firebase_skus - file_skus
 
@@ -151,7 +150,6 @@ def sync_products_from_file(filepath, admin_token):
         for sku, item_data in file_items.items():
             update_payload[f"items/{sku}"] = item_data
 
-        # Add price history to the main payload
         update_payload.update(price_history_payload)
 
         if update_payload:
@@ -183,9 +181,18 @@ def add_new_item(item_data, token):
         return False
 
 
+def get_all_items(token):
+    """Fetches all items from the database. Used for caching in the dashboard."""
+    if not token: return None
+    try:
+        return db.child("items").get(token).val()
+    except Exception as e:
+        print(f"Error fetching all items: {e}")
+        return None
+
+
 def find_item_by_identifier(identifier, token):
     if not identifier: return None
-    # Token can be None for anonymous read in batch dialog, but will fail if rules are tightened
 
     item = db.child("items").child(identifier).get(token).val()
     if item:
@@ -229,17 +236,14 @@ def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token
         print(f"Warning: Query on category failed. Error: {e}")
         category_items = []
 
-    # Get the list of SKUs currently on display for the specified branch
     status_dict = get_display_status(token)
     on_display_skus = set(status_dict.get(branch_db_key, []))
     suggestions = []
 
     for item in category_items:
-        # Check for stock
         stock_str = str(item.get(branch_stock_col, '0')).replace(',', '')
         is_in_stock = int(stock_str) > 0 if stock_str.isdigit() else False
 
-        # **FIX**: Check if the item is in stock AND is NOT on display.
         if is_in_stock and item.get('SKU') not in on_display_skus:
             suggestions.append(item)
 
@@ -264,7 +268,6 @@ def add_item_to_display(sku, branch_db_key, token):
     if branch_db_key not in status_dict:
         status_dict[branch_db_key] = []
 
-    # Use a set for efficient checking and adding
     display_set = set(status_dict[branch_db_key])
     if sku not in display_set:
         status_dict[branch_db_key].append(sku)
@@ -321,7 +324,6 @@ def get_activity_log(token, limit=100):
     try:
         logs = db.child("activity_log").order_by_key().limit_to_last(limit).get(token).val()
         if logs:
-            # Firebase returns a dictionary, convert to a list and sort descending
             return sorted(list(logs.values()), key=lambda x: x['timestamp'], reverse=True)
         return []
     except Exception as e:
@@ -329,7 +331,7 @@ def get_activity_log(token, limit=100):
         return []
 
 
-# --- Print Queue ---
+# --- Print Queue & Recents ---
 def get_print_queue(uid, token):
     if not uid or not token: return []
     queue = db.child("user_data").child(uid).child("print_queue").get(token).val()
@@ -339,6 +341,31 @@ def get_print_queue(uid, token):
 def save_print_queue(uid, token, queue_data):
     if not uid or not token: return
     db.child("user_data").child(uid).child("print_queue").set(queue_data, token)
+
+
+def get_recently_printed(uid, token):
+    if not uid or not token: return []
+    recent_skus = db.child("user_data").child(uid).child("recently_printed").get(token).val()
+    return recent_skus if isinstance(recent_skus, list) else []
+
+
+def add_to_recently_printed(uid, token, sku):
+    if not uid or not token or not sku: return
+    try:
+        current_list = get_recently_printed(uid, token)
+
+        # Use a deque for efficient adding and trimming
+        d = deque(current_list, maxlen=10)
+
+        # If sku is already in the list, remove it to re-add it at the front
+        if sku in d:
+            d.remove(sku)
+
+        d.appendleft(sku)
+
+        db.child("user_data").child(uid).child("recently_printed").set(list(d), token)
+    except Exception as e:
+        print(f"Error updating recently printed list: {e}")
 
 
 def get_saved_batch_lists(uid, token):
