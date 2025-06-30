@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
                              QMenuBar, QTabWidget, QMenu)
-from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize
+from PyQt6.QtCore import Qt, QSize, QRect, QRectF, QSizeF
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 import firebase_handler
@@ -472,7 +472,7 @@ class ActivityLogDialog(QDialog):
         log_data = firebase_handler.get_activity_log(token)
         self.table.setRowCount(len(log_data))
 
-        for row, entry in enumerate(log_data):
+        for row, entry in enumerate(log_data):  # Already sorted in firebase_handler
             self.table.setItem(row, 0, QTableWidgetItem(entry.get("timestamp")))
             self.table.setItem(row, 1, QTableWidgetItem(entry.get("email")))
             self.table.setItem(row, 2, QTableWidgetItem(entry.get("message")))
@@ -488,7 +488,7 @@ class DisplayManagerDialog(QDialog):
         self.user = user
         self.token = self.user.get('idToken') if self.user else None
         self.setWindowTitle(self.translator.get("display_manager_title"))
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(900, 700)
 
         self.original_suggestions = []
         self.current_sort_column = -1
@@ -500,6 +500,7 @@ class DisplayManagerDialog(QDialog):
         return_layout = QHBoxLayout()
         self.return_input = QLineEdit()
         self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
+        self.return_input.returnPressed.connect(self.find_replacements)
         self.find_replacements_button = QPushButton(self.translator.get("find_replacements_button"))
         self.find_replacements_button.clicked.connect(self.find_replacements)
         return_layout.addWidget(QLabel(self.translator.get("return_tag_label")))
@@ -507,7 +508,8 @@ class DisplayManagerDialog(QDialog):
         return_layout.addWidget(self.find_replacements_button)
         return_group.setLayout(return_layout)
 
-        suggestions_group = QGroupBox(self.translator.get("suggestions_group", self.parent.branch_combo.currentText()))
+        # **FIX**: Make suggestions_group an instance variable to update its title
+        self.suggestions_group = QGroupBox(self.translator.get("suggestions_group_empty"))
         suggestions_layout = QVBoxLayout()
         self.suggestions_table = QTableWidget()
         self.suggestions_table.setColumnCount(5)
@@ -522,10 +524,10 @@ class DisplayManagerDialog(QDialog):
         self.suggestions_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.suggestions_table.horizontalHeader().sectionClicked.connect(self.handle_header_click)
         suggestions_layout.addWidget(self.suggestions_table)
-        suggestions_group.setLayout(suggestions_layout)
+        self.suggestions_group.setLayout(suggestions_layout)
 
         layout.addWidget(return_group)
-        layout.addWidget(suggestions_group)
+        layout.addWidget(self.suggestions_group)
 
     def find_replacements(self):
         identifier = self.return_input.text().strip().upper()
@@ -543,7 +545,11 @@ class DisplayManagerDialog(QDialog):
                                 self.translator.get("item_returned_message", sku))
         self.return_input.clear()
 
-        category = item_data.get('Categories')
+        category = item_data.get('Categories', 'N/A')
+        branch_name = self.parent.branch_combo.currentText()
+        # **FIX**: Update the group title dynamically
+        self.suggestions_group.setTitle(self.translator.get("suggestions_group_filled", category, branch_name))
+
         self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_db_key,
                                                                                  self.branch_stock_col, self.token)
 
@@ -581,13 +587,7 @@ class DisplayManagerDialog(QDialog):
                 stock_str = str(item.get(self.branch_stock_col, '0'))
                 return int(stock_str.replace(',', ''))
             elif column == 3:
-                sale_price = item.get('Sale price', '').strip()
-                if sale_price and float(sale_price.replace(',', '.')) > 0:
-                    return float(sale_price.replace(',', '.'))
-                regular_price = item.get('Regular price', '').strip()
-                if regular_price:
-                    return float(regular_price.replace(',', '.'))
-                return 0
+                return self._get_price_for_sort(item)
         except (ValueError, TypeError):
             return 0
         return item
@@ -604,15 +604,14 @@ class DisplayManagerDialog(QDialog):
 
     def update_header_indicators(self):
         header = self.suggestions_table.horizontalHeader()
+        header_keys = ['sku', 'name', 'stock', 'price', 'action']
         for i in range(header.count()):
-            original_text = self.translator.get(f"suggestions_header_{['sku', 'name', 'stock', 'price', 'action'][i]}")
+            original_text = self.translator.get(f"suggestions_header_{header_keys[i]}")
             if i == self.current_sort_column:
-                if self.current_sort_order == Qt.SortOrder.AscendingOrder:
-                    self.suggestions_table.horizontalHeaderItem(i).setText(f"{original_text} ▲")
-                else:
-                    self.suggestions_table.horizontalHeaderItem(i).setText(f"{original_text} ▼")
+                arrow = '▲' if self.current_sort_order == Qt.SortOrder.AscendingOrder else '▼'
+                header.model().setHeaderData(i, Qt.Orientation.Horizontal, f"{original_text} {arrow}")
             else:
-                self.suggestions_table.horizontalHeaderItem(i).setText(original_text)
+                header.model().setHeaderData(i, Qt.Orientation.Horizontal, original_text)
 
     def populate_suggestions(self, suggestions):
         self.suggestions_table.setRowCount(0)
@@ -629,23 +628,26 @@ class DisplayManagerDialog(QDialog):
             self.suggestions_table.setItem(row, 3, QTableWidgetItem(display_price))
 
             print_button = QPushButton(self.translator.get("quick_print_button"))
-            print_button.clicked.connect(lambda _, r=row, s=item.get('SKU'): self.quick_print_tag(r, s))
+            print_button.clicked.connect(lambda checked, sku=item.get('SKU'): self.quick_print_tag(sku))
             self.suggestions_table.setCellWidget(row, 4, print_button)
 
     def _get_price_for_sort(self, item):
         try:
-            sale_price = item.get('Sale price', '').strip()
-            if sale_price and float(sale_price.replace(',', '.')) > 0:
-                return float(sale_price.replace(',', '.'))
-            regular_price = item.get('Regular price', '').strip()
-            if regular_price: return float(regular_price.replace(',', '.'))
+            sale_price_str = str(item.get('Sale price', '')).strip().replace(',', '.')
+            if sale_price_str and float(sale_price_str) > 0:
+                return float(sale_price_str)
+
+            regular_price_str = str(item.get('Regular price', '')).strip().replace(',', '.')
+            if regular_price_str:
+                return float(regular_price_str)
         except (ValueError, TypeError):
             pass
         return 0
 
-    def quick_print_tag(self, row, sku):
+    def quick_print_tag(self, sku):
         if self.parent:
             self.parent.generate_single_by_sku(sku, mark_on_display=True)
+            # Remove the printed item from the suggestions list and repopulate the table
             self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
             self.sort_and_repopulate()
 
@@ -694,8 +696,10 @@ class UserManagementDialog(QDialog):
         reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
                                      self.translator.get("user_mgmt_confirm_promote_message", email))
         if reply == QMessageBox.StandardButton.Yes:
-            firebase_handler.promote_user_to_admin(uid, self.token)
-            self.load_users()
+            if firebase_handler.promote_user_to_admin(uid, self.token):
+                self.load_users()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to promote user.")
 
 
 class PriceTagDashboard(QMainWindow):
@@ -1190,12 +1194,12 @@ class PriceTagDashboard(QMainWindow):
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
 
-        specs = firebase_handler.extract_specifications(item_data.get('Description'))
+        specs = data_handler.extract_specifications(item_data.get('Description'))
         warranty = item_data.get('Attribute 3 value(s)')
         if warranty and warranty != '-':
             specs.append(f"Warranty: {warranty}")
         self.current_item_data['all_specs'] = self.process_specifications(specs)
-        self.current_item_data['part_number'] = firebase_handler.extract_part_number(item_data.get('Description', ''))
+        self.current_item_data['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
 
         self.sku_input.setText(self.current_item_data.get('SKU'))
         self.name_input.setText(self.current_item_data.get("Name", ""))
@@ -1276,37 +1280,32 @@ class PriceTagDashboard(QMainWindow):
             QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
 
-        data_to_print = self._prepare_data_for_printing(item_data)
+        # Use the UI state for printing, not just the raw DB data
+        if self.current_item_data and self.current_item_data.get('SKU') == sku:
+            data_to_print = self.get_current_data_from_ui()
+        else:
+            data_to_print = self._prepare_data_for_printing(item_data)
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         is_dual = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
 
-        pixmaps_to_print = []
-        filenames = []
-
+        q_pixmaps = []
         if is_dual:
-            tag_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
-            tag_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
-            a4_pages = a4_layout_generator.create_a4_for_dual_single(tag_en, tag_ka)
-            for i, page in enumerate(a4_pages):
-                filename = os.path.join("output", f"A4_DUAL_{data_to_print['SKU']}_{i + 1}.png")
-                page.save(filename, dpi=(300, 300))
-                pixmaps_to_print.append(QPixmap(filename))
-                filenames.append(filename)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
+            q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
+                                QImage.Format.Format_RGB888)
+            q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
+                                QImage.Format.Format_RGB888)
+            q_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
         else:
             lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-            tag_image = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
-            a4_page = a4_layout_generator.create_a4_for_single(tag_image)
-            filename = os.path.join("output", f"A4_SINGLE_{data_to_print['SKU']}.png")
-            a4_page.save(filename, dpi=(300, 300))
-            pixmaps_to_print.append(QPixmap(filename))
-            filenames.append(filename)
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
+            q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
+            q_pixmaps.append(QPixmap.fromImage(q_image))
 
-        self.handle_single_print_with_dialog(pixmaps_to_print)
-
-        QMessageBox.information(self, self.tr("success_title"),
-                                self.tr("file_saved_message", "\n".join(map(os.path.abspath, filenames))))
+        self.handle_single_print_with_dialog(q_pixmaps, size_config)
 
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
@@ -1322,60 +1321,89 @@ class PriceTagDashboard(QMainWindow):
 
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
-        tags_per_sheet = layout_info.get('total', 0)
 
+        tags_per_sheet = layout_info.get('total', 0)
         if tags_per_sheet <= 0:
             QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
             return
 
         dual_lang_enabled = self.dual_lang_checkbox.isChecked() and size_name != '6x3.5cm'
-        items_per_sheet = tags_per_sheet
-        if dual_lang_enabled:
-            items_per_sheet //= 2
 
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
-            QMessageBox.warning(self, "Printing Cancelled",
-                                "The batch print job was cancelled because no printer was selected.")
+            QMessageBox.warning(self, "Printing Cancelled", "The batch print job was cancelled.")
             return
 
-        sku_pages = list(a4_layout_generator.chunks(skus_to_print, items_per_sheet))
-        total_pages = len(sku_pages)
-        branch_db_key = self.get_current_branch_db_key()
+        self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
 
-        for page_num, page_skus in enumerate(sku_pages, 1):
-            tag_images_for_page = []
-            for sku in page_skus:
+        painter = QPainter()
+        if not painter.begin(self.printer):
+            QMessageBox.critical(self, "Printing Error", "Could not start painter on the selected printer.")
+            return
+
+        try:
+            dpi = self.printer.resolution()
+            page_rect_px = self.printer.pageRect(QPrinter.Unit.DevicePixel)
+
+            tag_width_cm, tag_height_cm = size_config['dims']
+            tag_width_px = int((tag_width_cm / 2.54) * dpi)
+            tag_height_px = int((tag_height_cm / 2.54) * dpi)
+
+            cols = page_rect_px.width() // tag_width_px
+            rows = page_rect_px.height() // tag_height_px
+            tags_per_sheet = cols * rows
+
+            grid_width_px = cols * tag_width_px
+            grid_height_px = rows * tag_height_px
+            grid_start_x_px = (page_rect_px.width() - grid_width_px) / 2
+            grid_start_y_px = (page_rect_px.height() - grid_height_px) / 2
+
+            tag_on_page_index = 0
+            total_tags_printed = 0
+
+            for sku in skus_to_print:
                 item_data = firebase_handler.find_item_by_identifier(sku, self.token)
                 if not item_data: continue
-
                 data_to_print = self._prepare_data_for_printing(item_data)
 
+                pil_images_for_sku = []
                 if dual_lang_enabled:
-                    tag_images_for_page.append(
+                    pil_images_for_sku.append(
                         price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
-                    tag_images_for_page.append(
+                    pil_images_for_sku.append(
                         price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
                 else:
                     lang = 'en' if size_name == '6x3.5cm' else self.translator.language
-                    tag_images_for_page.append(
+                    pil_images_for_sku.append(
                         price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
 
-            if not tag_images_for_page: continue
+                for pil_image in pil_images_for_sku:
+                    if tag_on_page_index >= tags_per_sheet:
+                        self.printer.newPage()
+                        tag_on_page_index = 0
 
-            a4_sheet = a4_layout_generator.create_a4_sheet(tag_images_for_page, layout_info)
-            filename = os.path.join("output", f"A4_BATCH_{size_name}_Page_{page_num}_of_{total_pages}.png")
-            a4_sheet.save(filename, dpi=(300, 300))
+                    q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
+                                     QImage.Format.Format_RGB888)
+                    pixmap = QPixmap.fromImage(q_image)
 
-            if not self._execute_print_job(QPixmap(filename), self.printer):
-                QMessageBox.critical(self, "Printing Error",
-                                     f"Failed to print page {page_num}. The batch job has been aborted.")
-                break
-        else:
-            QMessageBox.information(self, "Batch Complete",
-                                    self.tr("print_job_sent", total_pages, self.printer.printerName()))
-            firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items.")
+                    row = tag_on_page_index // cols
+                    col = tag_on_page_index % cols
 
+                    x_pos = grid_start_x_px + (col * tag_width_px)
+                    y_pos = grid_start_y_px + (row * tag_height_px)
+
+                    target_rect = QRect(int(x_pos), int(y_pos), tag_width_px, tag_height_px)
+                    painter.drawPixmap(target_rect, pixmap)
+
+                    tag_on_page_index += 1
+                    total_tags_printed += 1
+        finally:
+            painter.end()
+
+        QMessageBox.information(self, "Batch Complete", f"Sent {total_tags_printed} tags to the printer.")
+        firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items.")
+
+        branch_db_key = self.get_current_branch_db_key()
         for sku in skus_to_print:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
         if self.current_item_data.get('SKU') in skus_to_print:
@@ -1404,7 +1432,7 @@ class PriceTagDashboard(QMainWindow):
         data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
         return data_to_print
 
-    def update_preview(self):
+    def update_preview(self, *args, **kwargs):
         data_to_preview = self.get_current_data_from_ui()
         if not data_to_preview: return
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
@@ -1415,7 +1443,8 @@ class PriceTagDashboard(QMainWindow):
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
-        scaled_pixmap = pixmap.scaledToWidth(self.preview_label.width(), Qt.TransformationMode.SmoothTransformation)
+        scaled_pixmap = pixmap.scaled(self.preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation)
         self.preview_label.setPixmap(scaled_pixmap)
 
     def handle_paper_size_change(self, size_name):
@@ -1481,7 +1510,7 @@ class PriceTagDashboard(QMainWindow):
     def add_spec(self):
         if not self.current_item_data: return
 
-        menu = QMenu()
+        menu = QMenu(self)
         templates = data_handler.get_item_templates(self.token)
         category = self.current_item_data.get("Categories", "Uncategorized")
 
@@ -1492,40 +1521,50 @@ class PriceTagDashboard(QMainWindow):
                 break
 
         if template_key and templates[template_key].get("specs"):
-            for spec in templates[template_key]["specs"]:
-                menu.addAction(spec)
+            for spec_name in templates[template_key]["specs"]:
+                # Ensure we have a default value for spec name
+                if spec_name:
+                    action = QAction(spec_name, self)
+                    action.triggered.connect(lambda checked, s=spec_name: self.add_spec_from_template(s))
+                    menu.addAction(action)
             menu.addSeparator()
 
-        custom_action = menu.addAction("Custom...")
+        custom_action = QAction("Custom...", self)
+        custom_action.triggered.connect(self.add_custom_spec)
+        menu.addAction(custom_action)
+        menu.exec(self.add_spec_button.mapToGlobal(self.add_spec_button.rect().bottomLeft()))
 
-        action = menu.exec(self.add_spec_button.mapToGlobal(self.add_spec_button.rect().bottomLeft()))
+    def add_spec_from_template(self, spec_text):
+        if spec_text:
+            self.specs_list.addItem(spec_text + ": ")
+            self.update_preview()
 
-        if action:
-            spec_text = action.text()
-            if action == custom_action:
-                text, ok = QInputDialog.getText(self, "Add Custom Specification", "Specification:")
-                if ok and text:
-                    self.specs_list.addItem(text)
-            else:
-                self.specs_list.addItem(spec_text + ":")
+    def add_custom_spec(self):
+        text, ok = QInputDialog.getText(self, "Add Custom Specification", "Specification (e.g., Color: Black):")
+        if ok and text:
+            self.specs_list.addItem(text)
             self.update_preview()
 
     def edit_spec(self):
         item = self.specs_list.currentItem()
-        if item: item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable); self.specs_list.editItem(item)
+        if item:
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            self.specs_list.editItem(item)
 
     def remove_spec(self):
         item = self.specs_list.currentItem()
         if item:
             reply = QMessageBox.question(self, self.tr("remove_spec_title"),
                                          self.tr("remove_spec_message", item.text()))
-            if reply == QMessageBox.StandardButton.Yes: self.specs_list.takeItem(
-                self.specs_list.row(item)); self.update_preview()
+            if reply == QMessageBox.StandardButton.Yes:
+                self.specs_list.takeItem(self.specs_list.row(item))
+                self.update_preview()
 
     def toggle_dual_language(self, state):
         if self.dual_lang_checkbox.isEnabled():
             self.settings["generate_dual_language"] = bool(state)
             data_handler.save_settings(self.settings)
+            self.update_preview()
 
     def select_printer(self):
         dialog = QPrintDialog(self.printer, self)
@@ -1533,25 +1572,37 @@ class PriceTagDashboard(QMainWindow):
             QMessageBox.information(self, "Printer Selected",
                                     f"Printer '{self.printer.printerName()}' has been selected for subsequent print jobs.")
 
-    def _execute_print_job(self, pixmap, printer):
-        painter = QPainter()
-        if painter.begin(printer):
-            printer.setResolution(300)
-            page_rect_pixels = printer.pageRect(QPrinter.Unit.DevicePixel)
-            x_offset = (page_rect_pixels.width() - pixmap.width()) / 2
-            y_offset = (page_rect_pixels.height() - pixmap.height()) / 2
-            painter.drawPixmap(int(x_offset), int(y_offset), pixmap)
-            painter.end()
-            return True
-        return False
-
-    def handle_single_print_with_dialog(self, pixmaps):
+    def handle_single_print_with_dialog(self, pixmaps, size_config):
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() == QPrintDialog.DialogCode.Accepted:
-            for pixmap in pixmaps:
-                if not self._execute_print_job(pixmap, self.printer):
-                    QMessageBox.critical(self, "Printing Error", f"Could not print on '{self.printer.printerName()}'.")
-                    break
+            self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            painter = QPainter()
+            if not painter.begin(self.printer):
+                QMessageBox.critical(self, "Printing Error", "Could not start painter on the selected printer.")
+                return
+
+            try:
+                dpi = self.printer.resolution()
+                page_rect_pixels = self.printer.pageRect(QPrinter.Unit.DevicePixel)
+                tag_width_cm, tag_height_cm = size_config['dims']
+                tag_width_px = int((tag_width_cm / 2.54) * dpi)
+                tag_height_px = int((tag_height_cm / 2.54) * dpi)
+                place_horizontally = (tag_width_px * len(pixmaps)) <= page_rect_pixels.width()
+
+                if place_horizontally:
+                    total_width = tag_width_px * len(pixmaps)
+                    start_x = int((page_rect_pixels.width() - total_width) / 2)
+                    y = int((page_rect_pixels.height() - tag_height_px) / 2)
+                    for i, pixmap in enumerate(pixmaps):
+                        painter.drawPixmap(QRect(start_x + i * tag_width_px, y, tag_width_px, tag_height_px), pixmap)
+                else:
+                    total_height = tag_height_px * len(pixmaps)
+                    x = int((page_rect_pixels.width() - tag_width_px) / 2)
+                    start_y = int((page_rect_pixels.height() - total_height) / 2)
+                    for i, pixmap in enumerate(pixmaps):
+                        painter.drawPixmap(QRect(x, start_y + i * tag_height_px, tag_width_px, tag_height_px), pixmap)
+            finally:
+                painter.end()
 
 
 if __name__ == "__main__":
