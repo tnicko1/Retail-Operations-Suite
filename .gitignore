@@ -1,6 +1,11 @@
-### Example user template template
-### Example user template
+# Firebase configuration - Contains sensitive keys
+config.json
 
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
 # IntelliJ project files
 .idea
 *.iml
