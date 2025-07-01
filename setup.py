@@ -1,43 +1,85 @@
-import subprocess
-import os
 import sys
+from cx_Freeze import setup, Executable
+import os
 
-# The name of the configuration file for PyInstaller
-SPEC_FILE = 'setup.spec'
+# --- Application Information ---
+# Update these values for your application
+APP_NAME = "Retail Operations Suite"
+# IMPORTANT: This version number MUST match the one in main.py
+APP_VERSION = "1.0.0"
+APP_DESCRIPTION = "A suite of tools for managing retail operations, including price tag generation."
+COMPANY_NAME = "Nikoloz Taturashvili"
+# IMPORTANT: Generate a new GUID for this and paste it here.
+# In PowerShell, run: [guid]::NewGuid()
+UPGRADE_CODE = '{4281202f-2fdb-4d9a-a342-d833d8735e5b}'
 
-def run_build():
-    """Runs the PyInstaller build process."""
-    # Check if the spec file exists
-    if not os.path.exists(SPEC_FILE):
-        print(f"Error: {SPEC_FILE} not found. Please ensure it's in the same directory.")
-        sys.exit(1)
+# --- Base Executable ---
+# base="Win32GUI" is used on Windows to create a GUI application (no console window)
+base = None
+if sys.platform == "win32":
+    base = "Win32GUI"
 
-    # Run PyInstaller with the spec file
-    print(f"--- Running PyInstaller with {SPEC_FILE} ---")
-    try:
-        # We use subprocess.run to execute the command
-        subprocess.run(
-            [sys.executable, '-m', 'PyInstaller', '--noconfirm', SPEC_FILE],
-            check=True,
-            text=True,
-            capture_output=True # Capture output to check for errors
-        )
-        print("\n--- PyInstaller build complete. ---")
-        print(f"--- The application is in the 'dist/Retail Operations Suite' folder. ---")
-    except FileNotFoundError:
-        print("\nError: Could not run PyInstaller.")
-        print("Please make sure PyInstaller is installed (`pip install pyinstaller`).")
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        # If PyInstaller returns an error, print its output
-        print("\n--- An error occurred during the build process. ---")
-        print("--- PyInstaller Output: ---")
-        print(e.stdout)
-        print(e.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}")
-        sys.exit(1)
+# --- Executable Definition ---
+# This defines the main entry point of your application
+executables = [
+    Executable(
+        "main.py",
+        base=base,
+        target_name=f"{APP_NAME}.exe",
+        icon="assets/program/logo-no-flair.ico" # Path to your application's .ico file
+    )
+]
 
-if __name__ == '__main__':
-    run_build()
+# --- Files and Directories to Include in the Build ---
+# This ensures all your assets, fonts, config files, and modules are included.
+include_files = [
+    'assets',
+    'fonts',
+    'config.json',
+    'translations.py',
+    'data_handler.py',
+    'firebase_handler.py',
+    'price_generator.py',
+    'a4_layout_generator.py',
+    'app.py',
+    'auth_ui.py',
+    'updater.py'
+]
+
+# --- Build Options for cx_Freeze ---
+# Specify Python packages to include and other build settings
+build_exe_options = {
+    # Add any packages your project uses here
+    "packages": [
+        "os", "sys", "re", "json", "csv", "datetime", "traceback",
+        "pyrebase", "bs4", "pytz", "requests", "PIL",
+        "PyQt6", # Including the whole PyQt6 package is often safer
+        "packaging" # Added for version parsing
+    ],
+    "include_files": include_files,
+    "excludes": ["tkinter"], # Exclude packages you don't need to reduce size
+    "zip_include_packages": ["*"],
+    "zip_exclude_packages": [],
+}
+
+# --- MSI Specific Options ---
+# Customize the properties of the generated MSI installer
+bdist_msi_options = {
+    "upgrade_code": UPGRADE_CODE,
+    "add_to_path": False,
+    "initial_target_dir": rf"[ProgramFilesFolder]\{COMPANY_NAME}\{APP_NAME}",
+    "all_users": True, # Install for all users on the machine
+}
+
+# --- Setup Function ---
+# This function runs the build process with all the specified options
+setup(
+    name=APP_NAME,
+    version=APP_VERSION,
+    description=APP_DESCRIPTION,
+    options={
+        "build_exe": build_exe_options,
+        "bdist_msi": bdist_msi_options,
+    },
+    executables=executables
+)
