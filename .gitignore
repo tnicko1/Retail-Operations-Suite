@@ -1,13 +1,30 @@
-# Firebase configuration - Contains sensitive keys
+# --- Security ---
+# Firebase configuration file. Contains sensitive keys.
 config.json
 
-# Python virtual environment
-.venv/
+# --- User-Specific Data ---
+# These files are generated locally and contain user settings or cached data.
+# They should not be part of the repository.
+user_settings.json
+templates.json
+display_status.json
 
-# Python cache
+# --- Generated Output ---
+# This directory contains generated price tags or other output files.
+output/
+
+# --- Python ---
+# Virtual environment folders
+.venv/
+venv/
+
+# Python cache files
 __pycache__/
-# IntelliJ project files
-.idea
+*.pyc
+
+# --- IDE / Editor ---
+# PyCharm specific files
+.idea/
 *.iml
 out
 gen
