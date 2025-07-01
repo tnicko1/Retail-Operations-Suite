@@ -57,7 +57,18 @@ TRANSLATIONS = {
         "price_history_header_new": "New Price",
         "low_stock_warning": "Low Stock!",
         "stock_label": "Stock:",
-        "recently_printed_group": "Recently Printed",
+
+        # Auth
+        "login_window_title": "Login - Retail Operations Suite",
+        "login_identifier_label": "Email or Username:",
+        "login_password_label": "Password:",
+        "login_button": "Login",
+        "register_button": "Register New Account",
+        "register_window_title": "Register New Account",
+        "register_username_label": "Username:",
+        "register_email_label": "Email:",
+        "register_password_label": "Password:",
+        "register_confirm_password_label": "Confirm Password:",
 
         # Quick Stock Checker
         "stock_checker_title": "Quick Stock Checker",
@@ -269,7 +280,18 @@ TRANSLATIONS = {
         "price_history_header_new": "ახალი ფასი",
         "low_stock_warning": "მცირე მარაგი!",
         "stock_label": "მარაგი:",
-        "recently_printed_group": "ბოლოს დაბეჭდილი",
+
+        # Auth
+        "login_window_title": "ავტორიზაცია - საცალო ოპერაციების კომპლექსი",
+        "login_identifier_label": "მეილი ან მომხმარებლის სახელი:",
+        "login_password_label": "პაროლი:",
+        "login_button": "შესვლა",
+        "register_button": "ახალი ანგარიშის რეგისტრაცია",
+        "register_window_title": "ახალი ანგარიშის რეგისტრაცია",
+        "register_username_label": "მომხმარებლის სახელი:",
+        "register_email_label": "მეილი:",
+        "register_password_label": "პაროლი:",
+        "register_confirm_password_label": "გაიმეორეთ პაროლი:",
 
         # Quick Stock Checker
         "stock_checker_title": "მარაგის სწრაფი შემოწმება",
