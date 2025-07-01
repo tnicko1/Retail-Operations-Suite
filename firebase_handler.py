@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 import json
 import pyrebase
 import os
@@ -306,7 +305,8 @@ def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token
         category_items = []
 
     status_dict = get_display_status(token)
-    on_display_skus = set(status_dict.get(branch_db_key, []))
+    # The keys of the branch's dictionary are the SKUs on display
+    on_display_skus = set(status_dict.get(branch_db_key, {}).keys())
     suggestions = []
 
     for item in category_items:
@@ -326,35 +326,42 @@ def get_display_status(token):
     return status if status else {}
 
 
-def save_display_status(status_dict, token):
-    if not token: return
-    db.child("displayStatus").set(status_dict, token)
-
-
 def add_item_to_display(sku, branch_db_key, token):
+    """Adds an item to the display list for a branch with a timestamp."""
     if not sku or not branch_db_key or not token: return
-    status_dict = get_display_status(token)
-    if branch_db_key not in status_dict:
-        status_dict[branch_db_key] = []
-
-    display_set = set(status_dict[branch_db_key])
-    if sku not in display_set:
-        status_dict[branch_db_key].append(sku)
-        save_display_status(status_dict, token)
+    try:
+        tbilisi_tz = pytz.timezone('Asia/Tbilisi')
+        timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
+        # Set the SKU as a key with the timestamp as its value
+        db.child("displayStatus").child(branch_db_key).child(sku).set(timestamp, token)
+    except Exception as e:
+        print(f"Error adding item to display: {e}")
 
 
 def remove_item_from_display(sku, branch_db_key, token):
+    """Removes an item from the display list for a branch."""
     if not sku or not branch_db_key or not token: return
-    status_dict = get_display_status(token)
-    if branch_db_key in status_dict and sku in status_dict[branch_db_key]:
-        status_dict[branch_db_key].remove(sku)
-        save_display_status(status_dict, token)
+    try:
+        # Remove the SKU key from the branch's display dictionary
+        db.child("displayStatus").child(branch_db_key).child(sku).remove(token)
+    except Exception as e:
+        print(f"Error removing item from display: {e}")
 
 
-def is_item_on_display(sku, branch_db_key, token):
-    if not token or not branch_db_key: return False
-    status_dict = get_display_status(token)
-    return sku in status_dict.get(branch_db_key, [])
+def get_item_display_timestamp(sku, branch_db_key, token):
+    """
+    Checks if an item is on display for a given branch.
+    Returns the timestamp string if it is, otherwise None.
+    """
+    if not sku or not branch_db_key or not token:
+        return None
+    try:
+        # Directly get the value (timestamp) for the SKU key
+        timestamp = db.child("displayStatus").child(branch_db_key).child(sku).get(token).val()
+        return timestamp
+    except Exception as e:
+        print(f"Error checking display status for {sku}: {e}")
+        return None
 
 
 # --- Template Management ---
