@@ -95,20 +95,10 @@ To get the project running locally, follow these steps:
     ```
 
 4.  **Configure Firebase:**
-    * Create a `config.json` file in the root directory of the project.
-    * This file must contain your Firebase project configuration credentials. You can get these from your Firebase project settings.
-    * **This file is critical for the application to connect to your database.**
-
-    *`config.json` template:*
-    ```json
-    {
-      "apiKey": "AIzaSy...",
-      "authDomain": "your-project-id.firebaseapp.com",
-      "databaseURL": "[https://your-project-id.firebaseio.com](https://your-project-id.firebaseio.com)",
-      "storageBucket": "your-project-id.appspot.com",
-      "serviceAccount": "path/to/your/serviceAccountKey.json"
-    }
-    ```
+    * In the project root, you will find a file named `config.template.json`.
+    * **Make a copy** of this file and rename it to `config.json`.
+    * Open the new `config.json` and fill in your actual Firebase project configuration credentials. You can get these from your Firebase project settings ("Project Overview" > "Project settings" > "General" > "Your apps" > "SDK setup and configuration").
+    * **The `config.json` file is included in `.gitignore` and will not be committed to the repository.** This is critical for keeping your project keys secure.
 
 5.  **Run the application:**
     ```bash
