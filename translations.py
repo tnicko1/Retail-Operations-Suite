@@ -14,9 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-# -*- coding: utf-8 -*-
-
 TRANSLATIONS = {
     "en": {
         # UI Text
@@ -59,6 +56,11 @@ TRANSLATIONS = {
         "status_label": "Status",
         "status_on_display": "On Display",
         "status_in_storage": "In Storage",
+        "status_on_display_for": "On display for {duration}",
+        "duration_days": "{d} days",
+        "duration_hours": "{h} hours",
+        "duration_minutes": "{m} minutes",
+        "duration_less_than_minute": "less than a minute",
         "set_to_display_button": "Set to Display",
         "set_to_storage_button": "Set to Storage",
         "item_returned_message": "Item {} marked as 'In Storage'.",
@@ -282,6 +284,11 @@ TRANSLATIONS = {
         "status_label": "სტატუსი",
         "status_on_display": "ვიტრინაშია",
         "status_in_storage": "საწყობშია",
+        "status_on_display_for": "ვიტრინაშია {duration}",
+        "duration_days": "{d} დღე",
+        "duration_hours": "{h} საათი",
+        "duration_minutes": "{m} წუთი",
+        "duration_less_than_minute": "წუთზე ნაკლები",
         "set_to_display_button": "ვიტრინაში გადატანა",
         "set_to_storage_button": "საწყობში დაბრუნება",
         "item_returned_message": "პროდუქტი {} აღინიშნა როგორც 'საწყობშია'.",
@@ -472,15 +479,15 @@ class Translator:
     def set_language(self, language):
         self.language = language
 
-    def get(self, key, *args):
+    def get(self, key, *args, **kwargs):
         try:
             translation = TRANSLATIONS[self.language][key]
-            return translation.format(*args)
+            return translation.format(*args, **kwargs)
         except (KeyError, IndexError):
             try:
                 # Fallback to English if key not in current language
                 translation = TRANSLATIONS["en"][key]
-                return translation.format(*args)
+                return translation.format(*args, **kwargs)
             except (KeyError, IndexError):
                 # Return the key itself if not found anywhere
                 return f"<{key}>"
