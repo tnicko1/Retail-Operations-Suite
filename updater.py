@@ -3,28 +3,26 @@ import os
 import requests
 import tempfile
 import subprocess
+import zipfile
+import shutil
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QApplication
 from PyQt6.QtCore import Qt
 
 # --- Configuration ---
-# IMPORTANT: Replace with your actual GitHub username and repository name.
-GITHUB_REPO_OWNER = "tnicko1"
-GITHUB_REPO_NAME = "Retail-Operations-Suite"
-# This is the filename of the installer you will upload to GitHub releases.
-RELEASE_ASSET_NAME = "Retail-Operations-Suite-Installer.exe"
-# The current version of the application. This must be updated for each new release.
+GITHUB_REPO_OWNER = "YOUR_GITHUB_USERNAME"
+GITHUB_REPO_NAME = "YOUR_REPOSITORY_NAME"
+# This is now the ZIP file you will upload to GitHub releases.
+RELEASE_ASSET_NAME = "Retail-Operations-Suite.zip"
+# The name of the executable inside the zip file
+EXECUTABLE_NAME = "Retail Operations Suite.exe"
 CURRENT_VERSION = "1.0.0"
 
 
 def get_latest_release_info():
-    """
-    Fetches the latest release information from the GitHub repository.
-    Returns the JSON response from the API.
-    """
     api_url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest"
     try:
         response = requests.get(api_url, timeout=10)
-        response.raise_for_status()  # Raises an HTTPError for bad responses (4XX or 5XX)
+        response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching latest release info: {e}")
@@ -32,26 +30,14 @@ def get_latest_release_info():
 
 
 def compare_versions(current_version, latest_version_tag):
-    """
-    Compares two version strings (e.g., "1.0.0" vs "v1.0.1").
-    Returns True if the latest version is newer, False otherwise.
-    """
-    # Strip the 'v' prefix from the tag if it exists
     if latest_version_tag.startswith('v'):
         latest_version_tag = latest_version_tag[1:]
-
-    # Split versions into parts and convert to integers
     current_parts = list(map(int, current_version.split('.')))
     latest_parts = list(map(int, latest_version_tag.split('.')))
-
-    # Compare parts
     return latest_parts > current_parts
 
 
 def check_for_updates(parent_window):
-    """
-    Checks for updates and prompts the user if a new version is available.
-    """
     print("Checking for updates...")
     release_info = get_latest_release_info()
     if not release_info:
@@ -84,9 +70,6 @@ def check_for_updates(parent_window):
 
 
 def download_and_install_update(parent_window, release_info):
-    """
-    Downloads the installer from the release assets and runs it.
-    """
     assets = release_info.get("assets", [])
     download_url = None
     for asset in assets:
@@ -95,40 +78,64 @@ def download_and_install_update(parent_window, release_info):
             break
 
     if not download_url:
-        QMessageBox.critical(parent_window, "Error", "Could not find the installer file in the latest release.")
+        QMessageBox.critical(parent_window, "Error", "Could not find the release ZIP file in the latest release.")
         return
 
     try:
-        # Download the file with a progress dialog
         response = requests.get(download_url, stream=True)
         response.raise_for_status()
         total_size = int(response.headers.get('content-length', 0))
 
         temp_dir = tempfile.gettempdir()
-        installer_path = os.path.join(temp_dir, RELEASE_ASSET_NAME)
+        zip_path = os.path.join(temp_dir, RELEASE_ASSET_NAME)
 
         progress = QProgressDialog("Downloading update...", "Cancel", 0, total_size, parent_window)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
 
         bytes_downloaded = 0
-        with open(installer_path, 'wb') as f:
+        with open(zip_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if progress.wasCanceled():
                     return
                 f.write(chunk)
                 bytes_downloaded += len(chunk)
                 progress.setValue(bytes_downloaded)
-
         progress.setValue(total_size)
-        print(f"Installer downloaded to: {installer_path}")
 
-        # Run the installer and exit the current application
-        subprocess.Popen([installer_path])
-        print("Launching installer and exiting application...")
+        # --- Unzip and Replace Logic ---
+        # Get the directory where the current application is running
+        current_app_path = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(
+            __file__)
+
+        # Unzip the new version to a temporary folder
+        update_folder = os.path.join(temp_dir, "retail_suite_update")
+        if os.path.exists(update_folder):
+            shutil.rmtree(update_folder)
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(update_folder)
+
+        # The unzipped contents are inside a folder named after the app
+        unzipped_content_path = os.path.join(update_folder, "Retail Operations Suite")
+
+        # Create a simple updater script to run after this app closes
+        updater_script_path = os.path.join(temp_dir, "run_update.bat")
+        with open(updater_script_path, "w") as f:
+            f.write(f'@echo off\n')
+            f.write(f'echo Closing old application...\n')
+            f.write(f'taskkill /F /IM "{os.path.basename(sys.executable)}"\n')  # Force close the old app
+            f.write(f'echo Replacing files...\n')
+            f.write(f'timeout /t 3 /nobreak > NUL\n')  # Wait for files to be unlocked
+            f.write(
+                f'robocopy "{unzipped_content_path}" "{current_app_path}" /E /MOVE /IS\n')  # Move new files over old
+            f.write(f'echo Update complete. Launching new version...\n')
+            f.write(f'start "" "{os.path.join(current_app_path, EXECUTABLE_NAME)}"\n')
+            f.write(f'del "%~f0"\n')  # Delete this script after running
+
+        # Launch the updater script and exit
+        subprocess.Popen([updater_script_path], creationflags=subprocess.CREATE_NEW_CONSOLE)
         QApplication.quit()
 
-    except requests.exceptions.RequestException as e:
-        QMessageBox.critical(parent_window, "Download Error", f"Failed to download the update: {e}")
     except Exception as e:
-        QMessageBox.critical(parent_window, "Installation Error", f"An unexpected error occurred: {e}")
+        QMessageBox.critical(parent_window, "Update Error", f"An unexpected error occurred: {e}")
+
