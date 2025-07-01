@@ -4,8 +4,8 @@ import os
 import csv
 from datetime import datetime
 import pytz
-from collections import deque
 from data_handler import extract_part_number, extract_specifications
+from PyQt6.QtWidgets import QMessageBox
 
 firebase_app = None
 auth = None
@@ -34,22 +34,54 @@ def initialize_firebase():
         return False
 
 
-def login_user(email, password):
+def get_email_for_username(username):
+    """Looks up the email associated with a given username."""
+    if not username: return None
+    try:
+        return db.child("usernames").child(username).get().val()
+    except Exception as e:
+        print(f"Error looking up username {username}: {e}")
+        return None
+
+
+def login_user(identifier, password):
     """
-    Signs the user in and fetches their profile using their auth token.
+    Signs the user in using either an email or a username.
     """
+    email = None
+    identifier = identifier.strip()
+    if '@' in identifier:
+        email = identifier
+    else:
+        email = get_email_for_username(identifier.lower())
+        if not email:
+            QMessageBox.critical(None, "Login Failed", f"Username '{identifier}' not found.")
+            return None
+
     try:
         user = auth.sign_in_with_email_and_password(email, password)
         user_profile = db.child("users").child(user['localId']).get(user['idToken']).val()
 
         if user_profile:
             user['role'] = user_profile.get('role', 'User')
-        else:
+            user['username'] = user_profile.get('username', 'N/A')
+        else:  # Should not happen for a valid user, but as a fallback
             user['role'] = 'User'
-        log_activity(user.get('idToken'), f"User {email} logged in.")
+            user['username'] = 'N/A'
+
+        log_activity(user.get('idToken'), f"User {user['username']} ({email}) logged in.")
         return user
     except Exception as e:
-        print(f"Login error: {e}")
+        # Parse the error message from Firebase
+        try:
+            error_json = e.args[1]
+            error_message = json.loads(error_json)['error']['message']
+            if error_message == "INVALID_PASSWORD" or error_message == "EMAIL_NOT_FOUND":
+                QMessageBox.critical(None, "Login Failed", "Invalid identifier or password.")
+            else:
+                QMessageBox.critical(None, "Login Failed", f"Firebase error: {error_message}")
+        except (IndexError, KeyError, json.JSONDecodeError):
+            QMessageBox.critical(None, "Login Failed", f"An unexpected error occurred: {e}")
         return None
 
 
@@ -66,24 +98,44 @@ def is_first_user():
         return False
 
 
-def register_user(email, password, is_first):
+def register_user(email, password, username, is_first):
     """
     Creates a user, immediately signs them in to get a token,
-    and uses the token to create their database profile securely.
+    and uses the token to create their database profile securely, including a username mapping.
     """
+    # Step 1: Check if username is already taken
+    if get_email_for_username(username):
+        return None, "Username is already taken."
+
     try:
+        # Step 2: Create the user in Firebase Auth
         user_auth = auth.create_user_with_email_and_password(email, password)
-        if user_auth:
-            user = auth.sign_in_with_email_and_password(email, password)
-            role = "Admin" if is_first else "User"
-            user_data = {"email": email, "role": role}
-            db.child("users").child(user['localId']).set(user_data, user['idToken'])
-            user['role'] = role
-            log_activity(user.get('idToken'), f"New user registered: {email}")
-            return user
+
+        # Step 3: Sign in to get the token needed for database writes
+        user = auth.sign_in_with_email_and_password(email, password)
+
+        # Step 4: Prepare and write data to the database
+        role = "Admin" if is_first else "User"
+        user_data = {"email": email, "role": role, "username": username}
+
+        # Atomically write user profile and username mapping
+        update_payload = {
+            f"users/{user['localId']}": user_data,
+            f"usernames/{username}": email
+        }
+        db.update(update_payload, user['idToken'])
+
+        user['role'] = role
+        user['username'] = username
+        log_activity(user.get('idToken'), f"New user registered: {username} ({email})")
+        return user, None
     except Exception as e:
-        print(f"Registration error: {e}")
-    return None
+        try:
+            error_json = e.args[1]
+            error_message = json.loads(error_json)['error']['message']
+            return None, error_message
+        except (IndexError, KeyError, json.JSONDecodeError):
+            return None, str(e)
 
 
 def get_all_users(token):
@@ -341,31 +393,6 @@ def get_print_queue(uid, token):
 def save_print_queue(uid, token, queue_data):
     if not uid or not token: return
     db.child("user_data").child(uid).child("print_queue").set(queue_data, token)
-
-
-def get_recently_printed(uid, token):
-    if not uid or not token: return []
-    recent_skus = db.child("user_data").child(uid).child("recently_printed").get(token).val()
-    return recent_skus if isinstance(recent_skus, list) else []
-
-
-def add_to_recently_printed(uid, token, sku):
-    if not uid or not token or not sku: return
-    try:
-        current_list = get_recently_printed(uid, token)
-
-        # Use a deque for efficient adding and trimming
-        d = deque(current_list, maxlen=10)
-
-        # If sku is already in the list, remove it to re-add it at the front
-        if sku in d:
-            d.remove(sku)
-
-        d.appendleft(sku)
-
-        db.child("user_data").child(uid).child("recently_printed").set(list(d), token)
-    except Exception as e:
-        print(f"Error updating recently printed list: {e}")
 
 
 def get_saved_batch_lists(uid, token):
