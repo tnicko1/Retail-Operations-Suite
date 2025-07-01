@@ -4,10 +4,11 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 import firebase_handler
 from auth_ui import LoginWindow
 from app import RetailOperationsSuite
-import updater
+import updater  # Import the new updater module
 
 # Define the current version of the application
-# This should be updated for each new release and must match the version in updater.py and setup.py
+# This should be updated for each new release and must match the version in setup.py
+# The 'v' prefix on GitHub tags is handled by the updater, so just use the number.
 APP_VERSION = "1.0.0"
 
 
@@ -27,14 +28,35 @@ def main():
     # Set the global exception hook. This MUST be the first thing to run.
     sys.excepthook = global_exception_hook
 
+    # We need a QApplication instance to show message boxes for the update check.
+    # We create it early and use it throughout the application's lifecycle.
+    app = QApplication(sys.argv)
+
+    # Only check for updates if the application is frozen (i.e., running as an executable)
     if getattr(sys, 'frozen', False):
         QApplication.setApplicationVersion(APP_VERSION)
 
-    if not firebase_handler.initialize_firebase():
-        # This error is already handled with a QMessageBox, so we can just exit.
-        return -1
+        # --- UPDATE CHECK ---
+        print("Checking for updates...")
+        latest_version, download_url = updater.check_for_updates(APP_VERSION)
 
-    app = QApplication(sys.argv)
+        if latest_version and download_url:
+            reply = QMessageBox.question(None, "Update Available",
+                                         f"A new version ({latest_version}) is available.\n"
+                                         f"You are currently on version {APP_VERSION}.\n\n"
+                                         "Would you like to download and install it now?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                         QMessageBox.StandardButton.Yes)
+            if reply == QMessageBox.StandardButton.Yes:
+                # This function will download, launch the installer, and exit the app.
+                updater.download_and_install_update(download_url)
+                return 0  # Exit cleanly if update is started
+        # If no update or user says no, the app continues.
+
+    # --- APPLICATION STARTUP ---
+    if not firebase_handler.initialize_firebase():
+        # This error is already handled with a QMessageBox in the function, so we can just exit.
+        return -1
 
     login_window = LoginWindow()
 
@@ -43,10 +65,6 @@ def main():
         user = login_window.user
         main_window = RetailOperationsSuite(user)
         main_window.show()
-
-        # Check for updates after the main window is shown
-        updater.check_for_updates(main_window)
-
         sys.exit(app.exec())
     else:
         # User closed the login window without logging in
@@ -57,6 +75,8 @@ if __name__ == "__main__":
     # A final try-except block for any errors that might occur even before the hook is set.
     try:
         sys.exit(main())
+    except SystemExit:
+        pass  # Ignore SystemExit exceptions from sys.exit()
     except Exception:
         # The global hook should catch this, but this is an absolute fallback.
         error_msg = f"A critical error occurred on startup:\n\n{traceback.format_exc()}"
