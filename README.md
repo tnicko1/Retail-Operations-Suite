@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Retail Operations Suite Logo" width="150"/>
+  <img src="assets/program/logo.png" alt="Retail Operations Suite Logo" width="150"/>
   <h1>Retail Operations Suite</h1>
   <p>
     A comprehensive desktop application for managing retail price tags, inventory status, and administrative tasks, built with PyQt6 and Firebase.
