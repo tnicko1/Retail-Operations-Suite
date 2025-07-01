@@ -920,7 +920,7 @@ class RetailOperationsSuite(QMainWindow):
             "branch_gldani": {"db_key": "Gldani Shop", "stock_col": "Stock Gldan"},
         }
 
-        self.setWindowIcon(QIcon("assets/logo.png"))
+        self.setWindowIcon(QIcon("assets/program/logo-no-flair.ico"))
         self.setGeometry(100, 100, 1400, 800)
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
