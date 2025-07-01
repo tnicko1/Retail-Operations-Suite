@@ -49,7 +49,6 @@ The **Retail Operations Suite** is a powerful, real-time tool designed to stream
 
 ## 📸 Screenshots
 
-*(You should add screenshots of your application here to showcase its features. Below are some placeholder examples.)*
 
 |               Main Generator Window                |                      Admin Dashboard                       |
 |:--------------------------------------------------:|:----------------------------------------------------------:|
