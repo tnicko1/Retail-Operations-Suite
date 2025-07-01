@@ -51,13 +51,13 @@ The **Retail Operations Suite** is a powerful, real-time tool designed to stream
 
 *(You should add screenshots of your application here to showcase its features. Below are some placeholder examples.)*
 
-| Main Generator Window | Admin Dashboard |
-| :-------------------: | :---------------: |
-| *[Your-Screenshot-of-Main-Window.png]* | *[Your-Screenshot-of-Dashboard.png]* |
+|               Main Generator Window                |                      Admin Dashboard                       |
+|:--------------------------------------------------:|:----------------------------------------------------------:|
+| ![Main Window](assets/screenshots/main-window.png) | ![Admin Dashboard](assets/screenshots/admin-dashboard.png) |
 
-| Custom Size Manager | Quick Stock Checker |
-| :-------------------: | :---------------: |
-| *[Your-Screenshot-of-Size-Manager.png]* | *[Your-Screenshot-of-Stock-Checker.png]* |
+|                        Custom Size Manager                        |                        Quick Stock Checker                         |
+|:-----------------------------------------------------------------:|:------------------------------------------------------------------:|
+| ![Custom Size Manager](assets/screenshots/custom-size-dialog.png) | ![Quick Stock Checker](assets/screenshots/quick-stock-checker.png) |
 
 
 ## 🛠️ Technology Stack
