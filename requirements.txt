@@ -5,3 +5,4 @@ pytz
 requests
 Pillow
 packaging
+PySocks
