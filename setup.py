@@ -1,5 +1,5 @@
 # This script uses PyInstaller to build the application.
-# To run it, use the command: pyinstaller --noconfirm setup.spec
+# To run it, use the command: python setup.py
 
 import PyInstaller.__main__
 import os
@@ -11,8 +11,6 @@ MAIN_SCRIPT = "main.py"
 ICON_PATH = "assets/program/logo-no-flair.ico"
 
 # --- Files and Directories to Include ---
-# This tells PyInstaller what to bundle with your .exe
-# Format: list of tuples, ('source_path', 'destination_in_bundle')
 datas = [
     ('assets', 'assets'),
     ('config.json', '.'),
@@ -24,22 +22,23 @@ datas = [
     ('auth_ui.py', '.'),
     ('app.py', '.'),
     ('updater.py', '.'),
-    ('fonts', 'fonts') # Make sure to include the fonts directory
+    ('fonts', 'fonts')
 ]
 
 # --- Hidden Imports ---
-# Sometimes PyInstaller can't find all the necessary libraries,
-# especially if they are used indirectly. We list them here.
+# Explicitly tell PyInstaller about libraries it might miss.
+# This is often necessary for complex packages like Pyrebase.
 hidden_imports = [
     'pyrebase',
     'requests',
     'bs4',
-    'pytz'
+    'pytz',
+    'google.auth',
+    'google.auth.transport.requests',
+    'pycryptodome'
 ]
 
 # --- Generate the .spec file content ---
-# A .spec file is the main configuration file for PyInstaller.
-# We are generating it dynamically here.
 spec_content = f"""
 # -*- mode: python ; coding: utf-8 -*-
 
@@ -62,27 +61,17 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='{APP_NAME}',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,         # Set to False for GUI applications
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    console=False, # Set to False for GUI applications
     icon='{ICON_PATH}',
 )
 
-# This creates a single folder with everything inside
 coll = COLLECT(
     exe,
     a.binaries,
@@ -90,7 +79,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
     name='{APP_NAME}'
 )
 """
@@ -104,11 +92,9 @@ print(f"Generated {spec_file_name}. Now running PyInstaller...")
 
 # --- Run PyInstaller ---
 PyInstaller.__main__.run([
-    '--noconfirm', # Overwrite previous builds without asking
+    '--noconfirm',
     spec_file_name
 ])
 
 print("PyInstaller build complete.")
-print(f"You can find the output in the 'dist/{APP_NAME}' folder.")
-print("Remember to ZIP this folder for distribution.")
-
+print(f"The application is in the 'dist/{APP_NAME}' folder.")
