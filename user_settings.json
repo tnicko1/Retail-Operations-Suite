@@ -5,5 +5,5 @@
     "language": "en",
     "generate_dual_language": true,
     "default_branch": "branch_marj",
-    "low_stock_threshold": 3
+    "low_stock_threshold": 2
 }
