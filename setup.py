@@ -1,97 +1,114 @@
-import sys
-from cx_Freeze import setup, Executable
+# This script uses PyInstaller to build the application.
+# To run it, use the command: pyinstaller --noconfirm setup.spec
+
+import PyInstaller.__main__
+import os
 
 # --- Application Information ---
-# This info will be displayed in the installer.
 APP_NAME = "Retail Operations Suite"
-APP_VERSION = "1.0.0" # Make sure this matches the version in updater.py
-APP_AUTHOR = "Nikoloz Taturashvili"
-APP_DESCRIPTION = "A comprehensive desktop application for managing retail price tags, inventory, and more."
+APP_VERSION = "1.0.0" # Make sure this matches the version in updater.py and main.py
+MAIN_SCRIPT = "main.py"
 ICON_PATH = "assets/program/logo-no-flair.ico"
 
-# --- Build Configuration ---
-# This tells cx_Freeze what to include in the build.
-
-# List of packages to include. cx_Freeze often finds these automatically,
-# but it's good to be explicit for packages it might miss.
-packages = [
-    "os", "sys", "re", "json", "requests", "pyrebase", "bs4",
-    "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets", "PyQt6.QtPrintSupport"
+# --- Files and Directories to Include ---
+# This tells PyInstaller what to bundle with your .exe
+# Format: list of tuples, ('source_path', 'destination_in_bundle')
+datas = [
+    ('assets', 'assets'),
+    ('config.json', '.'),
+    ('translations.py', '.'),
+    ('data_handler.py', '.'),
+    ('price_generator.py', '.'),
+    ('a4_layout_generator.py', '.'),
+    ('firebase_handler.py', '.'),
+    ('auth_ui.py', '.'),
+    ('app.py', '.'),
+    ('updater.py', '.'),
+    ('fonts', 'fonts') # Make sure to include the fonts directory
 ]
 
-# List of files and directories to include.
-# This is crucial for your assets (fonts, images, icons).
-include_files = [
-    "assets/",        # Include the entire assets directory
-    "config.json",    # The user's Firebase config file
-    "translations.py",
-    "data_handler.py",
-    "price_generator.py",
-    "a4_layout_generator.py",
-    "firebase_handler.py",
-    "auth_ui.py",
-    "app.py",
-    "updater.py"
+# --- Hidden Imports ---
+# Sometimes PyInstaller can't find all the necessary libraries,
+# especially if they are used indirectly. We list them here.
+hidden_imports = [
+    'pyrebase',
+    'requests',
+    'bs4',
+    'pytz'
 ]
 
-build_exe_options = {
-    "packages": packages,
-    "include_files": include_files,
-    "excludes": ["tkinter"],  # Exclude packages you don't need to reduce size
-}
+# --- Generate the .spec file content ---
+# A .spec file is the main configuration file for PyInstaller.
+# We are generating it dynamically here.
+spec_content = f"""
+# -*- mode: python ; coding: utf-8 -*-
 
-# --- Executable Configuration ---
-# Defines the main entry point of your application.
-
-# Set the base to "Win32GUI" to create a GUI application (no console window).
-# For debugging, you can change this to None.
-base = None
-if sys.platform == "win32":
-    base = "Win32GUI"
-
-executables = [
-    Executable(
-        "main.py",                # Your main script
-        base=base,
-        target_name=f"{APP_NAME}.exe",
-        icon=ICON_PATH,
-    )
-]
-
-# --- MSI Installer Options ---
-# Configures the metadata for the .msi installer.
-bdist_msi_options = {
-    "add_to_path": False,
-    "initial_target_dir": f"%ProgramFiles%\\{APP_NAME}",
-    "data": {
-        "Shortcut": [
-            (
-                "DesktopShortcut",        # Shortcut
-                "DesktopFolder",          # Directory
-                APP_NAME,                 # Name
-                "TARGETDIR",              # Component
-                f"[TARGETDIR]{APP_NAME}.exe",# Target
-                None,                     # Arguments
-                None,                     # Description
-                None,                     # Hotkey
-                None,                     # Icon
-                None,                     # IconIndex
-                None,                     # ShowCmd
-                'TARGETDIR'               # WkDir
-            )
-        ]
-    }
-}
-
-# --- Setup ---
-setup(
-    name=APP_NAME,
-    version=APP_VERSION,
-    description=APP_DESCRIPTION,
-    author=APP_AUTHOR,
-    options={
-        "build_exe": build_exe_options,
-        "bdist_msi": bdist_msi_options,
-    },
-    executables=executables,
+a = Analysis(
+    ['{MAIN_SCRIPT}'],
+    pathex=[],
+    binaries=[],
+    datas={datas},
+    hiddenimports={hidden_imports},
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    noarchive=False,
 )
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='{APP_NAME}',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,         # Set to False for GUI applications
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='{ICON_PATH}',
+)
+
+# This creates a single folder with everything inside
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='{APP_NAME}'
+)
+"""
+
+# Write the spec file
+spec_file_name = "setup.spec"
+with open(spec_file_name, "w") as f:
+    f.write(spec_content)
+
+print(f"Generated {spec_file_name}. Now running PyInstaller...")
+
+# --- Run PyInstaller ---
+PyInstaller.__main__.run([
+    '--noconfirm', # Overwrite previous builds without asking
+    spec_file_name
+])
+
+print("PyInstaller build complete.")
+print(f"You can find the output in the 'dist/{APP_NAME}' folder.")
+print("Remember to ZIP this folder for distribution.")
+
