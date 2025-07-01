@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 import sys
 import os
 import re
@@ -33,6 +32,24 @@ import data_handler
 import price_generator
 import a4_layout_generator
 from translations import Translator
+from datetime import datetime
+import pytz
+
+
+def format_timedelta(delta, translator):
+    """Formats a timedelta object into a human-readable string like '3 days' or '5 hours'."""
+    seconds = int(delta.total_seconds())
+    days, remainder = divmod(seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, _ = divmod(remainder, 60)
+
+    if days > 0:
+        return translator.get("duration_days", d=days)
+    if hours > 0:
+        return translator.get("duration_hours", h=hours)
+    if minutes > 0:
+        return translator.get("duration_minutes", m=minutes)
+    return translator.get("duration_less_than_minute")
 
 
 class AddEditSizeDialog(QDialog):
@@ -1229,6 +1246,7 @@ class RetailOperationsSuite(QMainWindow):
         status_layout = QHBoxLayout()
         self.status_label_title = QLabel()
         self.status_label_value = QLabel()
+        self.status_duration_label = QLabel()  # New label for duration
         self.stock_label_title = QLabel(self.tr("stock_label"))
         self.stock_label_value = QLabel("-")
         self.low_stock_warning_label = QLabel()
@@ -1239,6 +1257,7 @@ class RetailOperationsSuite(QMainWindow):
 
         status_layout.addWidget(self.status_label_title)
         status_layout.addWidget(self.status_label_value)
+        status_layout.addWidget(self.status_duration_label)  # Add to layout
         status_layout.addStretch()
         status_layout.addWidget(self.stock_label_title)
         status_layout.addWidget(self.stock_label_value)
@@ -1574,6 +1593,9 @@ class RetailOperationsSuite(QMainWindow):
             self.low_stock_warning_label.setText("")
 
     def update_status_display(self):
+        self.status_duration_label.setVisible(False)
+        self.status_duration_label.setText("")
+
         if not self.current_item_data:
             self.status_label_value.setText("-")
             self.status_label_value.setStyleSheet("")
@@ -1582,24 +1604,51 @@ class RetailOperationsSuite(QMainWindow):
 
         sku = self.current_item_data.get('SKU')
         branch_db_key = self.get_current_branch_db_key()
-        if firebase_handler.is_item_on_display(sku, branch_db_key, self.token):
+        timestamp_str = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token)
+
+        if timestamp_str:
             self.status_label_value.setText(self.tr('status_on_display'))
             self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_storage_button'))
+
+            if isinstance(timestamp_str, str):
+                try:
+                    tbilisi_tz = pytz.timezone('Asia/Tbilisi')
+                    display_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=tbilisi_tz)
+                    now = datetime.now(tbilisi_tz)
+                    duration_str = format_timedelta(now - display_time, self.translator)
+
+                    # *** THIS IS THE CORRECTED LINE ***
+                    self.status_duration_label.setText(f"({self.tr('status_on_display_for', duration=duration_str)})")
+                    self.status_duration_label.setVisible(True)
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing timestamp string '{timestamp_str}': {e}")
+                    self.status_duration_label.setVisible(False)
+            else:
+                # Handle legacy data (e.g., boolean True) where there's no valid timestamp
+                self.status_duration_label.setVisible(False)
+
         else:
             self.status_label_value.setText(self.tr('status_in_storage'))
             self.status_label_value.setStyleSheet("color: red; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_display_button'))
+            self.status_duration_label.setVisible(False)
+
         self.toggle_status_button.setVisible(True)
 
     def toggle_display_status(self):
         if not self.current_item_data: return
         sku = self.current_item_data.get('SKU')
         branch_db_key = self.get_current_branch_db_key()
-        if firebase_handler.is_item_on_display(sku, branch_db_key, self.token):
+        # Check the status BEFORE toggling
+        is_on_display = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token) is not None
+
+        if is_on_display:
             firebase_handler.remove_item_from_display(sku, branch_db_key, self.token)
         else:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+
+        # Refresh the display after the change
         self.update_status_display()
 
     def generate_single(self):
