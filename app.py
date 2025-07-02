@@ -1614,13 +1614,25 @@ class RetailOperationsSuite(QMainWindow):
             if isinstance(timestamp_str, str):
                 try:
                     tbilisi_tz = pytz.timezone('Asia/Tbilisi')
-                    display_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=tbilisi_tz)
-                    now = datetime.now(tbilisi_tz)
-                    duration_str = format_timedelta(now - display_time, self.translator)
 
-                    # *** THIS IS THE CORRECTED LINE ***
-                    self.status_duration_label.setText(f"({self.tr('status_on_display_for', duration=duration_str)})")
-                    self.status_duration_label.setVisible(True)
+                    # BUG FIX: Use tz.localize() instead of .replace(tzinfo=...).
+                    # .replace() simply attaches a timezone object without converting the time,
+                    # which is incorrect and can lead to offset errors.
+                    # .localize() is the correct method from the pytz library to make a
+                    # naive datetime object (from strptime) properly timezone-aware.
+                    display_time = tbilisi_tz.localize(datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S'))
+
+                    now = datetime.now(tbilisi_tz)
+                    duration = now - display_time
+
+                    # Handle potential negative duration from clock skew
+                    if duration.total_seconds() < 0:
+                        self.status_duration_label.setVisible(False)
+                    else:
+                        duration_str = format_timedelta(duration, self.translator)
+                        self.status_duration_label.setText(f"({self.tr('status_on_display_for', duration=duration_str)})")
+                        self.status_duration_label.setVisible(True)
+
                 except (ValueError, TypeError) as e:
                     print(f"Error parsing timestamp string '{timestamp_str}': {e}")
                     self.status_duration_label.setVisible(False)
