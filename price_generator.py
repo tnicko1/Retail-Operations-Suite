@@ -189,13 +189,11 @@ def create_price_tag(item_data, size_config, theme, language='en'):
 
     margin = 0.05 * width_px
 
-    # Using the padding values that worked well
     LOGO_AREA_HEIGHT_RATIO = 0.12
     TITLE_TOP_PADDING = -0.06 * height_px
     TITLE_SEPARATOR_PADDING = 0.07 * height_px
     SEPARATOR_SPECS_PADDING = 0.02 * height_px
 
-    # --- SEQUENTIAL LAYOUT ---
     y_cursor = 0.0
 
     logo_area_height = LOGO_AREA_HEIGHT_RATIO * height_px
@@ -219,7 +217,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     y_cursor += TITLE_SEPARATOR_PADDING
     draw.line([(margin, y_cursor), (width_px - margin, y_cursor)], fill=text_color, width=line_width)
 
-    # --- SPECIFICATIONS WITH MULTI-LINE WRAPPING ---
     y_cursor += SEPARATOR_SPECS_PADDING
     specs_area_top = y_cursor
     footer_area_height = 0.14 * height_px
@@ -240,7 +237,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         spec_line_spacing = int(4 * scale_factor)
 
         for spec in specs:
-            # Check if there's enough space for at least one more line
             if y_cursor + spec_line_height > footer_area_top:
                 break
 
@@ -250,7 +246,8 @@ def create_price_tag(item_data, size_config, theme, language='en'):
             if bullet_img:
                 bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
                 if bullet_size > 0:
-                    bullet_y = y_cursor + (spec_line_height - bullet_size) // 2
+                    # *** BUG FIX: Ensure coordinates are integers for pasting ***
+                    bullet_y = int(y_cursor + (spec_line_height - bullet_size) / 2)
                     bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
                     img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
                     label_x += bullet_size + 15
@@ -276,7 +273,7 @@ def create_price_tag(item_data, size_config, theme, language='en'):
                         line += '...'
                         draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
                                   anchor='ls')
-                        break  # Stop drawing if we run out of space
+                        break
 
                     draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
                               anchor='ls')
@@ -287,7 +284,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
 
             y_cursor += spec_line_height + spec_line_spacing
 
-    # --- FOOTER, LOGO, BORDER (UNCHANGED) ---
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
     footer_center_y = footer_area_top + (footer_area_height / 2)
 
