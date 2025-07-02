@@ -115,8 +115,8 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     name_area_width = width_px - (2 * margin)
     wrapped_lines = wrap_text(name_text, name_font, name_area_width)
 
-    _, top, _, bottom = name_font.getbbox("Ag")
-    line_height = bottom - top
+    bbox = name_font.getbbox("Ag")
+    line_height = bbox[3] - bbox[1]
     total_text_height = len(wrapped_lines) * line_height
     middle_area_height = bottom_sep_y - top_sep_y
     start_y = top_sep_y + (middle_area_height - total_text_height) / 2
@@ -130,9 +130,12 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     regular_price = item_data.get('Regular price', '').strip()
 
     display_price = ""
-    if sale_price and float(sale_price.replace(',', '.')) > 0:
-        display_price = sale_price
-    elif regular_price:
+    try:
+        if sale_price and float(sale_price.replace(',', '.')) > 0:
+            display_price = sale_price
+        elif regular_price:
+            display_price = regular_price
+    except (ValueError, TypeError):
         display_price = regular_price
 
     if display_price:
@@ -185,46 +188,43 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     draw = ImageDraw.Draw(img)
 
     margin = 0.05 * width_px
-    top_margin, bottom_margin = 0.03 * height_px, 0.02 * height_px
-    logo_area_height, title_area_height, footer_area_height = 0.10 * height_px, 0.11 * height_px, 0.14 * height_px
-    logo_area_top = top_margin
-    title_area_top = logo_area_top + logo_area_height
-    specs_area_top = title_area_top + title_area_height
-    footer_area_bottom = height_px - bottom_margin
-    footer_area_top = footer_area_bottom - footer_area_height
-    specs_area_bottom = footer_area_top - (0.02 * height_px)
-    specs_area_height = specs_area_bottom - specs_area_top
 
-    try:
-        with Image.open(logo_to_use) as logo:
-            logo_h = int(logo_area_height * logo_scale)
-            logo_w = int(logo_h * (logo.width / logo.height))
-            logo.thumbnail((logo_w, logo_h), Image.Resampling.LANCZOS)
-            img.paste(logo,
-                      (int((width_px - logo.width) / 2), int(logo_area_top + (logo_area_height - logo.height) / 2)),
-                      logo)
-    except FileNotFoundError:
-        print(f"Warning: Logo file not found at '{logo_to_use}'")
+    # Using the padding values that worked well
+    LOGO_AREA_HEIGHT_RATIO = 0.12
+    TITLE_TOP_PADDING = -0.06 * height_px
+    TITLE_SEPARATOR_PADDING = 0.07 * height_px
+    SEPARATOR_SPECS_PADDING = 0.02 * height_px
 
-    part_number = item_data.get('part_number', '')
-    if part_number:
-        pn_text = f"P/N: {part_number}"
-        pn_y = logo_area_top + (logo_area_height / 2)
-        draw.text((width_px - margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="rm")
+    # --- SEQUENTIAL LAYOUT ---
+    y_cursor = 0.0
+
+    logo_area_height = LOGO_AREA_HEIGHT_RATIO * height_px
+    y_cursor += logo_area_height
+    y_cursor += TITLE_TOP_PADDING
 
     title_text = item_data.get('Name', 'N/A')
     title_area_width = width_px - (2 * margin)
     wrapped_title_lines = wrap_text(title_text, title_font, title_area_width)
-    _, top, _, bottom = title_font.getbbox("Ag")
-    line_height = (bottom - top) + int(5 * scale_factor)
-    total_text_height = len(wrapped_title_lines) * line_height
-    start_y = title_area_top + (title_area_height - total_text_height) / 2
-    for i, line in enumerate(wrapped_title_lines):
-        y_pos = start_y + (i * line_height)
-        draw.text((width_px / 2, y_pos), line, font=title_font, fill=text_color, anchor='ma', align='center')
 
-    draw.line([(margin, specs_area_top - (0.01 * height_px)), (width_px - margin, specs_area_top - (0.01 * height_px))],
-              fill=text_color, width=line_width)
+    if wrapped_title_lines:
+        ascent, descent = title_font.getmetrics()
+        line_height = ascent + descent
+        line_spacing = int(8 * scale_factor)
+        for line in wrapped_title_lines:
+            draw.text((width_px / 2, y_cursor + ascent), line, font=title_font, fill=text_color, anchor='ma',
+                      align='center')
+            y_cursor += line_height + line_spacing
+        y_cursor -= line_spacing
+
+    y_cursor += TITLE_SEPARATOR_PADDING
+    draw.line([(margin, y_cursor), (width_px - margin, y_cursor)], fill=text_color, width=line_width)
+
+    # --- SPECIFICATIONS WITH MULTI-LINE WRAPPING ---
+    y_cursor += SEPARATOR_SPECS_PADDING
+    specs_area_top = y_cursor
+    footer_area_height = 0.14 * height_px
+    footer_area_top = height_px - (0.02 * height_px) - footer_area_height
+    specs_area_height = footer_area_top - specs_area_top
 
     bullet_img = None
     if bullet_image_path and os.path.exists(bullet_image_path):
@@ -233,31 +233,61 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         except:
             pass
 
-    specs, num_specs = item_data.get('specs', []), len(item_data.get('specs', []))
-    if num_specs > 0:
-        line_height = specs_area_height / num_specs
-        for i, spec in enumerate(specs):
-            current_y, current_x = int(specs_area_top + (i * line_height) + (line_height / 2)), int(
-                margin + 20 * scale_factor)
+    specs = item_data.get('specs', [])
+    if specs and specs_area_height > 0:
+        spec_ascent, spec_descent = spec_font_regular.getmetrics()
+        spec_line_height = spec_ascent + spec_descent
+        spec_line_spacing = int(4 * scale_factor)
+
+        for spec in specs:
+            # Check if there's enough space for at least one more line
+            if y_cursor + spec_line_height > footer_area_top:
+                break
+
+            bullet_x = int(margin + 20 * scale_factor)
+            label_x = bullet_x
+
             if bullet_img:
-                bullet_size = int(line_height * 0.6)
-                bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
-                img.paste(bullet_resized, (current_x, current_y - bullet_size // 2), bullet_resized)
-                current_x += bullet_size + 15
+                bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
+                if bullet_size > 0:
+                    bullet_y = y_cursor + (spec_line_height - bullet_size) // 2
+                    bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
+                    img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
+                    label_x += bullet_size + 15
             else:
-                draw.text((current_x, current_y), "• ", font=spec_font_regular, fill=text_color, anchor='lm')
-                current_x += int(spec_font_regular.getbbox("• ")[2])
+                draw.text((bullet_x, y_cursor + spec_ascent), "•", font=spec_font_regular, fill=text_color, anchor='ls')
+                label_x += int(spec_font_regular.getbbox("• ")[2])
+
             if ':' in spec:
                 label, value = spec.split(':', 1)
+                value = value.strip()
                 translated_label = translator.get_spec_label(label.strip(), language)
-                label = translated_label + ':'
-                draw.text((current_x, current_y), label, font=spec_font_bold, fill=text_color, anchor='lm')
-                current_x += int(spec_font_bold.getbbox(label)[2])
-                draw.text((current_x, current_y), ' ' + value.strip(), font=spec_font_regular, fill=text_color,
-                          anchor='lm')
-            else:
-                draw.text((current_x, current_y), spec, font=spec_font_regular, fill=text_color, anchor='lm')
+                label_text = translated_label + ': '
 
+                draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color,
+                          anchor='ls')
+                value_x = label_x + spec_font_bold.getbbox(label_text)[2]
+
+                remaining_width = width_px - value_x - margin
+                wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
+
+                for i, line in enumerate(wrapped_values):
+                    if y_cursor + spec_line_height > footer_area_top and i > 0:
+                        line += '...'
+                        draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
+                                  anchor='ls')
+                        break  # Stop drawing if we run out of space
+
+                    draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
+                              anchor='ls')
+                    if i < len(wrapped_values) - 1:
+                        y_cursor += spec_line_height + spec_line_spacing
+            else:
+                draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
+
+            y_cursor += spec_line_height + spec_line_spacing
+
+    # --- FOOTER, LOGO, BORDER (UNCHANGED) ---
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
     footer_center_y = footer_area_top + (footer_area_height / 2)
 
@@ -269,18 +299,45 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     price_x = width_px - margin
     price_y = footer_center_y
 
-    if sale_price and float(sale_price.replace(',', '.')) > 0:
-        draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
-        orig_text = f"₾{regular_price}"
-        sale_text = f"₾{sale_price}"
-        sale_bbox = price_font.getbbox(sale_text)
-        orig_x = price_x - (sale_bbox[2] - sale_bbox[0]) - (20 * scale_factor)
-        draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
-        drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
-        draw.line([(drawn_orig_bbox[0], price_y), (drawn_orig_bbox[2], price_y)], fill=strikethrough_color,
-                  width=line_width)
-    elif regular_price:
-        draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
+    try:
+        has_sale_price = sale_price and float(sale_price.replace(',', '.')) > 0
+        has_regular_price = regular_price and float(regular_price.replace(',', '.')) > 0
+
+        if has_sale_price:
+            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
+            if has_regular_price:
+                orig_text = f"₾{regular_price}"
+                sale_text = f"₾{sale_price}"
+                sale_bbox = draw.textbbox((price_x, price_y), sale_text, font=price_font, anchor='rm')
+                orig_x = sale_bbox[0] - (20 * scale_factor)
+                draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
+                drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
+                draw.line([(drawn_orig_bbox[0], price_y), (drawn_orig_bbox[2], price_y)], fill=strikethrough_color,
+                          width=line_width)
+        elif has_regular_price:
+            draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
+    except (ValueError, TypeError):
+        if regular_price:
+            draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
+
+    logo_top_y = 0.03 * height_px
+    try:
+        with Image.open(logo_to_use) as logo:
+            logo_h = int((logo_area_height - (0.03 * height_px)) * logo_scale)
+            logo_w = int(logo_h * (logo.width / logo.height))
+            logo.thumbnail((logo_w, logo_h), Image.Resampling.LANCZOS)
+            img.paste(logo,
+                      (int((width_px - logo.width) / 2),
+                       int(logo_top_y + (logo_area_height - logo_top_y - logo.height) / 2)),
+                      logo)
+    except FileNotFoundError:
+        print(f"Warning: Logo file not found at '{logo_to_use}'")
+
+    part_number = item_data.get('part_number', '')
+    if part_number:
+        pn_text = f"P/N: {part_number}"
+        pn_y = logo_top_y + (logo_area_height - logo_top_y) / 2
+        draw.text((width_px - margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="rm")
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img
