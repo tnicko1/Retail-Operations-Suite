@@ -789,6 +789,9 @@ class DisplayManagerDialog(QDialog):
         self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_db_key,
                                                                                  self.branch_stock_col, self.token)
 
+        # *** BUG FIX: Filter out the item that was just returned from the suggestions ***
+        self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
+
         self.current_sort_column = -1
         self.current_sort_order = None
         self.populate_suggestions(self.original_suggestions)
@@ -1614,30 +1617,22 @@ class RetailOperationsSuite(QMainWindow):
             if isinstance(timestamp_str, str):
                 try:
                     tbilisi_tz = pytz.timezone('Asia/Tbilisi')
-
-                    # BUG FIX: Use tz.localize() instead of .replace(tzinfo=...).
-                    # .replace() simply attaches a timezone object without converting the time,
-                    # which is incorrect and can lead to offset errors.
-                    # .localize() is the correct method from the pytz library to make a
-                    # naive datetime object (from strptime) properly timezone-aware.
                     display_time = tbilisi_tz.localize(datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S'))
-
                     now = datetime.now(tbilisi_tz)
                     duration = now - display_time
 
-                    # Handle potential negative duration from clock skew
                     if duration.total_seconds() < 0:
                         self.status_duration_label.setVisible(False)
                     else:
                         duration_str = format_timedelta(duration, self.translator)
-                        self.status_duration_label.setText(f"({self.tr('status_on_display_for', duration=duration_str)})")
+                        self.status_duration_label.setText(
+                            f"({self.tr('status_on_display_for', duration=duration_str)})")
                         self.status_duration_label.setVisible(True)
 
                 except (ValueError, TypeError) as e:
                     print(f"Error parsing timestamp string '{timestamp_str}': {e}")
                     self.status_duration_label.setVisible(False)
             else:
-                # Handle legacy data (e.g., boolean True) where there's no valid timestamp
                 self.status_duration_label.setVisible(False)
 
         else:
@@ -1652,7 +1647,6 @@ class RetailOperationsSuite(QMainWindow):
         if not self.current_item_data: return
         sku = self.current_item_data.get('SKU')
         branch_db_key = self.get_current_branch_db_key()
-        # Check the status BEFORE toggling
         is_on_display = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token) is not None
 
         if is_on_display:
@@ -1660,7 +1654,6 @@ class RetailOperationsSuite(QMainWindow):
         else:
             firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
 
-        # Refresh the display after the change
         self.update_status_display()
 
     def generate_single(self):
