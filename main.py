@@ -26,7 +26,7 @@ import updater  # Import the new updater module
 # Define the current version of the application
 # This should be updated for each new release and must match the version in setup.py
 # The 'v' prefix on GitHub tags is handled by the updater, so just use the number.
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 
 def global_exception_hook(exctype, value, tb):
