@@ -135,6 +135,7 @@ bdist_msi_options = {
     "add_to_path": False,
     "initial_target_dir": rf"[ProgramFilesFolder]\{COMPANY_NAME}\{APP_NAME}",
     "all_users": True, # Install for all users on the machine
+    "license_file": "EULA.rtf",
     # Add all custom MSI tables to the 'data' dictionary
     "data": {
         "Shortcut": shortcut_table,
