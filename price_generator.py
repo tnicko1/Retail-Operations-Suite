@@ -211,10 +211,12 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     draw.line([(margin, y_cursor), (width_px - margin, y_cursor)], fill=text_color, width=line_width)
 
     y_cursor += SEPARATOR_SPECS_PADDING
-    specs_area_top = y_cursor
+
+    # --- DYNAMIC SPEC & FOOTER LAYOUT ---
     footer_area_height = 0.14 * height_px
-    footer_area_top = height_px - (0.02 * height_px) - footer_area_height
-    specs_area_height = footer_area_top - specs_area_top
+    # Define the maximum Y coordinate that the specs area can extend to.
+    # This reserves a fixed-height area for the footer at the very bottom.
+    max_y_for_specs = height_px - footer_area_height - (0.04 * height_px)
 
     bullet_img = None
     if bullet_image_path and os.path.exists(bullet_image_path):
@@ -224,13 +226,15 @@ def create_price_tag(item_data, size_config, theme, language='en'):
             pass
 
     specs = item_data.get('specs', [])
-    if specs and specs_area_height > 0:
+    if specs:
         spec_ascent, spec_descent = spec_font_regular.getmetrics()
         spec_line_height = spec_ascent + spec_descent
         spec_line_spacing = int(4 * scale_factor)
 
+        outer_loop_broken = False
         for spec in specs:
-            if y_cursor + spec_line_height > footer_area_top:
+            # If adding one more line would push us into the reserved footer space, stop everything.
+            if y_cursor + spec_line_height > max_y_for_specs:
                 break
 
             bullet_x = int(margin + 20 * scale_factor)
@@ -239,7 +243,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
             if bullet_img:
                 bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
                 if bullet_size > 0:
-                    # *** BUG FIX: Ensure coordinates are integers for pasting ***
                     bullet_y = int(y_cursor + (spec_line_height - bullet_size) / 2)
                     bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
                     img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
@@ -262,23 +265,31 @@ def create_price_tag(item_data, size_config, theme, language='en'):
                 wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
 
                 for i, line in enumerate(wrapped_values):
-                    if y_cursor + spec_line_height > footer_area_top and i > 0:
-                        line += '...'
-                        draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
-                                  anchor='ls')
+                    # Before drawing any line (including the first), check if it fits.
+                    if y_cursor + spec_line_height > max_y_for_specs:
+                        outer_loop_broken = True
                         break
 
                     draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
                               anchor='ls')
+
+                    # If it's not the last line, advance the cursor
                     if i < len(wrapped_values) - 1:
                         y_cursor += spec_line_height + spec_line_spacing
+
+                if outer_loop_broken:
+                    break
             else:
                 draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
 
             y_cursor += spec_line_height + spec_line_spacing
 
+    # The footer separator is drawn where the specs finished.
+    footer_area_top = y_cursor
+
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
-    footer_center_y = footer_area_top + (footer_area_height / 2)
+    # The footer content is vertically centered in the remaining space.
+    footer_center_y = footer_area_top + (height_px - footer_area_top - border_width) / 2
 
     sku_label_text = translator.get_spec_label("SKU", language)
     sku_full_text = f"{sku_label_text}: {item_data.get('SKU', 'N/A')}"
