@@ -49,6 +49,28 @@ DEFAULT_PAPER_SIZES = {
     '17.5x12.5cm': {'dims': (17.5, 12.5), 'spec_limit': 11}
 }
 
+def get_default_layout_settings():
+    return {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.0,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0,
+    }
+
+def get_default_settings():
+    return {
+        "default_size": "14.4x8cm",
+        "custom_sizes": {},
+        "default_theme": "Default",
+        "language": "en",
+        "generate_dual_language": False,
+        "default_branch": "branch_vaja",
+        "low_stock_threshold": 3,
+        "layout_settings": get_default_layout_settings()
+    }
+
 
 def extract_part_number(description):
     if not description: return ""
@@ -122,15 +144,7 @@ def get_item_templates(token=None):
 def get_settings():
     # This function now reads from the user's AppData directory.
     if not os.path.exists(USER_SETTINGS_FILE):
-        settings = {
-            "default_size": "14.4x8cm",
-            "custom_sizes": {},
-            "default_theme": "Default",
-            "language": "en",
-            "generate_dual_language": False,
-            "default_branch": "branch_vaja",
-            "low_stock_threshold": 3
-        }
+        settings = get_default_settings()
         save_settings(settings)
         return settings
 
@@ -138,23 +152,14 @@ def get_settings():
         with open(USER_SETTINGS_FILE, 'r', encoding='utf-8') as f:
             settings = json.load(f)
             # Ensure all keys exist to prevent errors on older settings files
-            if "language" not in settings: settings["language"] = "en"
-            if "generate_dual_language" not in settings: settings["generate_dual_language"] = False
-            if "default_branch" not in settings: settings["default_branch"] = "branch_vaja"
-            if "low_stock_threshold" not in settings: settings["low_stock_threshold"] = 3
-            if "custom_sizes" not in settings: settings["custom_sizes"] = {}
+            defaults = get_default_settings()
+            for key, value in defaults.items():
+                if key not in settings:
+                    settings[key] = value
             return settings
     except (json.JSONDecodeError, FileNotFoundError):
         # If the file is corrupted or missing, create a default one.
-        settings = {
-            "default_size": "14.4x8cm",
-            "custom_sizes": {},
-            "default_theme": "Default",
-            "language": "en",
-            "generate_dual_language": False,
-            "default_branch": "branch_vaja",
-            "low_stock_threshold": 3
-        }
+        settings = get_default_settings()
         save_settings(settings)
         return settings
 
