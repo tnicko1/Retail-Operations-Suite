@@ -91,6 +91,11 @@ TRANSLATIONS = {
 
         # Display Manager
         "display_manager_title": "Display Manager",
+        "find_by_category_group": "Find Available Items by Category",
+        "find_available_button": "Find Available",
+        "category_label": "Category:",
+        "all_categories_placeholder": "Select a category...",
+        "available_for_display_group_title": "Available for Display in '{}' ({})",
         "return_tag_group": "Return Item & Find Replacements",
         "return_tag_label": "Item to Return:",
         "return_tag_placeholder": "Enter SKU/Barcode of item being returned...",
@@ -138,7 +143,6 @@ TRANSLATIONS = {
         "dashboard_low_stock_label": "Items with Low Stock (<= {}):",
         "dashboard_filter_branch": "Filter by Branch:",
         "dashboard_filter_category": "Filter by Category:",
-        "dashboard_all_branches": "All Branches",
         "dashboard_all_categories": "All Categories",
         "dashboard_header_sku": "SKU",
         "dashboard_header_name": "Name",
@@ -193,6 +197,7 @@ TRANSLATIONS = {
         "template_selection_label": "Choose a template for the new item:",
         "template_validation_error_title": "No Template Selected",
         "template_validation_error_message": "Please select a template from the list.",
+        "category_selection_error_message": "Please select a specific category to search.",
         "template_blank": "Blank Template",
         "template_laptop": "Laptop",
         "template_monitor": "Monitor",
@@ -319,6 +324,11 @@ TRANSLATIONS = {
 
         # Display Manager
         "display_manager_title": "ვიტრინის მენეჯერი",
+        "find_by_category_group": "ხელმისაწვდომი პროდუქტების ძებნა კატეგორიით",
+        "find_available_button": "ძებნა",
+        "category_label": "კატეგორია:",
+        "all_categories_placeholder": "აირჩიეთ კატეგორია...",
+        "available_for_display_group_title": "ხელმისაწვდომია ვიტრინისთვის '{}'-ში ({})",
         "return_tag_group": "ნივთის დაბრუნება და ჩანაცვლება",
         "return_tag_label": "დასაბრუნებელი ნივთი:",
         "return_tag_placeholder": "შეიყვანეთ დასაბრუნებელი ნივთის კოდი/შტრიხკოდი...",
@@ -419,6 +429,7 @@ TRANSLATIONS = {
         "template_selection_label": "აირჩიეთ შაბლონი ახალი პროდუქტისთვის:",
         "template_validation_error_title": "შაბლონი არ არის არჩეული",
         "template_validation_error_message": "გთხოვთ, აირჩიოთ შაბლონი სიიდან.",
+        "category_selection_error_message": "გთხოვთ, აირჩიოთ კონკრეტული კატეგორია.",
         "template_blank": "ცარიელი შაბლონი",
         "template_laptop": "ლეპტოპი",
         "template_monitor": "მონიტორი",
