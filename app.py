@@ -727,18 +727,32 @@ class DisplayManagerDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        # --- NEW: Find by Category Group ---
+        find_group = QGroupBox(self.translator.get("find_by_category_group"))
+        find_layout = QHBoxLayout()
+        self.category_combo = QComboBox()
+        self.find_by_category_button = QPushButton(self.translator.get("find_available_button"))
+        self.find_by_category_button.clicked.connect(self.find_available_for_display)
+        find_layout.addWidget(QLabel(self.translator.get("category_label")))
+        find_layout.addWidget(self.category_combo)
+        find_layout.addWidget(self.find_by_category_button)
+        find_group.setLayout(find_layout)
+        self.populate_category_combo()
+
+        # --- Return Item Group ---
         return_group = QGroupBox(self.translator.get("return_tag_group"))
         return_layout = QHBoxLayout()
         self.return_input = QLineEdit()
         self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
-        self.return_input.returnPressed.connect(self.find_replacements)
+        self.return_input.returnPressed.connect(self.find_replacements_for_return)
         self.find_replacements_button = QPushButton(self.translator.get("find_replacements_button"))
-        self.find_replacements_button.clicked.connect(self.find_replacements)
+        self.find_replacements_button.clicked.connect(self.find_replacements_for_return)
         return_layout.addWidget(QLabel(self.translator.get("return_tag_label")))
         return_layout.addWidget(self.return_input)
         return_layout.addWidget(self.find_replacements_button)
         return_group.setLayout(return_layout)
 
+        # --- Suggestions Group (reused for both actions) ---
         self.suggestions_group = QGroupBox(self.translator.get("suggestions_group_empty"))
         suggestions_layout = QVBoxLayout()
         self.suggestions_table = QTableWidget()
@@ -756,10 +770,39 @@ class DisplayManagerDialog(QDialog):
         suggestions_layout.addWidget(self.suggestions_table)
         self.suggestions_group.setLayout(suggestions_layout)
 
+        layout.addWidget(find_group)
         layout.addWidget(return_group)
         layout.addWidget(self.suggestions_group)
 
-    def find_replacements(self):
+    def populate_category_combo(self):
+        self.category_combo.clear()
+        self.category_combo.addItem(self.translator.get("all_categories_placeholder"), "all")
+        if self.parent and self.parent.all_items_cache:
+            categories = sorted(list(
+                set(item.get("Categories", "N/A") for item in self.parent.all_items_cache.values() if
+                    item.get("Categories"))))
+            self.category_combo.addItems(categories)
+
+    def find_available_for_display(self):
+        category = self.category_combo.currentText()
+        if self.category_combo.currentData() == "all":
+            QMessageBox.warning(self, self.translator.get("template_validation_error_title"),
+                                self.translator.get("category_selection_error_message"))
+            return
+
+        branch_name = self.parent.branch_combo.currentText()
+        self.suggestions_group.setTitle(self.translator.get("available_for_display_group_title", category, branch_name))
+
+        self.original_suggestions = firebase_handler.get_available_items_for_display(
+            category, self.branch_db_key, self.branch_stock_col, self.token
+        )
+
+        self.current_sort_column = -1
+        self.current_sort_order = None
+        self.populate_suggestions(self.original_suggestions)
+        self.update_header_indicators()
+
+    def find_replacements_for_return(self):
         identifier = self.return_input.text().strip().upper()
         if not identifier: return
 
@@ -782,7 +825,6 @@ class DisplayManagerDialog(QDialog):
         self.original_suggestions = firebase_handler.get_replacement_suggestions(category, self.branch_db_key,
                                                                                  self.branch_stock_col, self.token)
 
-        # *** BUG FIX: Filter out the item that was just returned from the suggestions ***
         self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
 
         self.current_sort_column = -1
