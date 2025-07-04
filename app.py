@@ -10,12 +10,13 @@
 import sys
 import os
 import re
+import copy
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox)
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider)
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
@@ -43,6 +44,91 @@ def format_timedelta(delta, translator):
     if minutes > 0:
         return translator.get("duration_minutes", m=minutes)
     return translator.get("duration_less_than_minute")
+
+
+class LayoutSettingsDialog(QDialog):
+    def __init__(self, translator, settings, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.parent_window = parent
+        # Work on a deep copy so changes can be cancelled
+        self.temp_settings = copy.deepcopy(settings)
+        self.setWindowTitle(self.translator.get("layout_settings_title"))
+        self.setMinimumWidth(500)
+
+        self.layout_settings = self.temp_settings.get("layout_settings", data_handler.get_default_layout_settings())
+
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        self.sliders = {}
+        self.labels = {}
+
+        # Define slider properties: key, label_key, min_val, max_val
+        slider_defs = [
+            ("logo_scale", "layout_logo_size", 50, 150),
+            ("title_scale", "layout_title_size", 70, 130),
+            ("spec_scale", "layout_spec_size", 70, 130),
+            ("price_scale", "layout_price_size", 70, 130),
+            ("sku_scale", "layout_sku_size", 70, 130),
+            ("pn_scale", "layout_pn_size", 70, 130),
+        ]
+
+        for key, label_key, min_val, max_val in slider_defs:
+            slider = QSlider(Qt.Orientation.Horizontal)
+            slider.setRange(min_val, max_val)
+            slider.setValue(int(self.layout_settings.get(key, 1.0) * 100))
+            slider.valueChanged.connect(self.update_label_and_preview)
+
+            label = QLabel(f"{slider.value()}%")
+
+            self.sliders[key] = slider
+            self.labels[key] = label
+
+            row_layout = QHBoxLayout()
+            row_layout.addWidget(slider)
+            row_layout.addWidget(label)
+
+            form_layout.addRow(self.translator.get(label_key), row_layout)
+
+        main_layout.addLayout(form_layout)
+
+        button_layout = QHBoxLayout()
+        reset_button = QPushButton(self.translator.get("layout_reset_button"))
+        reset_button.clicked.connect(self.reset_to_defaults)
+        button_layout.addWidget(reset_button)
+        button_layout.addStretch()
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_layout.addWidget(self.button_box)
+
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        main_layout.addLayout(button_layout)
+
+    def update_label_and_preview(self):
+        # Find which slider was moved
+        sender = self.sender()
+        for key, slider in self.sliders.items():
+            if slider == sender:
+                # Update the percentage label
+                self.labels[key].setText(f"{slider.value()}%")
+                # Update the temporary settings dictionary
+                self.layout_settings[key] = slider.value() / 100.0
+                # Trigger a real-time preview update in the main window
+                if self.parent_window:
+                    self.parent_window.settings['layout_settings'] = self.layout_settings
+                    self.parent_window.update_preview()
+                break
+
+    def reset_to_defaults(self):
+        defaults = data_handler.get_default_layout_settings()
+        for key, slider in self.sliders.items():
+            slider.setValue(int(defaults.get(key, 1.0) * 100))
+
+    def get_layout_settings(self):
+        return self.layout_settings
 
 
 class AddEditSizeDialog(QDialog):
@@ -999,11 +1085,10 @@ class RetailOperationsSuite(QMainWindow):
         self.all_items_cache = {}
         self.themes = {
             "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
-                        "logo_path": "assets/logo.png", "logo_path_ka": "assets/logo-geo.png",
-                        "logo_scale_factor": 0.9},
+                        "logo_path": "assets/logo.png", "logo_path_ka": "assets/logo-geo.png"},
             "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
                        "logo_path": "assets/logo-santa-hat.png", "logo_path_ka": "assets/logo-geo-santa-hat.png",
-                       "logo_scale_factor": 1.1, "bullet_image_path": "assets/snowflake.png", "background_snow": True}
+                       "bullet_image_path": "assets/snowflake.png", "background_snow": True}
         }
 
         self.tab_widget = QTabWidget()
@@ -1325,6 +1410,7 @@ class RetailOperationsSuite(QMainWindow):
         self.details_group.setLayout(details_layout)
 
         self.style_group = QGroupBox()
+        style_layout = QVBoxLayout()
         settings_layout = QFormLayout()
         self.paper_size_label, self.theme_label = QLabel(), QLabel();
         self.paper_size_combo = QComboBox();
@@ -1338,7 +1424,13 @@ class RetailOperationsSuite(QMainWindow):
         settings_layout.addRow(self.paper_size_label, self.paper_size_combo);
         settings_layout.addRow(self.theme_label, self.theme_combo);
         settings_layout.addRow(self.dual_lang_label, self.dual_lang_checkbox)
-        self.style_group.setLayout(settings_layout);
+        style_layout.addLayout(settings_layout)
+
+        self.layout_settings_button = QPushButton()
+        self.layout_settings_button.clicked.connect(self.open_layout_settings)
+        style_layout.addWidget(self.layout_settings_button)
+
+        self.style_group.setLayout(style_layout);
 
         self.specs_group = QGroupBox();
         specs_layout = QVBoxLayout();
@@ -1424,6 +1516,7 @@ class RetailOperationsSuite(QMainWindow):
         self.paper_size_label.setText(self.tr("paper_size_label"))
         self.theme_label.setText(self.tr("theme_label"))
         self.dual_lang_label.setText(self.tr("dual_language_label"))
+        self.layout_settings_button.setText(self.tr("layout_settings_button"))
         self.specs_group.setTitle(self.tr("specs_group"))
         self.add_spec_button.setText(self.tr("add_button"))
         self.edit_button.setText(self.tr("edit_button"))
@@ -1533,6 +1626,23 @@ class RetailOperationsSuite(QMainWindow):
         self.theme_combo.clear()
         self.theme_combo.addItems(self.themes.keys())
         self.theme_combo.setCurrentText(self.settings.get("default_theme", "Default"))
+
+    def open_layout_settings(self):
+        # Store a deep copy of the settings before opening the dialog
+        original_settings = copy.deepcopy(self.settings)
+
+        dialog = LayoutSettingsDialog(self.translator, self.settings, self)
+
+        if dialog.exec():
+            # OK was clicked, save the potentially modified settings
+            self.settings["layout_settings"] = dialog.get_layout_settings()
+            data_handler.save_settings(self.settings)
+        else:
+            # Cancel was clicked, restore the original settings
+            self.settings = original_settings
+
+        # Update the preview regardless of OK/Cancel to reflect final state
+        self.update_preview()
 
     def clear_all_fields(self):
         self.current_item_data = {}
@@ -1711,12 +1821,15 @@ class RetailOperationsSuite(QMainWindow):
 
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
 
         q_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en')
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka')
+            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                      language='en')
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                      language='ka')
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1724,7 +1837,8 @@ class RetailOperationsSuite(QMainWindow):
             q_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang)
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                   language=lang)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             q_pixmaps.append(QPixmap.fromImage(q_image))
 
@@ -1743,6 +1857,7 @@ class RetailOperationsSuite(QMainWindow):
         if not size_name or not theme_name: return
 
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
         tags_per_sheet = layout_info.get('total', 0)
@@ -1792,13 +1907,16 @@ class RetailOperationsSuite(QMainWindow):
                 pil_images_for_sku = []
                 if dual_lang_enabled:
                     pil_images_for_sku.append(
-                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language='en'))
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                         language='en'))
                     pil_images_for_sku.append(
-                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language='ka'))
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                         language='ka'))
                 else:
                     lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                     pil_images_for_sku.append(
-                        price_generator.create_price_tag(data_to_print, size_config, theme_config, language=lang))
+                        price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                         language=lang))
 
                 for pil_image in pil_images_for_sku:
                     if tag_on_page_index >= tags_per_sheet:
@@ -1853,7 +1971,7 @@ class RetailOperationsSuite(QMainWindow):
             specs.append(f"Warranty: {warranty}")
 
         processed_specs = self.process_specifications(specs)
-        data_to_print['specs'] = self._prepare_specs_for_display(processed_specs)
+        data_to_print['specs'] = processed_specs
         return data_to_print
 
     def update_preview(self, *args, **kwargs):
@@ -1862,8 +1980,13 @@ class RetailOperationsSuite(QMainWindow):
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         if not size_name or not theme_name: return
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         current_lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, language=current_lang)
+
+        data_to_preview['specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count())]
+
+        pil_image = price_generator.create_price_tag(data_to_preview, size_config, theme_config, layout_settings,
+                                                     language=current_lang)
         q_image = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3,
                          QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
@@ -1892,36 +2015,10 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         all_specs = self.current_item_data.get('all_specs', [])
-        display_specs = self._prepare_specs_for_display(all_specs)
 
         self.specs_list.clear()
-        self.specs_list.addItems(display_specs)
-
-    def _prepare_specs_for_display(self, all_specs):
-        size_name = self.paper_size_combo.currentText()
-        if not size_name: return all_specs
-
-        size_config = self.paper_sizes.get(size_name, {})
-        spec_limit = size_config.get('spec_limit', 99)
-
-        if not spec_limit or len(all_specs) <= spec_limit:
-            return all_specs
-
-        warranty_spec = None
-        other_specs = []
-
-        for spec in all_specs:
-            if 'warranty' in spec.lower() and not warranty_spec:
-                warranty_spec = spec
-            else:
-                other_specs.append(spec)
-
-        if warranty_spec:
-            truncated_specs = other_specs[:spec_limit - 1]
-            truncated_specs.append(warranty_spec)
-            return truncated_specs
-        else:
-            return all_specs[:spec_limit]
+        self.specs_list.addItems(all_specs)
+        self.update_preview()
 
     def process_specifications(self, specs):
         first_warranty_found = False
