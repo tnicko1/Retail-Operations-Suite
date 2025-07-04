@@ -56,6 +56,22 @@ def extract_part_number(description):
     return match.group(1).strip() if match else ""
 
 
+def sanitize_for_indexing(text):
+    """
+    Sanitizes a string to be safely used for Firebase indexing by removing
+    problematic characters.
+    """
+    if not text:
+        return ""
+    # Replace common separators and problematic characters with an underscore
+    s = re.sub(r'[ >/\\.]', '_', text)
+    # Remove any characters that are not alphanumeric or underscore
+    s = re.sub(r'[^a-zA-Z0-9_]', '', s)
+    # Replace multiple underscores with a single one
+    s = re.sub(r'__+', '_', s)
+    return s
+
+
 # --- Template Management ---
 def get_item_templates(token=None):
     """
