@@ -24,10 +24,11 @@ TRANSLATIONS = {
         "name_label": "Name:",
         "price_label": "Price:",
         "sale_price_label": "Sale Price:",
-        "style_group": "Style",
+        "style_group": "Style & Layout",
         "paper_size_label": "Paper Size:",
         "theme_label": "Theme:",
         "dual_language_label": "Generate Georgian Tag:",
+        "layout_settings_button": "Layout Settings...",
         "specs_group": "Specifications",
         "add_button": "Add",
         "edit_button": "Edit",
@@ -69,6 +70,16 @@ TRANSLATIONS = {
         "price_history_header_new": "New Price",
         "low_stock_warning": "Low Stock!",
         "stock_label": "Stock:",
+
+        # Layout Settings Dialog
+        "layout_settings_title": "Layout Settings",
+        "layout_logo_size": "Logo Size:",
+        "layout_title_size": "Title Font Size:",
+        "layout_spec_size": "Spec Font Size:",
+        "layout_price_size": "Price Font Size:",
+        "layout_sku_size": "SKU Font Size:",
+        "layout_pn_size": "P/N Font Size:",
+        "layout_reset_button": "Reset to Defaults",
 
         # Auth
         "login_window_title": "Login - Retail Operations Suite",
@@ -257,10 +268,11 @@ TRANSLATIONS = {
         "name_label": "დასახელება:",
         "price_label": "ფასი:",
         "sale_price_label": "ფასდაკლება:",
-        "style_group": "სტილი",
+        "style_group": "სტილი და დიზაინი",
         "paper_size_label": "ქაღალდის ზომა:",
         "theme_label": "თემა:",
         "dual_language_label": "ინგლისური ვერსიის დამატება:",
+        "layout_settings_button": "დიზაინის პარამეტრები...",
         "specs_group": "მონაცემები",
         "add_button": "დამატება",
         "edit_button": "შეცვლა",
@@ -302,6 +314,16 @@ TRANSLATIONS = {
         "price_history_header_new": "ახალი ფასი",
         "low_stock_warning": "მცირე მარაგი!",
         "stock_label": "მარაგი:",
+
+        # Layout Settings Dialog
+        "layout_settings_title": "დიზაინის პარამეტრები",
+        "layout_logo_size": "ლოგოს ზომა:",
+        "layout_title_size": "სათაურის შრიფტი:",
+        "layout_spec_size": "მონაცემების შრიფტი:",
+        "layout_price_size": "ფასის შრიფტი:",
+        "layout_sku_size": "კოდის შრიფტი:",
+        "layout_pn_size": "P/N-ის შრიფტი:",
+        "layout_reset_button": "საწყისზე დაბრუნება",
 
         # Auth
         "login_window_title": "ავტორიზაცია - საცალო ოპერაციების კომპლექსი",
