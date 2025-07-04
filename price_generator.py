@@ -14,6 +14,7 @@ import os
 import random
 import math
 from translations import Translator
+from data_handler import get_default_layout_settings
 
 # --- CONFIGURATION ---
 DPI = 300
@@ -139,7 +140,10 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     return img
 
 
-def create_price_tag(item_data, size_config, theme, language='en'):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en'):
+    if layout_settings is None:
+        layout_settings = get_default_layout_settings()
+
     width_cm, height_cm = size_config['dims']
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
@@ -152,13 +156,22 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_AREA)
 
-    title_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_TITLE_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
-    spec_font_regular = get_font(PRIMARY_FONT_PATH, BASE_SPEC_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
-    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, BASE_SPEC_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
-    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_FOOTER_SKU_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
-    price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_FOOTER_PRICE_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
-    strikethrough_font = get_font(PRIMARY_FONT_PATH, BASE_STRIKETHROUGH_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
-    part_num_font = get_font(PRIMARY_FONT_PATH, BASE_PN_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
+    # Apply scaling from layout settings
+    title_font_size = BASE_TITLE_FONT_SIZE * scale_factor * layout_settings.get('title_scale', 1.0)
+    spec_font_size = BASE_SPEC_FONT_SIZE * scale_factor * layout_settings.get('spec_scale', 1.0)
+    sku_font_size = BASE_FOOTER_SKU_FONT_SIZE * scale_factor * layout_settings.get('sku_scale', 1.0)
+    price_font_size = BASE_FOOTER_PRICE_FONT_SIZE * scale_factor * layout_settings.get('price_scale', 1.0)
+    strikethrough_font_size = BASE_STRIKETHROUGH_FONT_SIZE * scale_factor * layout_settings.get('price_scale', 1.0)
+    pn_font_size = BASE_PN_FONT_SIZE * scale_factor * layout_settings.get('pn_scale', 1.0)
+    logo_scale_factor = layout_settings.get('logo_scale', 1.0)
+
+    title_font = get_font(PRIMARY_FONT_BOLD_PATH, title_font_size, FALLBACK_FONT_EN_BOLD)
+    spec_font_regular = get_font(PRIMARY_FONT_PATH, spec_font_size, FALLBACK_FONT_EN)
+    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, spec_font_size, FALLBACK_FONT_EN_BOLD)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, sku_font_size, FALLBACK_FONT_EN_BOLD)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, FALLBACK_FONT_EN_BOLD)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size, FALLBACK_FONT_EN)
+    part_num_font = get_font(PRIMARY_FONT_PATH, pn_font_size, FALLBACK_FONT_EN)
 
     border_width = max(2, int(5 * scale_factor))
     line_width = max(1, int(3 * scale_factor))
@@ -168,7 +181,6 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     strikethrough_color = theme.get("strikethrough_color", "black")
     logo_to_use = theme.get("logo_path_ka", "assets/logo-geo.png") if language == 'ka' else theme.get("logo_path",
                                                                                                       "assets/logo.png")
-    logo_scale = theme.get("logo_scale_factor", 0.9)
     bullet_image_path = theme.get("bullet_image_path")
 
     if theme.get("background_snow"):
@@ -179,24 +191,17 @@ def create_price_tag(item_data, size_config, theme, language='en'):
             snow_draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(235, 245, 255, 50))
 
     draw = ImageDraw.Draw(img)
-
     margin = 0.05 * width_px
 
-    LOGO_AREA_HEIGHT_RATIO = 0.12
-    TITLE_TOP_PADDING = -0.06 * height_px
-    TITLE_SEPARATOR_PADDING = 0.07 * height_px
-    SEPARATOR_SPECS_PADDING = 0.02 * height_px
-
+    # --- HEADER & TITLE ---
     y_cursor = 0.0
-
-    logo_area_height = LOGO_AREA_HEIGHT_RATIO * height_px
+    logo_area_height = 0.12 * height_px
     y_cursor += logo_area_height
-    y_cursor += TITLE_TOP_PADDING
+    y_cursor += -0.06 * height_px  # Title top padding
 
     title_text = item_data.get('Name', 'N/A')
     title_area_width = width_px - (2 * margin)
     wrapped_title_lines = wrap_text(title_text, title_font, title_area_width)
-
     if wrapped_title_lines:
         ascent, descent = title_font.getmetrics()
         line_height = ascent + descent
@@ -207,17 +212,80 @@ def create_price_tag(item_data, size_config, theme, language='en'):
             y_cursor += line_height + line_spacing
         y_cursor -= line_spacing
 
-    y_cursor += TITLE_SEPARATOR_PADDING
+    y_cursor += 0.07 * height_px  # Title separator padding
     draw.line([(margin, y_cursor), (width_px - margin, y_cursor)], fill=text_color, width=line_width)
+    y_cursor += 0.02 * height_px  # Separator to specs padding
 
-    y_cursor += SEPARATOR_SPECS_PADDING
+    # --- DYNAMIC SPECIFICATIONS ---
+    footer_height = 0.14 * height_px
+    # Reduced the extra padding from 0.04 to 0.02 to allow more specs to fit
+    max_y_for_specs = height_px - footer_height - (0.02 * height_px)
 
-    # --- DYNAMIC SPEC & FOOTER LAYOUT ---
-    footer_area_height = 0.14 * height_px
-    # Define the maximum Y coordinate that the specs area can extend to.
-    # This reserves a fixed-height area for the footer at the very bottom.
-    max_y_for_specs = height_px - footer_area_height - (0.04 * height_px)
+    all_specs = item_data.get('specs', [])
+    warranty_spec = None
+    other_specs = []
+    for spec in all_specs:
+        if 'warranty' in spec.lower() and warranty_spec is None:
+            warranty_spec = spec
+        else:
+            other_specs.append(spec)
 
+    spec_ascent, spec_descent = spec_font_regular.getmetrics()
+    spec_line_height = spec_ascent + spec_descent
+    spec_line_spacing = int(4 * scale_factor)
+
+    # Helper function to accurately calculate the height of a spec line by
+    # determining the real width available for its value text.
+    def get_real_spec_height(spec_text):
+        # Determine the starting X position for the text part of the spec
+        bullet_x = int(margin + 20 * scale_factor)
+        label_x = bullet_x
+        if bullet_image_path and os.path.exists(bullet_image_path):
+            try:
+                with Image.open(bullet_image_path) as bullet_img:
+                    bullet_size = int(spec_line_height * 0.8)
+                    label_x += bullet_size + 15
+            except Exception:
+                label_x += int(spec_font_regular.getbbox("• ")[2])
+        else:
+            label_x += int(spec_font_regular.getbbox("• ")[2])
+
+        # Calculate available width for the value part
+        if ':' in spec_text:
+            label, value = spec_text.split(':', 1)
+            translated_label = translator.get_spec_label(label.strip(), language)
+            label_text = translated_label + ': '
+            label_width = spec_font_bold.getbbox(label_text)[2]
+            value_x = label_x + label_width
+            remaining_width = width_px - value_x - margin
+
+            wrapped_values = wrap_text(value.strip(), spec_font_regular, remaining_width)
+            num_lines = max(1, len(wrapped_values))
+            return num_lines * (spec_line_height + spec_line_spacing)
+        else:
+            # The whole line is the spec, no wrapping calculation needed
+            return spec_line_height + spec_line_spacing
+
+    # Determine which specs can fit using the accurate height calculation
+    drawable_specs = []
+    current_spec_height = 0
+    for spec in other_specs:
+        h = get_real_spec_height(spec)
+        if y_cursor + current_spec_height + h < max_y_for_specs:
+            drawable_specs.append(spec)
+            current_spec_height += h
+
+    # Always try to fit warranty at the end
+    if warranty_spec:
+        h = get_real_spec_height(warranty_spec)
+        if y_cursor + current_spec_height + h < max_y_for_specs:
+            drawable_specs.append(warranty_spec)
+        elif drawable_specs:
+            last_spec_h = get_real_spec_height(drawable_specs[-1])
+            if y_cursor + current_spec_height - last_spec_h + h < max_y_for_specs:
+                drawable_specs[-1] = warranty_spec
+
+    # Draw the determined specs
     bullet_img = None
     if bullet_image_path and os.path.exists(bullet_image_path):
         try:
@@ -225,70 +293,41 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         except:
             pass
 
-    specs = item_data.get('specs', [])
-    if specs:
-        spec_ascent, spec_descent = spec_font_regular.getmetrics()
-        spec_line_height = spec_ascent + spec_descent
-        spec_line_spacing = int(4 * scale_factor)
+    for spec in drawable_specs:
+        bullet_x = int(margin + 20 * scale_factor)
+        label_x = bullet_x
 
-        outer_loop_broken = False
-        for spec in specs:
-            # If adding one more line would push us into the reserved footer space, stop everything.
-            if y_cursor + spec_line_height > max_y_for_specs:
-                break
+        if bullet_img:
+            bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
+            if bullet_size > 0:
+                bullet_y = int(y_cursor + (spec_line_height - bullet_size) / 2)
+                bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
+                img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
+                label_x += bullet_size + 15
+        else:
+            draw.text((bullet_x, y_cursor + spec_ascent), "•", font=spec_font_regular, fill=text_color, anchor='ls')
+            label_x += int(spec_font_regular.getbbox("• ")[2])
 
-            bullet_x = int(margin + 20 * scale_factor)
-            label_x = bullet_x
+        if ':' in spec:
+            label, value = spec.split(':', 1)
+            value = value.strip()
+            translated_label = translator.get_spec_label(label.strip(), language)
+            label_text = translated_label + ': '
+            draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color, anchor='ls')
+            value_x = label_x + spec_font_bold.getbbox(label_text)[2]
+            remaining_width = width_px - value_x - margin
+            wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
+            for i, line in enumerate(wrapped_values):
+                draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
+                if i < len(wrapped_values) - 1:
+                    y_cursor += spec_line_height + spec_line_spacing
+        else:
+            draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
+        y_cursor += spec_line_height + spec_line_spacing
 
-            if bullet_img:
-                bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
-                if bullet_size > 0:
-                    bullet_y = int(y_cursor + (spec_line_height - bullet_size) / 2)
-                    bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
-                    img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
-                    label_x += bullet_size + 15
-            else:
-                draw.text((bullet_x, y_cursor + spec_ascent), "•", font=spec_font_regular, fill=text_color, anchor='ls')
-                label_x += int(spec_font_regular.getbbox("• ")[2])
-
-            if ':' in spec:
-                label, value = spec.split(':', 1)
-                value = value.strip()
-                translated_label = translator.get_spec_label(label.strip(), language)
-                label_text = translated_label + ': '
-
-                draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color,
-                          anchor='ls')
-                value_x = label_x + spec_font_bold.getbbox(label_text)[2]
-
-                remaining_width = width_px - value_x - margin
-                wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
-
-                for i, line in enumerate(wrapped_values):
-                    # Before drawing any line (including the first), check if it fits.
-                    if y_cursor + spec_line_height > max_y_for_specs:
-                        outer_loop_broken = True
-                        break
-
-                    draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color,
-                              anchor='ls')
-
-                    # If it's not the last line, advance the cursor
-                    if i < len(wrapped_values) - 1:
-                        y_cursor += spec_line_height + spec_line_spacing
-
-                if outer_loop_broken:
-                    break
-            else:
-                draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
-
-            y_cursor += spec_line_height + spec_line_spacing
-
-    # The footer separator is drawn where the specs finished.
-    footer_area_top = y_cursor
-
+    # --- FOOTER ---
+    footer_area_top = height_px - footer_height - border_width
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
-    # The footer content is vertically centered in the remaining space.
     footer_center_y = footer_area_top + (height_px - footer_area_top - border_width) / 2
 
     sku_label_text = translator.get_spec_label("SKU", language)
@@ -298,17 +337,14 @@ def create_price_tag(item_data, size_config, theme, language='en'):
     sale_price, regular_price = item_data.get('Sale price', '').strip(), item_data.get('Regular price', '').strip()
     price_x = width_px - margin
     price_y = footer_center_y
-
     try:
         has_sale_price = sale_price and float(sale_price.replace(',', '.')) > 0
         has_regular_price = regular_price and float(regular_price.replace(',', '.')) > 0
-
         if has_sale_price:
             draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
             if has_regular_price:
                 orig_text = f"₾{regular_price}"
-                sale_text = f"₾{sale_price}"
-                sale_bbox = draw.textbbox((price_x, price_y), sale_text, font=price_font, anchor='rm')
+                sale_bbox = draw.textbbox((price_x, price_y), f"₾{sale_price}", font=price_font, anchor='rm')
                 orig_x = sale_bbox[0] - (20 * scale_factor)
                 draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
                 drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
@@ -320,16 +356,15 @@ def create_price_tag(item_data, size_config, theme, language='en'):
         if regular_price:
             draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
 
+    # --- LOGO & P/N ---
     logo_top_y = 0.03 * height_px
     try:
         with Image.open(logo_to_use) as logo:
-            logo_h = int((logo_area_height - (0.03 * height_px)) * logo_scale)
+            logo_h = int((logo_area_height - (0.03 * height_px)) * logo_scale_factor)
             logo_w = int(logo_h * (logo.width / logo.height))
             logo.thumbnail((logo_w, logo_h), Image.Resampling.LANCZOS)
-            img.paste(logo,
-                      (int((width_px - logo.width) / 2),
-                       int(logo_top_y + (logo_area_height - logo_top_y - logo.height) / 2)),
-                      logo)
+            img.paste(logo, (int((width_px - logo.width) / 2),
+                             int(logo_top_y + (logo_area_height - logo_top_y - logo.height) / 2)), logo)
     except FileNotFoundError:
         print(f"Warning: Logo file not found at '{logo_to_use}'")
 
