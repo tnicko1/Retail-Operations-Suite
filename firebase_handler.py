@@ -13,7 +13,7 @@ import os
 import csv
 from datetime import datetime
 import pytz
-from data_handler import extract_part_number, extract_specifications
+from data_handler import extract_part_number, extract_specifications, sanitize_for_indexing
 from PyQt6.QtWidgets import QMessageBox
 
 firebase_app = None
@@ -179,6 +179,9 @@ def sync_products_from_file(filepath, admin_token):
             for row in reader:
                 sku = row.get("SKU")
                 if sku:
+                    # Create the sanitized category field for indexing
+                    category = row.get("Categories")
+                    row["category_sanitized"] = sanitize_for_indexing(category)
                     file_skus.add(sku)
                     file_items[sku] = row
 
@@ -234,6 +237,10 @@ def add_new_item(item_data, token):
     if not sku or not token:
         return False
     try:
+        # Add the sanitized category for indexing
+        category = item_data.get("Categories")
+        item_data["category_sanitized"] = sanitize_for_indexing(category)
+
         db.child("items").child(sku).set(item_data, token)
         log_activity(token, f"User added new item: {sku}")
         return True
@@ -286,19 +293,35 @@ def get_item_price_history(sku, token):
         return []
 
 
+def _get_items_by_category_server_side(category, token):
+    """
+    Helper function to fetch items by category using a server-side query
+    on a sanitized index field.
+    """
+    if not token or not category:
+        return []
+
+    sanitized_category = sanitize_for_indexing(category)
+
+    try:
+        results = db.child("items").order_by_child("category_sanitized").equal_to(sanitized_category).get(token).val()
+        return list(results.values()) if results else []
+    except Exception as e:
+        print(f"Error querying by category '{category}' (sanitized: '{sanitized_category}'): {e}")
+        QMessageBox.critical(None, "Database Query Error",
+                             f"Could not search for category: {category}\n\n"
+                             "Please ensure your database rules include an index for 'category_sanitized' on the 'items' node. "
+                             "You may also need to re-sync your product list to create the index field.")
+        return []
+
+
 def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token):
     if not category or not branch_stock_col or not token:
         return []
 
-    try:
-        results = db.child("items").order_by_child("Categories").equal_to(category).get(token).val()
-        category_items = list(results.values()) if results else []
-    except Exception as e:
-        print(f"Warning: Query on category failed. Error: {e}")
-        category_items = []
+    category_items = _get_items_by_category_server_side(category, token)
 
     status_dict = get_display_status(token)
-    # The keys of the branch's dictionary are the SKUs on display
     on_display_skus = set(status_dict.get(branch_db_key, {}).keys())
     suggestions = []
 
@@ -310,6 +333,29 @@ def get_replacement_suggestions(category, branch_db_key, branch_stock_col, token
             suggestions.append(item)
 
     return suggestions
+
+
+def get_available_items_for_display(category, branch_db_key, branch_stock_col, token):
+    """
+    Finds items in a category that are in stock but not on display.
+    """
+    if not category or not branch_stock_col or not token:
+        return []
+
+    category_items = _get_items_by_category_server_side(category, token)
+
+    status_dict = get_display_status(token)
+    on_display_skus = set(status_dict.get(branch_db_key, {}).keys())
+
+    available_items = []
+    for item in category_items:
+        stock_str = str(item.get(branch_stock_col, '0')).replace(',', '')
+        is_in_stock = int(stock_str) > 0 if stock_str.isdigit() else False
+
+        if is_in_stock and item.get('SKU') not in on_display_skus:
+            available_items.append(item)
+
+    return available_items
 
 
 # --- Display Status ---
@@ -325,7 +371,6 @@ def add_item_to_display(sku, branch_db_key, token):
     try:
         tbilisi_tz = pytz.timezone('Asia/Tbilisi')
         timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
-        # Set the SKU as a key with the timestamp as its value
         db.child("displayStatus").child(branch_db_key).child(sku).set(timestamp, token)
     except Exception as e:
         print(f"Error adding item to display: {e}")
@@ -335,7 +380,6 @@ def remove_item_from_display(sku, branch_db_key, token):
     """Removes an item from the display list for a branch."""
     if not sku or not branch_db_key or not token: return
     try:
-        # Remove the SKU key from the branch's display dictionary
         db.child("displayStatus").child(branch_db_key).child(sku).remove(token)
     except Exception as e:
         print(f"Error removing item from display: {e}")
@@ -349,7 +393,6 @@ def get_item_display_timestamp(sku, branch_db_key, token):
     if not sku or not branch_db_key or not token:
         return None
     try:
-        # Directly get the value (timestamp) for the SKU key
         timestamp = db.child("displayStatus").child(branch_db_key).child(sku).get(token).val()
         return timestamp
     except Exception as e:
