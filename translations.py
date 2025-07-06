@@ -358,6 +358,22 @@ TRANSLATIONS = {
             "MonthlyDutyCycle": "Monthly Duty Cycle",
             "PaperSize": "Paper Size",
             "Connector": "Connector",
+            "Copy Speed": "Copy Speed",
+
+            # --- Projectors ---
+            "Optical Zoom": "Optical Zoom",
+            "Lamp Life": "Lamp Life",
+            "Built-in Speaker": "Built-in Speaker",
+            "Technology": "Technology",
+            "Power Consumption": "Power Consumption",
+            "Mounting": "Mounting",
+
+            # --- Chairs & Desks ---
+            "Maximum Weight": "Maximum Weight",
+            "Max Weight": "Max Weight",
+            "Materials": "Materials",
+            "Number of Wheels": "Number of Wheels",
+            "Armrests": "Armrests",
 
             # --- Miscellaneous ---
             "Warranty": "Warranty",
@@ -713,6 +729,22 @@ TRANSLATIONS = {
             "MonthlyDutyCycle": "თვიური დატვირთვა",
             "PaperSize": "ქაღალდის ზომა",
             "Connector": "კონექტორი",
+            "Copy Speed": "კოპირების სიჩქარე",
+
+            # --- Projectors ---
+            "Optical Zoom": "ოპტიკური ზუმი",
+            "Lamp Life": "ლამპის ხანგრძლივობა",
+            "Built-in Speaker": "ჩაშენებული სპიკერი",
+            "Technology": "ტექნოლოგია",
+            "Power Consumption": "ენერგიის მოხმარება",
+            "Mounting": "მონტაჟი",
+
+            # --- Chairs & Desks ---
+            "Maximum Weight": "მაქსიმუმი წონა",
+            "Max Weight": "მაქსიმუმი წონა",
+            "Materials": "მატერიალები",
+            "Number of Wheels": "ბორბლების რაოდენობა",
+            "Armrests": "სახელური",
 
             # --- Miscellaneous ---
             "Warranty": "გარანტია",
