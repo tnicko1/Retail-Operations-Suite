@@ -1873,6 +1873,7 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        self.printer.setPageMargins(0, 0, 0, 0, QPrinter.Unit.Millimeter)
 
         painter = QPainter()
         if not painter.begin(self.printer):
@@ -2100,6 +2101,7 @@ class RetailOperationsSuite(QMainWindow):
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() == QPrintDialog.DialogCode.Accepted:
             self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            self.printer.setPageMargins(0, 0, 0, 0, QPrinter.Unit.Millimeter)
             painter = QPainter()
             if not painter.begin(self.printer):
                 QMessageBox.critical(self, "Printing Error", "Could not start painter on the selected printer.")
