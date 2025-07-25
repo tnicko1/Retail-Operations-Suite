@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
                              QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider)
-from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize
-from PyQt6.QtCore import Qt, QSize, QRect
+from PyQt6.QtGui import QPixmap, QImage, QIcon, QPainter, QAction, QPageSize, QPageLayout
+from PyQt6.QtCore import Qt, QSize, QRect, QMarginsF
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 import firebase_handler
@@ -1873,7 +1873,7 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
-        self.printer.setPageMargins(0, 0, 0, 0, QPrinter.Unit.Millimeter)
+        self.printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
 
         painter = QPainter()
         if not painter.begin(self.printer):
@@ -2101,7 +2101,7 @@ class RetailOperationsSuite(QMainWindow):
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec() == QPrintDialog.DialogCode.Accepted:
             self.printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
-            self.printer.setPageMargins(0, 0, 0, 0, QPrinter.Unit.Millimeter)
+            self.printer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Millimeter)
             painter = QPainter()
             if not painter.begin(self.printer):
                 QMessageBox.critical(self, "Printing Error", "Could not start painter on the selected printer.")
