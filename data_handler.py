@@ -46,6 +46,7 @@ DEFAULT_PAPER_SIZES = {
     '10x8cm': {'dims': (10, 8), 'spec_limit': 8},
     '14.4x8cm': {'dims': (14.4, 8), 'spec_limit': 12},
     '15x10cm': {'dims': (15, 10), 'spec_limit': 13},
+    '17x5.7cm Keyboard': {'dims': (17, 5.7), 'spec_limit': 4, 'design': 'keyboard'},
     '17.5x12.5cm': {'dims': (17.5, 12.5), 'spec_limit': 11}
 }
 
