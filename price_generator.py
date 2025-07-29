@@ -140,6 +140,153 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     return img
 
 
+def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language):
+    """Creates a special price tag for keyboards with a unique design."""
+    img = Image.new('RGB', (width_px, height_px), 'white')
+    draw = ImageDraw.Draw(img)
+
+    # --- Colors and Fonts ---
+    text_color = "#000000"
+    price_color = "#D32F2F"  # Red for emphasis
+    border_color = "#AAAAAA"
+
+    # Base font sizes for this specific layout
+    base_name_size = 110
+    base_price_size = 120
+    base_strikethrough_size = 80
+    base_info_size = 45
+
+    # Scaling fonts based on tag area
+    current_area = width_cm * height_cm
+    base_area = 17 * 5.7
+    scale_factor = math.sqrt(current_area / base_area)
+
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, base_name_size * scale_factor, FALLBACK_FONT_EN_BOLD)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_size * scale_factor, FALLBACK_FONT_EN_BOLD)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, base_strikethrough_size * scale_factor, FALLBACK_FONT_EN)
+    info_font = get_font(PRIMARY_FONT_PATH, base_info_size * scale_factor, FALLBACK_FONT_EN)
+    info_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, base_info_size * scale_factor, FALLBACK_FONT_EN_BOLD)
+
+    # --- Layout ---
+    margin = 0.03 * width_px
+    right_panel_width = 0.35 * width_px
+    left_panel_width = width_px - right_panel_width
+    separator_x = left_panel_width
+
+    # Draw a subtle vertical separator
+    draw.line([(separator_x, margin), (separator_x, height_px - margin)], fill=border_color, width=2)
+
+    # --- Left Panel (Product Name) ---
+    name_text = item_data.get('Name', 'N/A')
+    wrapped_lines = wrap_text(name_text, name_font, left_panel_width - (2 * margin))
+
+    ascent, descent = name_font.getmetrics()
+    line_height = ascent + descent
+    total_text_height = len(wrapped_lines) * line_height
+    y_start = (height_px - total_text_height) / 2
+
+    left_panel_center_x = left_panel_width / 2
+    for i, line in enumerate(wrapped_lines):
+        y = y_start + i * line_height
+        draw.text((left_panel_center_x, y), line, font=name_font, fill=text_color, anchor="ms", align='center')
+
+    # --- Right Panel (Logo, Price, SKU, P/N) ---
+
+    # --- Logo ---
+    logo_to_use = theme.get("logo_path", "assets/logo.png")
+    logo_area_height = height_px * 0.20
+    right_panel_center_x = separator_x + (right_panel_width / 2)
+
+    try:
+        with Image.open(logo_to_use) as logo:
+            logo.thumbnail((right_panel_width * 0.7, logo_area_height), Image.Resampling.LANCZOS)
+            logo_x = int(right_panel_center_x - logo.width / 2)
+            logo_y = int(margin)
+            img.paste(logo, (logo_x, logo_y), logo)
+    except FileNotFoundError:
+        print(f"Warning: Logo file not found at '{logo_to_use}'")
+
+    # --- Price ---
+    price_y_start = logo_area_height + margin
+    price_area_height = height_px - price_y_start - (height_px * 0.3)  # Avoid footer
+    price_y = price_y_start + (price_area_height / 2)
+
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+
+    try:
+        has_sale_price = sale_price and float(sale_price.replace(',', '.')) > 0
+        has_regular_price = regular_price and float(regular_price.replace(',', '.')) > 0
+
+        if has_sale_price:
+            sale_text = f"₾{sale_price}"
+            draw.text((right_panel_center_x, price_y), sale_text, font=price_font, fill=price_color, anchor="mm")
+            if has_regular_price:
+                orig_text = f"₾{regular_price}"
+                strikethrough_y = price_y - (base_strikethrough_size * scale_factor * 1.2)
+                draw.text((right_panel_center_x, strikethrough_y), orig_text, font=strikethrough_font,
+                          fill=text_color, anchor="mm")
+                bbox = draw.textbbox((right_panel_center_x, strikethrough_y), orig_text, font=strikethrough_font,
+                                     anchor="mm")
+                draw.line(
+                    [(bbox[0], bbox[1] + (bbox[3] - bbox[1]) / 2), (bbox[2], bbox[1] + (bbox[3] - bbox[1]) / 2)],
+                    fill=text_color, width=3)
+        elif has_regular_price:
+            price_text = f"₾{regular_price}"
+            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+    except (ValueError, TypeError):
+        if regular_price:
+            price_text = f"₾{regular_price}"
+            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+
+    # --- Footer Info (SKU, P/N) ---
+    info_y_start = height_px - margin
+    info_line_height = base_info_size * scale_factor * 1.2
+
+    sku_label = "SKU: "
+    sku_value = item_data.get('SKU', 'N/A')
+    sku_y = info_y_start - info_line_height
+    draw.text((width_px - margin, sku_y), sku_value, font=info_font, fill=text_color, anchor="rs")
+    sku_value_bbox = draw.textbbox((width_px - margin, sku_y), sku_value, font=info_font, anchor="rs")
+    draw.text((sku_value_bbox[0] - 5, sku_y), sku_label, font=info_font_bold, fill=price_color, anchor="rs")
+
+    part_number = item_data.get('part_number', '')
+    if part_number:
+        pn_label = "P/N: "
+        pn_value = part_number
+        pn_y = info_y_start
+        draw.text((width_px - margin, pn_y), pn_value, font=info_font, fill=text_color, anchor="rs")
+        pn_value_bbox = draw.textbbox((width_px - margin, pn_y), pn_value, font=info_font, anchor="rs")
+        draw.text((pn_value_bbox[0] - 5, pn_y), pn_label, font=info_font_bold, fill=price_color, anchor="rs")
+
+    # --- Optional Specs & Red Accent Line ---
+    key_specs = []
+    all_specs = item_data.get('specs', [])
+    spec_keywords = ['mechanical', 'switch', 'layout', 'type', 'technology']
+    for spec in all_specs:
+        if any(keyword in spec.lower() for keyword in spec_keywords):
+            if ':' in spec:
+                label, value = spec.split(':', 1)
+                key_specs.append(value.strip())
+            else:
+                key_specs.append(spec)
+
+    line_y = y_start + total_text_height + (margin / 2)
+    draw.line([(margin, line_y), (separator_x - margin, line_y)], fill=price_color, width=2)
+
+    if key_specs:
+        spec_text = " | ".join(key_specs[:2])
+        spec_font = get_font(PRIMARY_FONT_PATH, base_info_size * 0.9 * scale_factor, FALLBACK_FONT_EN)
+        spec_y = line_y + margin  # Increased spacing
+        draw.text((left_panel_center_x, spec_y), spec_text, font=spec_font, fill=text_color, anchor="ms",
+                  align='center')
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline=border_color, width=3)
+
+    return img
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en'):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -147,6 +294,9 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     width_cm, height_cm = size_config['dims']
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
+    # --- ROUTING TO CORRECT TAG GENERATOR ---
+    if size_config.get('design') == 'keyboard':
+        return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language)
     if size_config.get('is_accessory_style', False):
         return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
 
