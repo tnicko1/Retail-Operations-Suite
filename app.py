@@ -1696,12 +1696,11 @@ class RetailOperationsSuite(QMainWindow):
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
 
-        specs = data_handler.extract_specifications(item_data.get('Description'))
-        warranty = item_data.get('Attribute 3 value(s)')
-        if warranty and warranty != '-':
-            specs.append(f"Warranty: {warranty}")
-        self.current_item_data['all_specs'] = self.process_specifications(specs)
-        self.current_item_data['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
+        # Use the unified spec processing function
+        self.current_item_data['all_specs'] = self.process_specifications(self.current_item_data)
+        self.current_item_data['part_number'] = self.current_item_data.get('attributes', {}).get('Part Number', '') \
+                                                or data_handler.extract_part_number(
+            item_data.get('Description', ''))
 
         self.sku_input.setText(self.current_item_data.get('SKU'))
         self.name_input.setText(self.current_item_data.get("Name", ""))
@@ -1963,15 +1962,10 @@ class RetailOperationsSuite(QMainWindow):
 
     def _prepare_data_for_printing(self, item_data):
         data_to_print = item_data.copy()
-        data_to_print['part_number'] = data_handler.extract_part_number(item_data.get('Description', ''))
-
-        specs = data_handler.extract_specifications(item_data.get('Description'))
-        warranty = item_data.get('Attribute 3 value(s)')
-        if warranty and warranty != '-':
-            specs.append(f"Warranty: {warranty}")
-
-        processed_specs = self.process_specifications(specs)
-        data_to_print['specs'] = processed_specs
+        # Use the unified spec processing function
+        data_to_print['specs'] = self.process_specifications(item_data)
+        data_to_print['part_number'] = item_data.get('attributes', {}).get('Part Number', '') \
+                                       or data_handler.extract_part_number(item_data.get('Description', ''))
         return data_to_print
 
     def update_preview(self, *args, **kwargs):
@@ -2020,17 +2014,28 @@ class RetailOperationsSuite(QMainWindow):
         self.specs_list.addItems(all_specs)
         self.update_preview()
 
-    def process_specifications(self, specs):
-        first_warranty_found = False
-        filtered_specs = []
-        for spec in specs:
-            if 'warranty' in spec.lower():
-                if not first_warranty_found:
-                    filtered_specs.append(spec)
-                    first_warranty_found = True
-            else:
-                filtered_specs.append(spec)
-        return filtered_specs
+    def process_specifications(self):
+        from collections import OrderedDict
+        final_specs = OrderedDict()
+
+        # 1. Prioritize structured attributes from the new 'attributes' field
+        attributes = self.current_item_data.get('attributes', {})
+        if attributes:
+            for label, value in attributes.items():
+                if label and value and value.strip() and value.strip() != '-':
+                    final_specs[label.strip()] = value.strip()
+
+        # 2. Use the description to fill in any specs that weren't in the attributes
+        specs_from_desc = data_handler.extract_specifications(self.current_item_data.get('Description'))
+        for spec_line in specs_from_desc:
+            if ':' in spec_line:
+                label, value = spec_line.split(':', 1)
+                label = label.strip()
+                value = value.strip()
+                if label and value and label not in final_specs:
+                    final_specs[label] = value
+
+        return [f"{label}: {value}" for label, value in final_specs.items()]
 
     def add_spec(self):
         if not self.current_item_data: return
