@@ -11,6 +11,7 @@ import json
 import pyrebase
 import os
 import csv
+import re
 from datetime import datetime
 import pytz
 from data_handler import extract_part_number, extract_specifications, sanitize_for_indexing
@@ -172,18 +173,41 @@ def sync_products_from_file(filepath, admin_token):
     if not admin_token:
         return False, "Authentication token is missing. Cannot sync.", 0
     try:
+        # Define keys that should NOT be treated as attributes and should remain at the top level of the item.
+        known_top_level_keys = [
+            "SKU", "Name", "Short description", "Description", "Stock", "Stock Vaja", "Stock Marj", "Stock Gldan",
+            "Regular price", "Sale price", "Categories", "Image", "category_sanitized"
+        ]
+
         file_skus = set()
         file_items = {}
         with open(filepath, mode='r', encoding='utf-8-sig') as infile:
             reader = csv.DictReader(infile)
             for row in reader:
                 sku = row.get("SKU")
-                if sku:
-                    # Create the sanitized category field for indexing
-                    category = row.get("Categories")
-                    row["category_sanitized"] = sanitize_for_indexing(category)
-                    file_skus.add(sku)
-                    file_items[sku] = row
+                if not sku:
+                    continue
+
+                new_item = {'attributes': {}}
+
+                # Iterate through all columns in the row from the CSV
+                for key, value in row.items():
+                    if not key or value is None or value.strip() in ['', '-']:
+                        continue  # Skip empty keys or values
+
+                    # If the key is a known top-level field, add it directly to the item.
+                    if key in known_top_level_keys:
+                        new_item[key] = value
+                    # Otherwise, treat it as a specification and add it to the 'attributes' dictionary.
+                    else:
+                        new_item['attributes'][key.strip()] = value.strip()
+
+                # Add the sanitized category for indexing
+                category = new_item.get("Categories")
+                new_item["category_sanitized"] = sanitize_for_indexing(category)
+
+                file_skus.add(sku)
+                file_items[sku] = new_item
 
         firebase_items = db.child("items").get(admin_token).val() or {}
         firebase_skus = set(firebase_items.keys())
