@@ -375,9 +375,17 @@ TRANSLATIONS = {
             "Number of Wheels": "Number of Wheels",
             "Armrests": "Armrests",
 
+            # --- Mobiles & Ipads ---
+            "Battery Capacity": "Battery Capacity",
+            "Selfie Camear": "Selfie Camera",
+            "Screen Type": "Screen Type",
+            "Network Technology": "Network Technology",
+
             # --- Miscellaneous ---
             "Warranty": "Warranty",
-            "IncludedAccessories": "Included Accessories"
+            "IncludedAccessories": "Included Accessories",
+            "Portable Design": "Portable Design",
+            "Portability": "Portability",
         }
     },
     "ka": {
@@ -746,9 +754,17 @@ TRANSLATIONS = {
             "Number of Wheels": "ბორბლების რაოდენობა",
             "Armrests": "სახელური",
 
+            # --- Mobiles & Ipads ---
+            "Battery Capacity": "ბატარიის მოცულობა",
+            "Selfie Camear": "სელფის კამერა",
+            "Screen Type": "ეკრანის ტიპი",
+            "Network Technology": "ქსელური ტექნოლოგია",
+
             # --- Miscellaneous ---
             "Warranty": "გარანტია",
-            "IncludedAccessories": "კომპლექტაცია"
+            "IncludedAccessories": "კომპლექტაცია",
+            "Portable Design": "პორტატული დიზაინი",
+            "Portability": "პორტატულობა",
         }
     }
 }
