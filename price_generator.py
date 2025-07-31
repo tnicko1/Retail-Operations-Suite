@@ -16,6 +16,7 @@
 
 
 # -*- coding: utf-8 -*-
+from utils import resource_path
 from PIL import Image, ImageDraw, ImageFont
 import os
 import random
@@ -26,10 +27,10 @@ from data_handler import get_default_layout_settings
 
 # --- CONFIGURATION ---
 DPI = 300
-PRIMARY_FONT_PATH = 'fonts/NotoSansGeorgian-Regular.ttf'
-PRIMARY_FONT_BOLD_PATH = 'fonts/NotoSansGeorgian-Bold.ttf'
-FALLBACK_FONT_EN = "arial.ttf"
-FALLBACK_FONT_EN_BOLD = "arialbd.ttf"
+PRIMARY_FONT_PATH = resource_path('fonts/NotoSansGeorgian-Regular.ttf')
+PRIMARY_FONT_BOLD_PATH = resource_path('fonts/NotoSansGeorgian-Bold.ttf')
+FALLBACK_FONT_EN = resource_path("fonts/arial.ttf")
+FALLBACK_FONT_EN_BOLD = resource_path("fonts/arialbd.ttf")
 
 # --- BASE FONT SIZES (for a 14.4x8cm tag) ---
 BASE_WIDTH_CM = 14.4

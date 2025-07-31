@@ -40,35 +40,50 @@ def global_exception_hook(exctype, value, tb):
     sys.exit(1)
 
 
+def run_update_check(app_version):
+    """
+    Checks for updates and prompts the user to install if a new version is found.
+    This function contains the logic that was previously at the start of main().
+    It requires a QApplication instance to be running to show message boxes.
+    """
+    # Only check for updates if the application is frozen (i.e., running as an executable)
+    if not getattr(sys, 'frozen', False):
+        return True  # Continue normal execution if not frozen
+
+    QApplication.setApplicationVersion(app_version)
+
+    # --- UPDATE CHECK ---
+    print("Checking for updates...")
+    latest_version, download_url = updater.check_for_updates(app_version)
+
+    if latest_version and download_url:
+        reply = QMessageBox.question(None, "Update Available",
+                                     f"A new version ({latest_version}) is available.\n"
+                                     f"You are currently on version {app_version}.\n\n"
+                                     "Would you like to download and install it now?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.Yes)
+        if reply == QMessageBox.StandardButton.Yes:
+            # This function will download, launch the installer, and exit the app.
+            # We pass `None` as the parent for the dialogs.
+            updater.download_and_install_update(download_url, parent=None)
+            return False  # Signal to exit the application
+            
+    return True # Signal to continue execution
+
+
 def main():
     """Main function to run the application."""
     # Set the global exception hook. This MUST be the first thing to run.
     sys.excepthook = global_exception_hook
 
-    # We need a QApplication instance to show message boxes for the update check.
-    # We create it early and use it throughout the application's lifecycle.
     app = QApplication(sys.argv)
 
-    # Only check for updates if the application is frozen (i.e., running as an executable)
-    if getattr(sys, 'frozen', False):
-        QApplication.setApplicationVersion(APP_VERSION)
-
-        # --- UPDATE CHECK ---
-        print("Checking for updates...")
-        latest_version, download_url = updater.check_for_updates(APP_VERSION)
-
-        if latest_version and download_url:
-            reply = QMessageBox.question(None, "Update Available",
-                                         f"A new version ({latest_version}) is available.\n"
-                                         f"You are currently on version {APP_VERSION}.\n\n"
-                                         "Would you like to download and install it now?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                         QMessageBox.StandardButton.Yes)
-            if reply == QMessageBox.StandardButton.Yes:
-                # This function will download, launch the installer, and exit the app.
-                updater.download_and_install_update(download_url)
-                return 0  # Exit cleanly if update is started
-        # If no update or user says no, the app continues.
+    # --- Run Update Check ---
+    # The application will proceed only if the update check completes
+    # without initiating an update.
+    if not run_update_check(APP_VERSION):
+        return 0  # Exit cleanly if an update is started
 
     # --- APPLICATION STARTUP ---
     if not firebase_handler.initialize_firebase():

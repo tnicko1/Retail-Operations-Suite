@@ -65,8 +65,8 @@ def check_for_updates(current_version_str):
         if latest_version > current_version:
             assets = latest_release.get("assets", [])
             for asset in assets:
-                # Find the .msi file in the release assets
-                if asset.get("name").endswith(".msi"):
+                # Find the .exe file in the release assets
+                if asset.get("name").endswith(".exe"):
                     print(f"Update found: {latest_version_str}. Asset: {asset.get('name')}")
                     return latest_version_str, asset.get("browser_download_url")
 
@@ -83,18 +83,18 @@ def check_for_updates(current_version_str):
     return None, None
 
 
-def download_and_install_update(download_url):
+def download_and_install_update(download_url, parent=None):
     """
-    Downloads the MSI from the given URL, shows a progress dialog,
+    Downloads the installer from the given URL, shows a progress dialog,
     and launches the installer.
     """
     if not download_url:
-        QMessageBox.critical(None, "Update Error", "Could not get the download link for the update.")
+        QMessageBox.critical(parent, "Update Error", "Could not get the download link for the update.")
         return
 
     try:
         # Start downloading the file
-        response = requests.get(download_url, stream=True)
+        response = requests.get(download_url, stream=True, timeout=30)
         response.raise_for_status()
 
         # Get the total file size for the progress bar
@@ -105,7 +105,7 @@ def download_and_install_update(download_url):
         installer_path = os.path.join(temp_dir, installer_name)
 
         # --- Progress Dialog ---
-        progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size)
+        progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size, parent)
         progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setWindowTitle("Updating")
         progress_dialog.show()
@@ -115,26 +115,28 @@ def download_and_install_update(download_url):
             for chunk in response.iter_content(chunk_size=8192):
                 if progress_dialog.wasCanceled():
                     print("Download cancelled by user.")
+                    # Clean up the partially downloaded file
+                    f.close()
+                    os.remove(installer_path)
                     return
                 f.write(chunk)
                 downloaded_size += len(chunk)
                 progress_dialog.setValue(downloaded_size)
-                QApplication.processEvents()  # Keep the UI responsive
 
         progress_dialog.setValue(total_size)
         print(f"Downloaded installer to: {installer_path}")
 
         # --- Launch Installer ---
-        QMessageBox.information(None, "Ready to Update",
+        QMessageBox.information(parent, "Ready to Update",
                                 "The update has been downloaded. The application will now close to run the installer.")
 
-        # Use os.startfile to launch the MSI installer. This is the standard way on Windows.
+        # Use os.startfile to launch the installer. This is the standard way on Windows.
         os.startfile(installer_path)
 
         # IMPORTANT: Exit the current application so the installer can replace files.
         sys.exit(0)
 
     except requests.exceptions.RequestException as e:
-        QMessageBox.critical(None, "Download Error", f"Failed to download the update: {e}")
+        QMessageBox.critical(parent, "Download Error", f"Failed to download the update: {e}")
     except Exception as e:
-        QMessageBox.critical(None, "Update Error", f"An error occurred during the update process: {e}")
+        QMessageBox.critical(parent, "Update Error", f"An error occurred during the update process: {e}")

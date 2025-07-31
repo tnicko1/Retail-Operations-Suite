@@ -1,4 +1,6 @@
 from translations import Translator
+import sys
+import os
 
 
 def format_timedelta(delta, translator: Translator):
@@ -15,3 +17,14 @@ def format_timedelta(delta, translator: Translator):
     if minutes > 0:
         return translator.get("duration_minutes", m=minutes)
     return translator.get("duration_less_than_minute")
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)

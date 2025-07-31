@@ -22,7 +22,7 @@ from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerD
                      TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
                      ColumnMappingManagerDialog)
 from translations import Translator
-from utils import format_timedelta
+from utils import format_timedelta, resource_path
 
 
 class RetailOperationsSuite(QMainWindow):
@@ -48,17 +48,17 @@ class RetailOperationsSuite(QMainWindow):
             "branch_gldani": {"db_key": "Gldani Shop", "stock_col": "Stock Gldan"},
         }
 
-        self.setWindowIcon(QIcon("assets/program/logo-no-flair.ico"))
+        self.setWindowIcon(QIcon(resource_path("assets/program/logo-no-flair.ico")))
         self.setGeometry(100, 100, 1400, 800)
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
         self.all_items_cache = {}
         self.themes = {
             "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
-                        "logo_path": "assets/logo.png", "logo_path_ka": "assets/logo-geo.png"},
+                        "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png")},
             "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
-                       "logo_path": "assets/logo-santa-hat.png", "logo_path_ka": "assets/logo-geo-santa-hat.png",
-                       "bullet_image_path": "assets/snowflake.png", "background_snow": True}
+                       "logo_path": resource_path("assets/logo-santa-hat.png"), "logo_path_ka": resource_path("assets/logo-geo-santa-hat.png"),
+                       "bullet_image_path": resource_path("assets/snowflake.png"), "background_snow": True}
         }
 
         self.tab_widget = QTabWidget()
@@ -504,7 +504,7 @@ class RetailOperationsSuite(QMainWindow):
         self.single_button.setText(self.tr("generate_single_button"))
         self.batch_button.setText(self.tr("generate_batch_button"))
         self.status_label_title.setText(f"{self.tr('status_label')}:")
-        self.lang_button.setIcon(QIcon("assets/en.png" if self.translator.language == "en" else "assets/ka.png"))
+        self.lang_button.setIcon(QIcon(resource_path("assets/en.png" if self.translator.language == "en" else "assets/ka.png")))
         self.update_status_display()
         if not self.current_item_data:
             self.preview_label.setText(self.tr("preview_default_text"))

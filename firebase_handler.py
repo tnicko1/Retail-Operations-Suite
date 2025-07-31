@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from utils import resource_path
 import json
 import pyrebase
 import os
@@ -35,7 +36,7 @@ def initialize_firebase():
     """Initializes the Firebase app using credentials from config.json."""
     global firebase_app, auth, db
     try:
-        with open('config.json', 'r') as f:
+        with open(resource_path('config.json'), 'r') as f:
             firebase_config = json.load(f)
 
         firebase_app = pyrebase.initialize_app(firebase_config)
