@@ -15,7 +15,7 @@ import os
 # --- Application Information ---
 APP_NAME = "Retail Operations Suite"
 # IMPORTANT: This version number MUST match the one in main.py
-APP_VERSION = "1.1.2"
+APP_VERSION = "2.0.0"
 APP_DESCRIPTION = "A suite of tools for managing retail operations, including price tag generation."
 COMPANY_NAME = "Nikoloz Taturashvili" # This will be used as the Author/Publisher
 # IMPORTANT: Generate a new GUID for this and paste it here.
