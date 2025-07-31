@@ -13,7 +13,7 @@ Reporting a Vulnerability
 
 I take the security of this project seriously. If you discover a security vulnerability, I would greatly appreciate your help in disclosing it to me privately so that I can address it.
 
-Please report any vulnerabilities directly to me via email at: [Your-Email-Address@example.com]
+Please report any vulnerabilities directly to me via email at: tnicko@proton.me
 
 When reporting a vulnerability, please include the following:
 
