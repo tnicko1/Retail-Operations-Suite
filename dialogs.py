@@ -1040,6 +1040,7 @@ class ColumnMappingManagerDialog(QDialog):
 
         self.mappings = firebase_handler.get_column_mappings(self.token)
         self.example_values = {}
+        self.barcode_checkboxes = []  # To manage radio-button behavior
 
         layout = QVBoxLayout(self)
 
@@ -1055,19 +1056,22 @@ class ColumnMappingManagerDialog(QDialog):
 
         # --- Table ---
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
+        self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels([
             self.translator.get("column_mapping_header_original"),
             self.translator.get("column_mapping_header_example"),
             self.translator.get("column_mapping_header_display"),
-            self.translator.get("column_mapping_header_ignore")
+            self.translator.get("column_mapping_header_ignore"),
+            self.translator.get("column_mapping_header_is_barcode")
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
         self.table.setColumnWidth(3, 100)
+        self.table.setColumnWidth(4, 100)
         layout.addWidget(self.table)
 
         # --- Buttons ---
@@ -1082,11 +1086,14 @@ class ColumnMappingManagerDialog(QDialog):
         """Fetch all unique attribute keys and examples from Firebase and populate the table."""
         all_keys, self.example_values = firebase_handler.get_attributes_with_examples(self.token)
         self.table.setRowCount(0)  # Clear table before populating
+        self.barcode_checkboxes.clear() # Clear the list of checkboxes
 
         current_keys_in_table = set()
 
         # Use a combined and sorted list of keys from mappings and fetched keys
-        combined_keys = sorted(list(all_keys.union(set(self.mappings.keys()))))
+        # Exclude the special 'barcodeField' from this list
+        mapping_keys = [k for k in self.mappings.keys() if k != 'barcodeField']
+        combined_keys = sorted(list(all_keys.union(set(mapping_keys))))
 
         for key in combined_keys:
             if key not in current_keys_in_table:
@@ -1111,25 +1118,51 @@ class ColumnMappingManagerDialog(QDialog):
 
         # Column 2: Display Name (QLineEdit)
         display_name_input = QLineEdit()
-        if key in self.mappings and 'displayName' in self.mappings[key]:
-            display_name_input.setText(self.mappings[key]['displayName'])
+        mapping_data = self.mappings.get(key, {})
+        # Ensure mapping_data is a dictionary before calling .get()
+        if isinstance(mapping_data, dict):
+            display_name_input.setText(mapping_data.get('displayName', ''))
         self.table.setCellWidget(row, 2, display_name_input)
 
         # Column 3: Ignore (QCheckBox)
         ignore_checkbox = QCheckBox()
-        ignore_checkbox.setChecked(self.mappings.get(key, {}).get('ignore', False))
-        cell_widget = QWidget()
-        cell_layout = QHBoxLayout(cell_widget)
-        cell_layout.addWidget(ignore_checkbox)
-        cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        cell_layout.setContentsMargins(0, 0, 0, 0)
-        self.table.setCellWidget(row, 3, cell_widget)
+        if isinstance(mapping_data, dict):
+            ignore_checkbox.setChecked(mapping_data.get('ignore', False))
+        ignore_cell_widget = QWidget()
+        ignore_cell_layout = QHBoxLayout(ignore_cell_widget)
+        ignore_cell_layout.addWidget(ignore_checkbox)
+        ignore_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ignore_cell_layout.setContentsMargins(0, 0, 0, 0)
+        self.table.setCellWidget(row, 3, ignore_cell_widget)
+
+        # Column 4: Is Barcode (QCheckBox)
+        barcode_checkbox = QCheckBox()
+        barcode_checkbox.setChecked(key == self.mappings.get("barcodeField"))
+        barcode_checkbox.stateChanged.connect(self.handle_barcode_checkbox_state_changed)
+        self.barcode_checkboxes.append(barcode_checkbox)
+        barcode_cell_widget = QWidget()
+        barcode_cell_layout = QHBoxLayout(barcode_cell_widget)
+        barcode_cell_layout.addWidget(barcode_checkbox)
+        barcode_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        barcode_cell_layout.setContentsMargins(0, 0, 0, 0)
+        self.table.setCellWidget(row, 4, barcode_cell_widget)
+
+    def handle_barcode_checkbox_state_changed(self, state):
+        """Ensures only one barcode checkbox can be checked at a time."""
+        if state == Qt.CheckState.Checked.value:
+            sender = self.sender()
+            for checkbox in self.barcode_checkboxes:
+                if checkbox != sender:
+                    checkbox.setChecked(False)
 
     def save_mappings(self):
         """Read the table and save the mappings to Firebase."""
         new_mappings = {}
+        barcode_field = None
+
         for row in range(self.table.rowCount()):
             original_name = self.table.item(row, 0).text()
+            
             display_name_widget = self.table.cellWidget(row, 2)
             display_name = display_name_widget.text().strip() if display_name_widget else ""
 
@@ -1139,17 +1172,29 @@ class ColumnMappingManagerDialog(QDialog):
                 ignore_checkbox = ignore_widget_container.layout().itemAt(0).widget()
                 is_ignored = ignore_checkbox.isChecked()
 
+            barcode_widget_container = self.table.cellWidget(row, 4)
+            is_barcode = False
+            if barcode_widget_container:
+                barcode_checkbox = barcode_widget_container.layout().itemAt(0).widget()
+                if barcode_checkbox.isChecked():
+                    barcode_field = original_name
+
+            # Only create an entry if there's something to save
             if display_name or is_ignored:
                 new_mappings[original_name] = {
                     'displayName': display_name,
                     'ignore': is_ignored
                 }
+        
+        # Add the special barcodeField key to the top level of the mappings
+        if barcode_field:
+            new_mappings['barcodeField'] = barcode_field
 
         if firebase_handler.save_column_mappings(new_mappings, self.token):
             QMessageBox.information(self, "Success", "Column mappings saved successfully.")
             if self.parent_window:
                 self.parent_window.column_mappings = new_mappings
-                self.parent_window.update_preview()  # Update preview in case current item is affected
+                self.parent_window.update_preview()
             self.accept()
         else:
             QMessageBox.critical(self, "Error", "Failed to save column mappings.")

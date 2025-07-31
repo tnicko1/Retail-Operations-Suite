@@ -292,17 +292,32 @@ def get_all_items(token):
 def find_item_by_identifier(identifier, token):
     if not identifier: return None
 
+    # Priority 1: Check if the identifier is a direct SKU
     item = db.child("items").child(identifier).get(token).val()
     if item:
         return item
 
-    try:
-        results = db.child("items").order_by_child("Attribute 4 value(s)").equal_to(identifier).get(token).val()
-        if results:
-            return list(results.values())[0]
-    except Exception as e:
-        print(f"Warning: Query on barcode failed. Is it indexed in Firebase Rules? Error: {e}")
+    # Priority 2: Check if the identifier is a user-defined Barcode
+    column_mappings = get_column_mappings(token)
+    barcode_field = column_mappings.get("barcodeField")
 
+    if barcode_field:
+        # The barcode field is nested inside the 'attributes' dictionary.
+        # We must construct the full path for the query.
+        query_path = f"attributes/{barcode_field}"
+        
+        # IMPORTANT: For this to be efficient, the user must have a rule in their
+        # Firebase Realtime Database security rules to index the designated barcode field's path.
+        # e.g., "items": { ".indexOn": ["attributes/Attribute 4 value(s)"] }
+        try:
+            results = db.child("items").order_by_child(query_path).equal_to(identifier).get(token).val()
+            if results:
+                # .equal_to() can return multiple matches, we return the first one.
+                return list(results.values())[0]
+        except Exception as e:
+            print(f"Warning: Query on user-defined barcode field '{query_path}' failed. Is it indexed correctly in Firebase Rules? Error: {e}")
+
+    # Priority 3: Fallback to searching by Part Number (slow, scans all items)
     all_items_dict = db.child("items").get(token).val()
     if not all_items_dict: return None
     for sku, item_data in all_items_dict.items():
