@@ -1,0 +1,1052 @@
+import copy
+import sys
+from datetime import datetime
+
+import pytz
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage
+from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
+                             QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
+                             QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
+                             QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider)
+
+import a4_layout_generator
+import data_handler
+import firebase_handler
+import price_generator
+from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerDialog, QuickStockDialog,
+                     TemplateSelectionDialog, NewItemDialog, PrintQueueDialog, PriceHistoryDialog,
+                     TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
+                     ColumnMappingManagerDialog)
+from translations import Translator
+from utils import format_timedelta
+
+
+class RetailOperationsSuite(QMainWindow):
+    def __init__(self, user):
+        super().__init__()
+        self.user = user
+        self.uid = self.user.get('localId')
+        self.token = self.user.get('idToken')
+        self.settings = data_handler.get_settings()
+        self.translator = Translator(self.settings.get("language", "en"))
+        self.tr = self.translator.get
+        self.printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        self.column_mappings = firebase_handler.get_column_mappings(self.token)
+
+        self.branch_data_map = {
+            "branch_vaja": {"db_key": "Vazha-Pshavela Shop", "stock_col": "Stock Vaja"},
+            "branch_marj": {"db_key": "Marjanishvili", "stock_col": "Stock Marj"},
+            "branch_gldani": {"db_key": "Gldani Shop", "stock_col": "Stock Gldan"},
+        }
+
+        self.setWindowIcon(QIcon("assets/program/logo-no-flair.ico"))
+        self.setGeometry(100, 100, 1400, 800)
+        self.paper_sizes = data_handler.get_all_paper_sizes()
+        self.current_item_data = {}
+        self.all_items_cache = {}
+        self.themes = {
+            "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
+                        "logo_path": "assets/logo.png", "logo_path_ka": "assets/logo-geo.png"},
+            "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
+                       "logo_path": "assets/logo-santa-hat.png", "logo_path_ka": "assets/logo-geo-santa-hat.png",
+                       "bullet_image_path": "assets/snowflake.png", "background_snow": True}
+        }
+
+        self.tab_widget = QTabWidget()
+        self.setCentralWidget(self.tab_widget)
+
+        self.generator_tab = QWidget()
+        self.dashboard_tab = QWidget()
+
+        self.tab_widget.addTab(self.generator_tab, "Price Tag Generator")
+
+        self.setup_generator_ui()
+
+        if self.user.get('role') == 'Admin':
+            self.tab_widget.addTab(self.dashboard_tab, self.tr("admin_dashboard"))
+            self.setup_dashboard_ui()
+
+        self.create_menu()
+        self.retranslate_ui()
+        self.clear_all_fields()
+
+    def setup_generator_ui(self):
+        main_layout = QHBoxLayout(self.generator_tab)
+        main_layout.addWidget(self.create_left_panel(), 1)
+        main_layout.addWidget(self.create_right_panel(), 2)
+
+    def setup_dashboard_ui(self):
+        layout = QVBoxLayout(self.dashboard_tab)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # --- Controls ---
+        controls_layout = QHBoxLayout()
+        self.refresh_button = QPushButton(self.tr("dashboard_refresh_button"))
+        self.refresh_button.clicked.connect(self.update_dashboard_data)
+        controls_layout.addWidget(self.refresh_button)
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
+        # --- Stats ---
+        self.stats_group = QGroupBox(self.tr("dashboard_stats_group"))
+        stats_layout = QFormLayout()
+        self.stats_labels = {}
+        for key, data in self.branch_data_map.items():
+            display_name = self.tr(key)
+            self.stats_labels[key] = QLabel("...")
+            stats_layout.addRow(f"{display_name} ({self.tr('dashboard_on_display_label')})", self.stats_labels[key])
+        self.stats_group.setLayout(stats_layout)
+        layout.addWidget(self.stats_group)
+
+        # --- Low Stock ---
+        self.low_stock_group = QGroupBox()
+        low_stock_layout = QVBoxLayout()
+
+        # Filters
+        filters_layout = QHBoxLayout()
+        self.branch_filter_combo = QComboBox()
+        self.branch_filter_combo.addItem(self.tr("dashboard_all_branches"), "all")
+        for key, data in self.branch_data_map.items():
+            self.branch_filter_combo.addItem(self.tr(key), key)
+        self.branch_filter_combo.currentIndexChanged.connect(self.filter_low_stock_list)
+
+        self.category_filter_combo = QComboBox()
+        self.category_filter_combo.currentIndexChanged.connect(self.filter_low_stock_list)
+
+        filters_layout.addWidget(QLabel(self.tr("dashboard_filter_branch")))
+        filters_layout.addWidget(self.branch_filter_combo)
+        filters_layout.addWidget(QLabel(self.tr("dashboard_filter_category")))
+        filters_layout.addWidget(self.category_filter_combo)
+        filters_layout.addStretch()
+        low_stock_layout.addLayout(filters_layout)
+
+        # Table
+        self.low_stock_table = QTableWidget()
+        self.low_stock_table.setColumnCount(4)
+        self.low_stock_table.setHorizontalHeaderLabels(
+            [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"), self.tr("dashboard_header_category"),
+             self.tr("dashboard_header_stock")])
+        header = self.low_stock_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(1, 350)  # Give name column a good starting width
+        self.low_stock_table.setSortingEnabled(False)
+        header.sectionClicked.connect(self.sort_low_stock_table)
+        self.current_sort_col = -1
+        self.current_sort_order = Qt.SortOrder.AscendingOrder
+
+        low_stock_layout.addWidget(self.low_stock_table)
+        self.low_stock_group.setLayout(low_stock_layout)
+        layout.addWidget(self.low_stock_group)
+
+        self.update_dashboard_data()
+
+    def update_dashboard_data(self):
+        self.all_items_cache = firebase_handler.get_all_items(self.token) or {}
+        display_statuses = firebase_handler.get_display_status(self.token)
+
+        for key, data in self.branch_data_map.items():
+            db_key = data['db_key']
+            count = len(display_statuses.get(db_key, []))
+            self.stats_labels[key].setText(str(count))
+
+        self.category_filter_combo.blockSignals(True)
+        self.category_filter_combo.clear()
+        self.category_filter_combo.addItem(self.tr("dashboard_all_categories"), "all")
+        categories = sorted(list(set(item.get("Categories", "N/A") for item in self.all_items_cache.values())))
+        for cat in categories:
+            self.category_filter_combo.addItem(cat)
+        self.category_filter_combo.blockSignals(False)
+
+        self.filter_low_stock_list()
+
+    def filter_low_stock_list(self):
+        threshold = self.settings.get('low_stock_threshold', 3)
+        self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+
+        selected_branch_key = self.branch_filter_combo.currentData()
+        selected_category = self.category_filter_combo.currentText()
+        if self.category_filter_combo.currentData() == "all":
+            selected_category = "all"
+
+        low_stock_items = []
+        for sku, item_data in self.all_items_cache.items():
+            if selected_category != "all" and item_data.get("Categories") != selected_category:
+                continue
+
+            branches_to_check = [selected_branch_key] if selected_branch_key != "all" else self.branch_data_map.keys()
+
+            for branch_key in branches_to_check:
+                branch_info = self.branch_data_map[branch_key]
+                stock_col = branch_info['stock_col']
+                stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
+                if stock_str.isdigit() and 0 < int(stock_str) <= threshold:
+                    low_stock_items.append({
+                        "sku": sku,
+                        "name": item_data.get("Name", "N/A"),
+                        "category": item_data.get("Categories", "N/A"),
+                        "stock_val": int(stock_str),
+                        "stock_display": f"{branch_info['db_key']}: {int(stock_str)}"
+                    })
+
+        self.populate_low_stock_table(low_stock_items)
+
+    def sort_low_stock_table(self, column_index):
+        if self.current_sort_col == column_index:
+            self.current_sort_order = Qt.SortOrder.DescendingOrder if self.current_sort_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
+        else:
+            self.current_sort_col = column_index
+            self.current_sort_order = Qt.SortOrder.AscendingOrder
+
+        self.low_stock_table.sortItems(column_index, self.current_sort_order)
+
+    def populate_low_stock_table(self, items):
+        self.low_stock_table.setRowCount(0)
+        self.low_stock_table.setRowCount(len(items))
+
+        for row, item in enumerate(items):
+            sku_item = QTableWidgetItem(item['sku'])
+            name_item = QTableWidgetItem(item['name'])
+            category_item = QTableWidgetItem(item['category'])
+            stock_item = QTableWidgetItem()
+            stock_item.setData(Qt.ItemDataRole.DisplayRole, item['stock_display'])
+            stock_item.setData(Qt.ItemDataRole.UserRole, item['stock_val'])
+
+            self.low_stock_table.setItem(row, 0, sku_item)
+            self.low_stock_table.setItem(row, 1, name_item)
+            self.low_stock_table.setItem(row, 2, category_item)
+            self.low_stock_table.setItem(row, 3, stock_item)
+
+    def create_menu(self):
+        menu_bar = self.menuBar()
+        menu_bar.clear()
+
+        file_menu = menu_bar.addMenu(self.tr("file_menu"))
+
+        stock_checker_action = QAction(self.tr("stock_checker_menu"), self)
+        stock_checker_action.triggered.connect(self.open_quick_stock_checker)
+        file_menu.addAction(stock_checker_action)
+
+        select_printer_action = QAction(self.tr("select_printer_menu"), self)
+        select_printer_action.triggered.connect(self.select_printer)
+        file_menu.addAction(select_printer_action)
+
+        file_menu.addSeparator()
+
+        if self.user.get('role') == 'Admin':
+            admin_menu = menu_bar.addMenu(self.tr('admin_tools_menu'))
+
+            upload_action = QAction(self.tr('admin_upload_master_list'), self)
+            upload_action.triggered.connect(self.upload_master_list)
+            admin_menu.addAction(upload_action)
+
+            template_manager_action = QAction(self.tr("admin_template_manager"), self)
+            template_manager_action.triggered.connect(self.open_template_manager)
+            admin_menu.addAction(template_manager_action)
+
+            size_manager_action = QAction(self.tr("size_manager_menu"), self)
+            size_manager_action.triggered.connect(self.open_size_manager)
+            admin_menu.addAction(size_manager_action)
+
+            mapping_manager_action = QAction(self.tr("column_mapping_menu"), self)
+            mapping_manager_action.triggered.connect(self.open_column_mapping_manager)
+            admin_menu.addAction(mapping_manager_action)
+
+            activity_log_action = QAction(self.tr("admin_activity_log"), self)
+            activity_log_action.triggered.connect(self.open_activity_log)
+            admin_menu.addAction(activity_log_action)
+
+            user_mgmt_action = QAction(self.tr('admin_manage_users'), self)
+            user_mgmt_action.triggered.connect(self.open_user_management)
+            admin_menu.addAction(user_mgmt_action)
+
+    def open_quick_stock_checker(self):
+        dialog = QuickStockDialog(self.translator, self.token, self.branch_data_map, self)
+        dialog.exec()
+
+    def open_size_manager(self):
+        dialog = CustomSizeManagerDialog(self.translator, self)
+        if dialog.exec():
+            self.update_paper_size_combo()
+
+    def open_column_mapping_manager(self):
+        dialog = ColumnMappingManagerDialog(self.translator, self.token, self)
+        dialog.exec()
+
+    def open_user_management(self):
+        dialog = UserManagementDialog(self.translator, self.user, self)
+        dialog.exec()
+
+    def open_template_manager(self):
+        dialog = TemplateManagerDialog(self.translator, self.token, self)
+        dialog.exec()
+
+    def open_activity_log(self):
+        dialog = ActivityLogDialog(self.translator, self.token, self)
+        dialog.exec()
+
+    def upload_master_list(self):
+        filepath, _ = QFileDialog.getOpenFileName(self, self.tr("open_master_list_title"), "",
+                                                  "Text Files (*.txt);;All Files (*)")
+        if filepath:
+            success, val1, val2 = firebase_handler.sync_products_from_file(filepath, self.token)
+            if success:
+                message = self.tr("sync_results_message", val1, val2)
+                QMessageBox.information(self, self.tr("success_title"), message)
+                self.update_dashboard_data()
+            else:
+                QMessageBox.critical(self, "Error", val1)
+
+    def create_left_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+
+        top_layout = QHBoxLayout()
+        top_layout.addStretch()
+        self.lang_button = QPushButton()
+        self.lang_button.setFixedSize(40, 40)
+        self.lang_button.setIconSize(QSize(32, 32))
+        self.lang_button.clicked.connect(self.switch_language)
+        top_layout.addWidget(self.lang_button)
+        layout.addLayout(top_layout)
+
+        branch_group = QGroupBox(self.tr("branch_group_title"))
+        branch_layout = QFormLayout()
+        self.branch_combo = QComboBox()
+        self.branch_combo.currentIndexChanged.connect(self.handle_branch_change)
+        branch_layout.addRow(self.tr("branch_label"), self.branch_combo)
+        branch_group.setLayout(branch_layout)
+
+        self.find_item_group = QGroupBox(self.tr("find_item_group"))
+        find_layout = QVBoxLayout()
+        sku_layout = QHBoxLayout()
+        self.sku_input = QLineEdit()
+        self.sku_input.returnPressed.connect(self.find_item)
+        self.find_button = QPushButton()
+        self.find_button.clicked.connect(self.find_item)
+        self.add_to_queue_button = QPushButton()
+        self.add_to_queue_button.setFixedSize(40, self.find_button.sizeHint().height())
+        self.add_to_queue_button.clicked.connect(self.add_current_to_queue)
+
+        sku_layout.addWidget(self.sku_input)
+        sku_layout.addWidget(self.find_button)
+        sku_layout.addWidget(self.add_to_queue_button)
+        find_layout.addLayout(sku_layout)
+
+        status_layout = QHBoxLayout()
+        self.status_label_title = QLabel()
+        self.status_label_value = QLabel()
+        self.status_duration_label = QLabel()  # New label for duration
+        self.stock_label_title = QLabel(self.tr("stock_label"))
+        self.stock_label_value = QLabel("-")
+        self.low_stock_warning_label = QLabel()
+
+        self.toggle_status_button = QPushButton()
+        self.toggle_status_button.clicked.connect(self.toggle_display_status)
+        self.toggle_status_button.setVisible(False)
+
+        status_layout.addWidget(self.status_label_title)
+        status_layout.addWidget(self.status_label_value)
+        status_layout.addWidget(self.status_duration_label)  # Add to layout
+        status_layout.addStretch()
+        status_layout.addWidget(self.stock_label_title)
+        status_layout.addWidget(self.stock_label_value)
+        status_layout.addWidget(self.low_stock_warning_label)
+        status_layout.addStretch()
+        status_layout.addWidget(self.toggle_status_button)
+        find_layout.addLayout(status_layout)
+        self.find_item_group.setLayout(find_layout)
+
+        self.details_group = QGroupBox()
+        details_layout = QFormLayout()
+        self.name_label_widget, self.price_label_widget, self.sale_price_label_widget = QLabel(), QLabel(), QLabel()
+        self.name_input, self.price_input, self.sale_price_input = QLineEdit(), QLineEdit(), QLineEdit()
+        self.price_history_button = QPushButton(self.tr("price_history_button"))
+        self.price_history_button.clicked.connect(self.show_price_history)
+        self.price_history_button.setVisible(False)
+
+        self.name_input.textChanged.connect(self.update_preview)
+        self.price_input.textChanged.connect(self.update_preview)
+        self.sale_price_input.textChanged.connect(self.update_preview)
+        details_layout.addRow(self.name_label_widget, self.name_input)
+        price_layout = QHBoxLayout()
+        price_layout.addWidget(self.price_input)
+        price_layout.addWidget(self.price_history_button)
+        details_layout.addRow(self.price_label_widget, price_layout)
+        details_layout.addRow(self.sale_price_label_widget, self.sale_price_input)
+        self.details_group.setLayout(details_layout)
+
+        self.style_group = QGroupBox()
+        style_layout = QVBoxLayout()
+        settings_layout = QFormLayout()
+        self.paper_size_label, self.theme_label = QLabel(), QLabel();
+        self.paper_size_combo = QComboBox();
+        self.paper_size_combo.currentTextChanged.connect(self.handle_paper_size_change)
+        self.theme_combo = QComboBox();
+        self.theme_combo.currentTextChanged.connect(self.update_preview);
+        self.dual_lang_label = QLabel()
+        self.dual_lang_checkbox = QCheckBox();
+        self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False));
+        self.dual_lang_checkbox.stateChanged.connect(self.toggle_dual_language)
+        settings_layout.addRow(self.paper_size_label, self.paper_size_combo);
+        settings_layout.addRow(self.theme_label, self.theme_combo);
+        settings_layout.addRow(self.dual_lang_label, self.dual_lang_checkbox)
+        style_layout.addLayout(settings_layout)
+
+        self.layout_settings_button = QPushButton()
+        self.layout_settings_button.clicked.connect(self.open_layout_settings)
+        style_layout.addWidget(self.layout_settings_button)
+
+        self.style_group.setLayout(style_layout);
+
+        self.specs_group = QGroupBox();
+        specs_layout = QVBoxLayout();
+        self.specs_list = QListWidget()
+        self.specs_list.itemChanged.connect(self.update_preview);
+        specs_buttons_layout = QHBoxLayout();
+        self.add_spec_button = QPushButton()
+        self.add_spec_button.clicked.connect(self.add_spec)
+        self.edit_button, self.remove_button = QPushButton(), QPushButton()
+        self.edit_button.clicked.connect(self.edit_spec);
+        self.remove_button.clicked.connect(self.remove_spec)
+        specs_buttons_layout.addWidget(self.add_spec_button);
+        specs_buttons_layout.addWidget(self.edit_button);
+        specs_buttons_layout.addWidget(self.remove_button)
+        specs_layout.addWidget(self.specs_list);
+        specs_layout.addLayout(specs_buttons_layout);
+        self.specs_group.setLayout(specs_layout)
+
+        self.output_group = QGroupBox()
+        actions_layout = QVBoxLayout()
+        self.display_manager_button = QPushButton()
+        self.display_manager_button.setFixedHeight(40)
+        self.display_manager_button.clicked.connect(self.open_display_manager)
+        self.single_button = QPushButton()
+        self.single_button.setFixedHeight(40)
+        self.single_button.clicked.connect(self.generate_single)
+        self.batch_button = QPushButton()
+        self.batch_button.setFixedHeight(40)
+        self.batch_button.clicked.connect(self.open_print_queue)
+        actions_layout.addWidget(self.display_manager_button)
+        actions_layout.addWidget(self.single_button)
+        actions_layout.addWidget(self.batch_button)
+        self.output_group.setLayout(actions_layout)
+
+        layout.addWidget(branch_group)
+        layout.addWidget(self.find_item_group)
+        layout.addWidget(self.details_group)
+        layout.addWidget(self.style_group)
+        layout.addWidget(self.specs_group)
+        layout.addWidget(self.output_group)
+        layout.addStretch()
+
+        return panel
+
+    def create_right_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        self.preview_label = QLabel()
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setMinimumSize(600, 700)
+        self.preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
+        layout.addWidget(self.preview_label)
+        return panel
+
+    def retranslate_ui(self):
+        self.setWindowTitle(self.tr("window_title"))
+        self.tab_widget.setTabText(0, self.tr("generator_tab_title"))
+        if self.user.get('role') == 'Admin':
+            self.tab_widget.setTabText(1, self.tr("admin_dashboard"))
+            self.refresh_button.setText(self.tr("dashboard_refresh_button"))
+            self.stats_group.setTitle(self.tr("dashboard_stats_group"))
+            threshold = self.settings.get('low_stock_threshold', 3)
+            self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+            self.low_stock_table.setHorizontalHeaderLabels(
+                [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"),
+                 self.tr("dashboard_header_category"), self.tr("dashboard_header_stock")])
+
+        self.update_branch_combo()
+        self.update_paper_size_combo()
+        self.update_theme_combo()
+        self.create_menu()
+
+        self.find_item_group.setTitle(self.tr("find_item_group"))
+        self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
+        self.find_button.setText(self.tr("find_button"))
+        self.add_to_queue_button.setText("+")
+        self.add_to_queue_button.setToolTip(self.tr("add_to_queue_button"))
+        self.details_group.setTitle(self.tr("item_details_group"))
+        self.name_label_widget.setText(self.tr("name_label"))
+        self.price_label_widget.setText(self.tr("price_label"))
+        self.sale_price_label_widget.setText(self.tr("sale_price_label"))
+        self.style_group.setTitle(self.tr("style_group"))
+        self.paper_size_label.setText(self.tr("paper_size_label"))
+        self.theme_label.setText(self.tr("theme_label"))
+        self.dual_lang_label.setText(self.tr("dual_language_label"))
+        self.layout_settings_button.setText(self.tr("layout_settings_button"))
+        self.specs_group.setTitle(self.tr("specs_group"))
+        self.add_spec_button.setText(self.tr("add_button"))
+        self.edit_button.setText(self.tr("edit_button"))
+        self.remove_button.setText(self.tr("remove_button"))
+        self.output_group.setTitle(self.tr("output_group"))
+        self.display_manager_button.setText(self.tr("display_manager_button"))
+        self.single_button.setText(self.tr("generate_single_button"))
+        self.batch_button.setText(self.tr("generate_batch_button"))
+        self.status_label_title.setText(f"{self.tr('status_label')}:")
+        self.lang_button.setIcon(QIcon("assets/en.png" if self.translator.language == "en" else "assets/ka.png"))
+        self.update_status_display()
+        if not self.current_item_data:
+            self.preview_label.setText(self.tr("preview_default_text"))
+
+    def switch_language(self):
+        branch_key = self.settings.get("default_branch", "branch_vaja")
+        new_lang = "ka" if self.translator.language == "en" else "en"
+        self.translator.set_language(new_lang)
+        self.settings["language"] = new_lang
+        data_handler.save_settings(self.settings)
+        self.retranslate_ui()
+        index = self.branch_combo.findData(branch_key)
+        if index != -1:
+            self.branch_combo.setCurrentIndex(index)
+        self.update_preview()
+
+    def update_branch_combo(self):
+        self.branch_combo.blockSignals(True)
+        current_key = self.branch_combo.currentData() or self.settings.get("default_branch", "branch_vaja")
+        self.branch_combo.clear()
+        for key in self.branch_data_map.keys():
+            self.branch_combo.addItem(self.tr(key), key)
+
+        index = self.branch_combo.findData(current_key)
+        if index != -1:
+            self.branch_combo.setCurrentIndex(index)
+
+        self.branch_combo.blockSignals(False)
+
+    def handle_branch_change(self, index):
+        key = self.branch_combo.currentData()
+        if key:
+            self.settings["default_branch"] = key
+            data_handler.save_settings(self.settings)
+        self.update_status_display()
+        self.update_stock_display()
+        self.update_preview()
+
+    def get_current_branch_stock_column(self):
+        current_key = self.branch_combo.currentData()
+        return self.branch_data_map.get(current_key, {}).get("stock_col")
+
+    def get_current_branch_db_key(self):
+        current_key = self.branch_combo.currentData()
+        return self.branch_data_map.get(current_key, {}).get("db_key")
+
+    def open_display_manager(self):
+        branch_db_key = self.get_current_branch_db_key()
+        branch_stock_col = self.get_current_branch_stock_column()
+        dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
+        dialog.exec()
+
+    def open_print_queue(self):
+        dialog = PrintQueueDialog(self.translator, self.user, self)
+        if dialog.exec():
+            skus_to_print = dialog.get_skus()
+            if skus_to_print:
+                self.generate_batch(skus_to_print)
+
+    def add_current_to_queue(self):
+        if not self.current_item_data:
+            QMessageBox.warning(self, "No Item", "Please find an item to add to the queue.")
+            return
+
+        sku = self.current_item_data.get("SKU")
+        queue = firebase_handler.get_print_queue(self.uid, self.token)
+        if sku not in queue:
+            queue.append(sku)
+            firebase_handler.save_print_queue(self.uid, self.token, queue)
+            QMessageBox.information(self, "Success", f"Item {sku} added to the print queue.")
+        else:
+            QMessageBox.information(self, "Duplicate", f"Item {sku} is already in the print queue.")
+
+    def show_price_history(self):
+        if not self.current_item_data: return
+        sku = self.current_item_data.get("SKU")
+        dialog = PriceHistoryDialog(sku, self.translator, self.token, self)
+        dialog.exec()
+
+    def update_paper_size_combo(self):
+        self.paper_size_combo.blockSignals(True)
+        current_text = self.paper_size_combo.currentText()
+        self.paper_size_combo.clear()
+        self.paper_sizes = data_handler.get_all_paper_sizes()
+        sorted_sizes = sorted(self.paper_sizes.keys(),
+                              key=lambda s: self.paper_sizes[s]['dims'][0] * self.paper_sizes[s]['dims'][1])
+        self.paper_size_combo.addItems(sorted_sizes)
+
+        index = self.paper_size_combo.findText(current_text)
+        if index != -1:
+            self.paper_size_combo.setCurrentIndex(index)
+        else:
+            self.paper_size_combo.setCurrentText(self.settings.get("default_size", "14.4x8cm"))
+        self.paper_size_combo.blockSignals(False)
+
+    def update_theme_combo(self):
+        self.theme_combo.clear()
+        self.theme_combo.addItems(self.themes.keys())
+        self.theme_combo.setCurrentText(self.settings.get("default_theme", "Default"))
+
+    def open_layout_settings(self):
+        # Store a deep copy of the settings before opening the dialog
+        original_settings = copy.deepcopy(self.settings)
+
+        dialog = LayoutSettingsDialog(self.translator, self.settings, self)
+
+        if dialog.exec():
+            # OK was clicked, save the potentially modified settings
+            self.settings["layout_settings"] = dialog.get_layout_settings()
+            data_handler.save_settings(self.settings)
+        else:
+            # Cancel was clicked, restore the original settings
+            self.settings = original_settings
+
+        # Update the preview regardless of OK/Cancel to reflect final state
+        self.update_preview()
+
+    def clear_all_fields(self):
+        self.current_item_data = {}
+        self.name_input.clear()
+        self.sku_input.clear()
+        self.price_input.clear()
+        self.sale_price_input.clear()
+        self.specs_list.clear()
+        self.preview_label.setText(self.tr("preview_default_text"))
+        self.update_status_display()
+        self.update_stock_display()
+        self.price_history_button.setVisible(False)
+        self.toggle_status_button.setVisible(False)
+
+    def find_item(self):
+        identifier = self.sku_input.text().strip().upper()
+        if not identifier: return
+
+        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        if not item_data:
+            self.clear_all_fields()
+            reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
+                                         self.tr("sku_not_found_message", identifier) + "\n\n" + self.tr(
+                                             "register_new_item_prompt"),
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.register_new_item(identifier)
+            return
+
+        self.populate_ui_with_item_data(item_data)
+
+    def register_new_item(self, sku):
+        template_dialog = TemplateSelectionDialog(self.translator, self)
+        if not template_dialog.exec():
+            return
+
+        template_data = template_dialog.selected_template_data
+        template_specs = template_data.get("specs", [])
+        category_name = template_data.get("category_name", "")
+
+        dialog = NewItemDialog(sku, self.translator, template=template_specs, category_name=category_name, parent=self)
+        if dialog.exec():
+            new_data = dialog.new_item_data
+            if firebase_handler.add_new_item(new_data, self.token):
+                QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
+                self.sku_input.setText(sku)
+                self.find_item()
+            else:
+                QMessageBox.critical(self, self.tr("new_item_validation_error"), self.tr("new_item_save_error"))
+
+    def populate_ui_with_item_data(self, item_data):
+        self.current_item_data = item_data.copy()
+
+        # Use the unified spec processing function
+        self.current_item_data['all_specs'] = self.process_specifications(self.current_item_data)
+        self.current_item_data['part_number'] = self.current_item_data.get('attributes', {}).get('Part Number', '') \
+                                                or data_handler.extract_part_number(
+            item_data.get('Description', ''))
+
+        self.sku_input.setText(self.current_item_data.get('SKU'))
+        self.name_input.setText(self.current_item_data.get("Name", ""))
+        self.price_input.setText(self.current_item_data.get("Regular price", "").strip())
+        self.sale_price_input.setText(self.current_item_data.get("Sale price", "").strip())
+
+        self.update_specs_list()
+        self.update_status_display()
+        self.update_stock_display()
+        self.price_history_button.setVisible(True)
+        self.update_preview()
+
+    def update_stock_display(self):
+        if not self.current_item_data:
+            self.stock_label_value.setText("-")
+            self.low_stock_warning_label.setText("")
+            return
+
+        stock_col = self.get_current_branch_stock_column()
+        if not stock_col:
+            self.stock_label_value.setText("N/A")
+            self.low_stock_warning_label.setText("")
+            return
+
+        stock_str = str(self.current_item_data.get(stock_col, '0')).replace(',', '')
+        if stock_str.isdigit():
+            stock_val = int(stock_str)
+            self.stock_label_value.setText(str(stock_val))
+            threshold = self.settings.get('low_stock_threshold', 3)
+            if 0 < stock_val <= threshold:
+                self.low_stock_warning_label.setText(self.tr("low_stock_warning"))
+                self.low_stock_warning_label.setStyleSheet("color: red; font-weight: bold;")
+            else:
+                self.low_stock_warning_label.setText("")
+        else:
+            self.stock_label_value.setText(stock_str)
+            self.low_stock_warning_label.setText("")
+
+    def update_status_display(self):
+        self.status_duration_label.setVisible(False)
+        self.status_duration_label.setText("")
+
+        if not self.current_item_data:
+            self.status_label_value.setText("-")
+            self.status_label_value.setStyleSheet("")
+            self.toggle_status_button.setVisible(False)
+            return
+
+        sku = self.current_item_data.get('SKU')
+        branch_db_key = self.get_current_branch_db_key()
+        timestamp_str = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token)
+
+        if timestamp_str:
+            self.status_label_value.setText(self.tr('status_on_display'))
+            self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
+            self.toggle_status_button.setText(self.tr('set_to_storage_button'))
+
+            if isinstance(timestamp_str, str):
+                try:
+                    tbilisi_tz = pytz.timezone('Asia/Tbilisi')
+                    display_time = tbilisi_tz.localize(datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S'))
+                    now = datetime.now(tbilisi_tz)
+                    duration = now - display_time
+
+                    if duration.total_seconds() < 0:
+                        self.status_duration_label.setVisible(False)
+                    else:
+                        duration_str = format_timedelta(duration, self.translator)
+                        self.status_duration_label.setText(
+                            f"({self.tr('status_on_display_for', duration=duration_str)})")
+                        self.status_duration_label.setVisible(True)
+
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing timestamp string '{timestamp_str}': {e}")
+                    self.status_duration_label.setVisible(False)
+            else:
+                self.status_duration_label.setVisible(False)
+
+        else:
+            self.status_label_value.setText(self.tr('status_in_storage'))
+            self.status_label_value.setStyleSheet("color: red; font-weight: bold;")
+            self.toggle_status_button.setText(self.tr('set_to_display_button'))
+            self.status_duration_label.setVisible(False)
+
+        self.toggle_status_button.setVisible(True)
+
+    def toggle_display_status(self):
+        if not self.current_item_data: return
+        sku = self.current_item_data.get('SKU')
+        branch_db_key = self.get_current_branch_db_key()
+        is_on_display = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token) is not None
+
+        if is_on_display:
+            firebase_handler.remove_item_from_display(sku, branch_db_key, self.token)
+        else:
+            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+
+        self.update_status_display()
+
+    def generate_single(self):
+        if not self.current_item_data:
+            QMessageBox.warning(self, self.tr("no_item_title"), self.tr("no_item_message"))
+            return
+        sku = self.current_item_data.get('SKU')
+        self.generate_single_by_sku(sku, mark_on_display=True)
+
+    def generate_single_by_sku(self, sku, mark_on_display=False):
+        item_data = firebase_handler.find_item_by_identifier(sku, self.token)
+        if not item_data:
+            QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
+            return
+
+        if self.current_item_data and self.current_item_data.get('SKU') == sku:
+            data_to_print = self.get_current_data_from_ui()
+        else:
+            data_to_print = self._prepare_data_for_printing(item_data)
+
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
+        is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
+
+        q_pixmaps = []
+        if is_dual:
+            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                      language='en')
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                      language='ka')
+            q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
+                                QImage.Format.Format_RGB888)
+            q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
+                                QImage.Format.Format_RGB888)
+            q_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
+        else:
+            lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                   language=lang)
+            q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
+            q_pixmaps.append(QPixmap.fromImage(q_image))
+
+        self.handle_single_print_with_dialog(q_pixmaps, size_config)
+
+        if mark_on_display:
+            branch_db_key = self.get_current_branch_db_key()
+            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+            firebase_handler.log_activity(self.token, f"User printed and marked {sku} as on display.")
+
+        if self.current_item_data.get('SKU') == sku:
+            self.update_status_display()
+
+    def generate_batch(self, skus_to_print):
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        if not size_name or not theme_name: return
+
+        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
+        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
+
+        tags_per_sheet = layout_info.get('total', 0)
+        if tags_per_sheet <= 0:
+            QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
+            return
+
+        all_items_data = firebase_handler.get_items_by_sku(skus_to_print, self.token)
+        all_tags_pixmaps = []
+
+        for sku in skus_to_print:
+            item_data = all_items_data.get(sku)
+            if not item_data:
+                print(f"Warning: SKU {sku} not found for batch print.")
+                continue
+
+            data_to_print = self._prepare_data_for_printing(item_data)
+            is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
+
+            if is_dual:
+                img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                          language='en')
+                img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                          language='ka')
+                q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
+                                    QImage.Format.Format_RGB888)
+                q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
+                                    QImage.Format.Format_RGB888)
+                all_tags_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
+            else:
+                lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
+                img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                       language=lang)
+                q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
+                all_tags_pixmaps.append(QPixmap.fromImage(q_image))
+
+        if not all_tags_pixmaps:
+            QMessageBox.warning(self, "No Items Found", "None of the SKUs in the queue could be found.")
+            return
+
+        a4_pixmap = a4_layout_generator.create_a4_layout(all_tags_pixmaps, size_config['dims'])
+        self.handle_batch_print_with_dialog(a4_pixmap)
+        firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items.")
+
+    def handle_single_print_with_dialog(self, pixmaps, size_config):
+        dialog = QPrintDialog(self.printer, self)
+        if dialog.exec():
+            painter = QPainter(self.printer)
+            page_rect = self.printer.pageRect(QPrinter.Unit.Point)
+
+            for pixmap in pixmaps:
+                target_rect = QRectF(0, 0, pixmap.width(), pixmap.height())
+                target_rect.moveCenter(page_rect.center())
+                painter.drawPixmap(target_rect.toRect(), pixmap)
+                if pixmaps.index(pixmap) < len(pixmaps) - 1:
+                    self.printer.newPage()
+            painter.end()
+
+    def handle_batch_print_with_dialog(self, pixmap):
+        dialog = QPrintDialog(self.printer, self)
+        if dialog.exec():
+            painter = QPainter(self.printer)
+            page_rect = self.printer.pageRect(QPrinter.Unit.Point)
+            target_rect = QRectF(0, 0, pixmap.width(), pixmap.height())
+            target_rect.moveCenter(page_rect.center())
+            painter.drawPixmap(page_rect, pixmap, QRectF(pixmap.rect()))
+            painter.end()
+
+    def get_current_data_from_ui(self):
+        data = self.current_item_data.copy()
+        data["Name"] = self.name_input.text()
+        data["Regular price"] = self.price_input.text()
+        data["Sale price"] = self.sale_price_input.text()
+        data['all_specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count()) if
+                             self.specs_list.item(i).checkState() == Qt.CheckState.Checked]
+        return data
+
+    def _prepare_data_for_printing(self, item_data):
+        """Prepares a clean dictionary for the price generator, including processed specs."""
+        data = item_data.copy()
+        data['all_specs'] = self.process_specifications(item_data)
+        data['part_number'] = data.get('attributes', {}).get('Part Number', '') or data_handler.extract_part_number(
+            data.get('Description', ''))
+        return data
+
+    def update_preview(self):
+        if not self.current_item_data:
+            self.preview_label.setText(self.tr("preview_default_text"))
+            return
+
+        data = self.get_current_data_from_ui()
+        size_name = self.paper_size_combo.currentText()
+        theme_name = self.theme_combo.currentText()
+
+        if not size_name or not theme_name:
+            return
+
+        size_config = self.paper_sizes[size_name]
+        theme_config = self.themes[theme_name]
+        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
+
+        # For accessory styles, always use 'en' and don't allow dual language
+        is_accessory = size_config.get("is_accessory_style", False)
+        lang = 'en' if is_accessory else self.translator.language
+        is_dual = self.dual_lang_checkbox.isChecked() and not is_accessory
+
+        if is_dual:
+            # Generate two previews side-by-side
+            img_en = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='en')
+            img_ka = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='ka')
+            q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
+                                QImage.Format.Format_RGB888)
+            q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
+                                QImage.Format.Format_RGB888)
+            pixmap_en = QPixmap.fromImage(q_image_en)
+            pixmap_ka = QPixmap.fromImage(q_image_ka)
+
+            # Combine pixmaps
+            combined_width = pixmap_en.width() + pixmap_ka.width() + 10  # 10px spacing
+            combined_height = max(pixmap_en.height(), pixmap_ka.height())
+            combined_pixmap = QPixmap(combined_width, combined_height)
+            combined_pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(combined_pixmap)
+            painter.drawPixmap(0, 0, pixmap_en)
+            painter.drawPixmap(pixmap_en.width() + 10, 0, pixmap_ka)
+            painter.end()
+            final_pixmap = combined_pixmap
+        else:
+            # Generate a single preview
+            img = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language=lang)
+            q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
+            final_pixmap = QPixmap.fromImage(q_image)
+
+        self.preview_label.setPixmap(
+            final_pixmap.scaled(self.preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation))
+
+    def process_specifications(self, item_data):
+        """Extracts, cleans, and formats specifications from various sources within item_data."""
+        all_specs = []
+        # 1. From "Description" (HTML list)
+        all_specs.extend(data_handler.extract_specs_from_html(item_data.get("Description", "")))
+        # 2. From "attributes" dictionary
+        all_specs.extend(data_handler.extract_specs_from_attributes(item_data.get("attributes", {}), self.column_mappings))
+        # 3. From other top-level fields
+        all_specs.extend(data_handler.extract_specs_from_toplevel(item_data, self.column_mappings))
+
+        # Clean up and remove duplicates
+        unique_specs = []
+        seen_specs = set()
+        for spec in all_specs:
+            if spec not in seen_specs:
+                unique_specs.append(spec)
+                seen_specs.add(spec)
+        return unique_specs
+
+    def update_specs_list(self):
+        self.specs_list.clear()
+        if 'all_specs' in self.current_item_data:
+            size_name = self.paper_size_combo.currentText()
+            size_config = self.paper_sizes.get(size_name, {})
+            is_keyboard_layout = size_config.get('design') == 'keyboard'
+            spec_limit = self.paper_sizes.get(size_name, {}).get('spec_limit', 99)
+            
+            count = 0
+            for spec in self.current_item_data['all_specs']:
+                item = QListWidgetItem(spec)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                
+                # For keyboards, check all specs. Otherwise, respect the limit.
+                if is_keyboard_layout:
+                    item.setCheckState(Qt.CheckState.Checked)
+                else:
+                    if count < spec_limit:
+                        item.setCheckState(Qt.CheckState.Checked)
+                        count += 1
+                    else:
+                        item.setCheckState(Qt.CheckState.Unchecked)
+                self.specs_list.addItem(item)
+
+    def handle_paper_size_change(self):
+        self.update_specs_list()
+        self.update_preview()
+        size_name = self.paper_size_combo.currentText()
+        if size_name:
+            self.settings["default_size"] = size_name
+            data_handler.save_settings(self.settings)
+
+    def toggle_dual_language(self, state):
+        self.settings["generate_dual_language"] = (state == Qt.CheckState.Checked.value)
+        data_handler.save_settings(self.settings)
+        self.update_preview()
+
+    def add_spec(self):
+        text, ok = QInputDialog.getText(self, self.tr("add_spec_title"), self.tr("add_spec_prompt"))
+        if ok and text:
+            item = QListWidgetItem(text)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
+            self.specs_list.addItem(item)
+            self.update_preview()
+
+    def edit_spec(self):
+        current_item = self.specs_list.currentItem()
+        if not current_item: return
+        text, ok = QInputDialog.getText(self, self.tr("edit_spec_title"), self.tr("edit_spec_prompt"),
+                                        text=current_item.text())
+        if ok and text:
+            current_item.setText(text)
+            self.update_preview()
+
+    def remove_spec(self):
+        current_item = self.specs_list.currentItem()
+        if current_item:
+            self.specs_list.takeItem(self.specs_list.row(current_item))
+            self.update_preview()
+
+    def select_printer(self):
+        dialog = QPrintDialog(self.printer, self)
+        dialog.exec()

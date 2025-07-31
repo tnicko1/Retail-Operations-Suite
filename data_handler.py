@@ -178,7 +178,134 @@ def get_all_paper_sizes():
     return all_sizes
 
 
+def extract_specs_from_description(html_description):
+    """
+    Parses an HTML string (specifically <li> elements) and returns a dictionary
+    of key-value pairs.
+    """
+    if not html_description: return {}
+    soup = BeautifulSoup(html_description, 'html.parser')
+    specs = {}
+    for li in soup.find_all('li'):
+        text = li.get_text(strip=True)
+        if ':' in text:
+            key, value = text.split(':', 1)
+            specs[key.strip()] = value.strip()
+    return specs
+
+
 def extract_specifications(html_description):
     if not html_description: return []
     soup = BeautifulSoup(html_description, 'html.parser')
     return [li.get_text(strip=True).replace(':', ': ').replace('  ', ' ') for li in soup.find_all('li')]
+
+
+def extract_specs_from_html(html_content):
+    """Extracts specifications from an HTML string, returning a list of strings."""
+    if not html_content:
+        return []
+    soup = BeautifulSoup(html_content, 'html.parser')
+    # Find all <li> tags, as they contain the specs
+    return [li.get_text(strip=True) for li in soup.find_all('li')]
+
+
+def _natural_sort_key(s):
+    """A key for natural sorting of strings like 'c1', 'c10', 'c2'."""
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+
+
+def extract_specs_from_attributes(attributes, column_mappings):
+    """
+    Extracts specifications from the 'attributes' dictionary, applying display names,
+    ignoring rules from mappings, and pairing 'c' columns correctly.
+    """
+    if not attributes or not isinstance(attributes, dict):
+        return []
+    
+    specs = []
+    
+    # Sort keys naturally to ensure c1, c2, c10 order
+    sorted_keys = sorted(attributes.keys(), key=_natural_sort_key)
+    
+    # --- Process paired 'c' columns first ---
+    processed_c_keys = set()
+    # Iterate through the sorted keys to find 'c' columns that are attribute names
+    for i in range(len(sorted_keys)):
+        key_col = sorted_keys[i]
+        
+        # Skip if already processed or not a 'c' column for a label
+        if key_col in processed_c_keys or not key_col.startswith('c'):
+            continue
+            
+        # Find the corresponding value column, which should be the next 'c' column
+        try:
+            num = int(key_col[1:])
+            if num % 2 != 1: # We only start with odd numbers (c1, c3, etc.)
+                continue
+                
+            value_col_name = f'c{num + 1}'
+            if value_col_name in attributes:
+                spec_key = attributes.get(key_col)
+                spec_value = attributes.get(value_col_name)
+
+                if spec_key and spec_value:  # Both key and value must exist
+                    specs.append(f"{spec_key}: {spec_value}")
+                
+                processed_c_keys.add(key_col)
+                processed_c_keys.add(value_col_name)
+        except (ValueError, IndexError):
+            # Not a 'c' column or something is wrong, skip
+            continue
+
+    # --- Process other attributes that are not part of the 'c' pairs ---
+    for key in sorted_keys:
+        if key in processed_c_keys:
+            continue # Skip 'c' columns that we've already paired
+
+        value = attributes[key]
+        if not value:  # Skip empty values
+            continue
+            
+        mapping = column_mappings.get(key, {})
+        if mapping.get('ignore', False):
+            continue
+            
+        display_name = mapping.get('displayName', '').strip() or key
+        specs.append(f"{display_name}: {value}")
+        
+    return specs
+
+
+def extract_specs_from_toplevel(item_data, column_mappings):
+    """
+    Extracts specifications from top-level fields in the item data,
+    skipping known non-spec fields and all 'c' columns (which are handled elsewhere).
+    """
+    specs = []
+    known_non_spec_keys = {
+        'SKU', 'Name', 'Regular price', 'Sale price', 'Description',
+        'Categories', 'attributes', 'all_specs', 'part_number',
+        'Tags', 'Type', 'On sale?', 'In stock?'
+    }
+
+    # Process all other top-level fields that are not known non-spec fields,
+    # not stock fields, and not 'c' columns.
+    other_keys = [
+        k for k in item_data 
+        if k not in known_non_spec_keys 
+        and not k.startswith("Stock") 
+        and not (k.startswith('c') and k[1:].isdigit())
+    ]
+
+    for key in other_keys:
+        value = item_data[key]
+        if not value or isinstance(value, (dict, list)):
+            continue
+
+        mapping = column_mappings.get(key, {})
+        if mapping.get('ignore', False):
+            continue
+        display_name = mapping.get('displayName', '').strip() or key
+        specs.append(f"{display_name}: {value}")
+
+    return specs

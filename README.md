@@ -17,38 +17,51 @@ The **Retail Operations Suite** is a powerful, real-time tool designed to stream
 
 ## ✨ Key Features
 
-* **Dynamic Price Tag Generation**:
-    * Create price tags in multiple, fully customizable sizes.
-    * Support for standard and compact "accessory-style" designs.
-    * Theming engine for seasonal or promotional branding (e.g., "Winter" theme).
-    * Automatic dual-language (English/Georgian) tag generation.
-    * Live preview of the price tag as you edit details.
+*   **🏷️ Dynamic Price Tag Generation**:
+    *   Create price tags in multiple, fully customizable sizes, including standard, compact "accessory-style", and a specialized "keyboard" layout.
+    *   Live preview of the price tag as you edit details.
+    *   Theming engine for seasonal or promotional branding (e.g., "Winter" theme with snowflakes ❄️).
+    *   Automatic dual-language (English/Georgian) tag generation.
 
-* **Firebase Integration**:
-    * Real-time synchronization of all product data, display statuses, and user information.
-    * Secure authentication system allowing login with either email or a unique username.
+*   **📝 Intelligent Specification Handling**:
+    *   Automatically pairs related data columns (e.g., `c1` & `c2`) into clean "Key: Value" specifications like "Audio: Poly Audio".
+    *   Extracts specs from multiple data sources, including HTML descriptions and top-level product attributes.
+    *   For the keyboard layout, it dynamically cleans the product name by removing redundant words that are already present in the displayed specifications (e.g., "Razer Ornata Wired Mechanical" becomes "Razer Ornata" if "Wired" and "Mechanical" are shown as specs).
 
-* **Admin Dashboard**:
-    * At-a-glance statistics for items currently on display in each branch.
-    * A powerful, filterable list of items with low stock.
-    * Filter by specific branch or product category.
-    * Sortable and resizable columns for easy data analysis.
+*   **⚡ Real-Time Firebase Integration**:
+    *   Real-time synchronization of all product data, display statuses, and user information.
+    *   Secure authentication system allowing login with either email or a unique username.
 
-* **Advanced User & Role Management**:
-    * Admin and User roles with distinct permissions.
-    * Admins can manage users, templates, custom print sizes, and view the activity log.
+*   **🏪 Branch & Inventory Management**:
+    *   Track which items are on display versus in storage for each branch, including the duration they've been on display.
+    *   "Quick Stock Checker" utility to instantly view inventory levels for an item across all branches.
+    *   "Display Manager" tool to find suitable, in-stock replacements for returned items based on product category.
 
-* **Product & Display Management**:
-    * Track which items are on display versus in storage for each branch.
-    * "Display Manager" tool to find suitable replacements for returned items based on category and stock.
-    * "Quick Stock Checker" utility to view inventory levels across all branches instantly.
+*   **📊 Advanced Admin Dashboard**:
+    *   At-a-glance statistics for items currently on display in each branch.
+    *   A powerful, filterable list of items with low stock.
+    *   Filter by specific branch or product category.
+    *   Sortable and resizable columns for easy data analysis.
 
-* **Customization for Admins**:
-    * **Template Manager**: Define product categories and specification templates to speed up new item registration.
-    * **Custom Size Manager**: Define new custom print sizes, including the option for a compact "accessory" layout.
+## 🛠️ Admin Tools
+
+Admins have access to a suite of powerful tools to manage the application and data:
+
+*   **👥 User & Role Management**:
+    *   Distinct Admin and User roles with different permissions.
+    *   Admins can promote other users to the Admin role.
+
+*   **🎨 Data & Template Customization**:
+    *   **Template Manager**: Define product categories and specification templates to standardize and speed up new item registration.
+    *   **Custom Size Manager**: Define new custom print sizes, including the option for compact "accessory" or other specialized layouts.
+    *   **Column Mapping Manager**: Customize how raw product attributes are displayed. Set user-friendly "Display Names" for technical field names or choose to ignore certain attributes entirely so they don't appear in the specs list.
+
+*   **👁️ System & Activity Oversight**:
+    *   **Master List Sync**: Upload a master `.txt` file to perform a full synchronization of the product database.
+    *   **Activity Log**: View a log of important actions taken by users, such as logins, data syncs, and template updates.
+    *   **Print Queue**: A persistent, user-specific queue for batch printing. Admins can also save and load frequently used lists of SKUs.
 
 ## 📸 Screenshots
-
 
 |               Main Generator Window                |                      Admin Dashboard                       |
 |:--------------------------------------------------:|:----------------------------------------------------------:|
@@ -59,22 +72,23 @@ The **Retail Operations Suite** is a powerful, real-time tool designed to stream
 | ![Custom Size Manager](assets/screenshots/custom-size-dialog.png) | ![Quick Stock Checker](assets/screenshots/quick-stock-checker.png) |
 
 
-## 🛠️ Technology Stack
+## 💻 Technology Stack
 
-* **Framework**: PyQt6
-* **Database**: Firebase Realtime Database
-* **Authentication**: Firebase Authentication
-* **Image Processing**: Pillow
-* **Languages**: Python
+*   **Framework**: PyQt6
+*   **Database**: Firebase Realtime Database
+*   **Authentication**: Firebase Authentication
+*   **Image Processing**: Pillow
+*   **Data Parsing**: Beautiful Soup
+*   **Languages**: Python
 
-## ⚙️ Setup and Installation
+## 📦 Setup and Installation
 
 To get the project running locally, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [your-repository-url]
-    cd RetailOperationsSuite
+    git clone https://github.com/tnicko1/Retail-Operations-Suite
+    cd Retail-Operations-Suite-dev
     ```
 
 2.  **Create a virtual environment and activate it:**
@@ -94,10 +108,10 @@ To get the project running locally, follow these steps:
     ```
 
 4.  **Configure Firebase:**
-    * In the project root, you will find a file named `config.template.json`.
-    * **Make a copy** of this file and rename it to `config.json`.
-    * Open the new `config.json` and fill in your actual Firebase project configuration credentials. You can get these from your Firebase project settings ("Project Overview" > "Project settings" > "General" > "Your apps" > "SDK setup and configuration").
-    * **The `config.json` file is included in `.gitignore` and will not be committed to the repository.** This is critical for keeping your project keys secure.
+    *   In the project root, you will find a file named `config.template.json`.
+    *   **Make a copy** of this file and rename it to `config.json`.
+    *   Open the new `config.json` and fill in your actual Firebase project configuration credentials. You can get these from your Firebase project settings ("Project Overview" > "Project settings" > "General" > "Your apps" > "SDK setup and configuration").
+    *   **The `config.json` file is included in `.gitignore` and will not be committed to the repository.** This is critical for keeping your project keys secure.
 
 5.  **Run the application:**
     ```bash

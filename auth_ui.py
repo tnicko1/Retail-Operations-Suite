@@ -28,7 +28,10 @@ class LoginWindow(QDialog):
         self.identifier_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.returnPressed.connect(self.handle_login)
+        # The login button is the default, so the dialog's accept() action
+        # will handle the Enter key press correctly. Connecting returnPressed
+        # here is redundant and causes the double signal.
+        # self.password_input.returnPressed.connect(self.handle_login)
 
         form_layout.addRow(self.translator.get("login_identifier_label"), self.identifier_input)
         form_layout.addRow(self.translator.get("login_password_label"), self.password_input)
@@ -39,6 +42,7 @@ class LoginWindow(QDialog):
         self.register_button = QPushButton(self.translator.get("register_button"))
 
         self.login_button.clicked.connect(self.handle_login)
+        self.login_button.setDefault(True)  # This is the key for Enter key handling
         self.register_button.clicked.connect(self.handle_register)
 
         layout.addWidget(self.login_button)
@@ -53,14 +57,13 @@ class LoginWindow(QDialog):
             return
 
         try:
-            self.user = firebase_handler.login_user(identifier, password)
-            if self.user:
+            self.user, error = firebase_handler.login_user(identifier, password)
+            if error:
+                QMessageBox.critical(self, "Login Failed", error)
+            elif self.user:
                 self.accept()
-            else:
-                # The specific error is now handled inside firebase_handler
-                pass  # QMessageBox is shown in the handler
         except Exception as e:
-            QMessageBox.critical(self, "Login Error", f"An error occurred during login: {e}")
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")
 
     def handle_register(self):
         register_dialog = RegisterDialog(self)

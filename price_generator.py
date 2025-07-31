@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import random
 import math
+import re
 from translations import Translator
 from data_handler import get_default_layout_settings
 
@@ -176,9 +177,38 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     # Draw a subtle vertical separator
     draw.line([(separator_x, margin), (separator_x, height_px - margin)], fill=border_color, width=2)
 
-    # --- Left Panel (Product Name) ---
+    # --- Prepare Specs and Clean Name ---
+    key_specs_values = []
+    all_specs = item_data.get('all_specs', [])
+    spec_keywords = ['mechanical', 'switch', 'layout', 'type', 'technology', 'wired', 'wireless']
+    for spec in all_specs:
+        if any(keyword in spec.lower() for keyword in spec_keywords):
+            if ':' in spec:
+                label, value = spec.split(':', 1)
+                key_specs_values.append(value.strip())
+            else:
+                key_specs_values.append(spec)
+
+    # Remove duplicates while preserving order and take the first 4
+    unique_specs = list(dict.fromkeys(key_specs_values))
+    displayed_specs = unique_specs[:4]
+
+    # Clean the name based on the displayed specs
     name_text = item_data.get('Name', 'N/A')
-    wrapped_lines = wrap_text(name_text, name_font, left_panel_width - (2 * margin))
+    display_name = name_text
+    for spec_val in displayed_specs:
+        # Split multi-word specs and clean each word from the name
+        for word in spec_val.split():
+            # Use word boundaries (\b) to avoid removing parts of words
+            pattern = r'\b' + re.escape(word) + r'\b'
+            display_name = re.sub(pattern, '', display_name, flags=re.IGNORECASE)
+
+    # Clean up extra whitespace that may result from removal
+    display_name = ' '.join(display_name.split())
+
+
+    # --- Left Panel (Product Name) ---
+    wrapped_lines = wrap_text(display_name, name_font, left_panel_width - (2 * margin))
 
     ascent, descent = name_font.getmetrics()
     line_height = ascent + descent
@@ -260,24 +290,13 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
         draw.text((pn_value_bbox[0] - 5, pn_y), pn_label, font=info_font_bold, fill=price_color, anchor="rs")
 
     # --- Optional Specs & Red Accent Line ---
-    key_specs = []
-    all_specs = item_data.get('specs', [])
-    spec_keywords = ['mechanical', 'switch', 'layout', 'type', 'technology']
-    for spec in all_specs:
-        if any(keyword in spec.lower() for keyword in spec_keywords):
-            if ':' in spec:
-                label, value = spec.split(':', 1)
-                key_specs.append(value.strip())
-            else:
-                key_specs.append(spec)
-
     line_y = y_start + total_text_height + (margin / 2)
     draw.line([(margin, line_y), (separator_x - margin, line_y)], fill=price_color, width=2)
 
-    if key_specs:
-        spec_text = " | ".join(key_specs[:2])
+    if displayed_specs:
+        spec_text = " | ".join(displayed_specs)
         spec_font = get_font(PRIMARY_FONT_PATH, base_info_size * 0.9 * scale_factor, FALLBACK_FONT_EN)
-        spec_y = line_y + margin  # Increased spacing
+        spec_y = line_y + margin
         draw.text((left_panel_center_x, spec_y), spec_text, font=spec_font, fill=text_color, anchor="ms",
                   align='center')
 
@@ -371,7 +390,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     # Reduced the extra padding from 0.04 to 0.02 to allow more specs to fit
     max_y_for_specs = height_px - footer_height - (0.02 * height_px)
 
-    all_specs = item_data.get('specs', [])
+    all_specs = item_data.get('all_specs', [])
     warranty_spec = None
     other_specs = []
     for spec in all_specs:
@@ -461,17 +480,23 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if ':' in spec:
             label, value = spec.split(':', 1)
             value = value.strip()
-            translated_label = translator.get_spec_label(label.strip(), language)
-            label_text = translated_label + ': '
+            # The label is already what it should be, we just add the colon for display
+            label_text = label.strip() + ': '
             draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color, anchor='ls')
+            
+            # Calculate position for the value part
             value_x = label_x + spec_font_bold.getbbox(label_text)[2]
             remaining_width = width_px - value_x - margin
+            
+            # Wrap the value text if it's too long
             wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
             for i, line in enumerate(wrapped_values):
                 draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
+                # If the value wraps, we need to move the cursor down for the next line of the value
                 if i < len(wrapped_values) - 1:
                     y_cursor += spec_line_height + spec_line_spacing
         else:
+            # If there's no colon, draw the whole spec as regular text
             draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
         y_cursor += spec_line_height + spec_line_spacing
 

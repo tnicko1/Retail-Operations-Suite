@@ -15,7 +15,6 @@ import re
 from datetime import datetime
 import pytz
 from data_handler import extract_part_number, extract_specifications, sanitize_for_indexing
-from PyQt6.QtWidgets import QMessageBox
 
 firebase_app = None
 auth = None
@@ -57,6 +56,9 @@ def get_email_for_username(username):
 def login_user(identifier, password):
     """
     Signs the user in using either an email or a username.
+    Returns a tuple: (user, error_message).
+    On success, error_message is None.
+    On failure, user is None.
     """
     email = None
     identifier = identifier.strip()
@@ -65,8 +67,7 @@ def login_user(identifier, password):
     else:
         email = get_email_for_username(identifier.lower())
         if not email:
-            QMessageBox.critical(None, "Login Failed", f"Username '{identifier}' not found.")
-            return None
+            return None, f"Username '{identifier}' not found."
 
     try:
         user = auth.sign_in_with_email_and_password(email, password)
@@ -75,24 +76,22 @@ def login_user(identifier, password):
         if user_profile:
             user['role'] = user_profile.get('role', 'User')
             user['username'] = user_profile.get('username', 'N/A')
-        else:  # Should not happen for a valid user, but as a fallback
+        else:
             user['role'] = 'User'
             user['username'] = 'N/A'
 
         log_activity(user.get('idToken'), f"User {user['username']} ({email}) logged in.")
-        return user
+        return user, None
     except Exception as e:
-        # Parse the error message from Firebase
         try:
             error_json = e.args[1]
             error_message = json.loads(error_json)['error']['message']
             if error_message == "INVALID_PASSWORD" or error_message == "EMAIL_NOT_FOUND":
-                QMessageBox.critical(None, "Login Failed", "Invalid identifier or password.")
+                return None, "Invalid identifier or password."
             else:
-                QMessageBox.critical(None, "Login Failed", f"Firebase error: {error_message}")
+                return None, f"Firebase error: {error_message}"
         except (IndexError, KeyError, json.JSONDecodeError):
-            QMessageBox.critical(None, "Login Failed", f"An unexpected error occurred: {e}")
-        return None
+            return None, f"An unexpected error occurred: {e}"
 
 
 def is_first_user():
@@ -422,6 +421,73 @@ def get_item_display_timestamp(sku, branch_db_key, token):
     except Exception as e:
         print(f"Error checking display status for {sku}: {e}")
         return None
+
+
+# --- Column Mapping ---
+def get_column_mappings(token):
+    """Fetches the column mapping rules from Firebase."""
+    if not token: return {}
+    mappings = db.child("column_mappings").get(token).val()
+    return mappings if mappings else {}
+
+
+def save_column_mappings(mappings, token):
+    """Saves the entire column mapping object to Firebase."""
+    if not token: return False
+    try:
+        db.child("column_mappings").set(mappings, token)
+        log_activity(token, "Admin updated the column mappings.")
+        return True
+    except Exception as e:
+        print(f"Error saving column mappings: {e}")
+        return False
+
+
+def get_all_attribute_keys(token):
+    """Scans all items to find every unique key used in 'attributes'."""
+    if not token: return set()
+    all_items = get_all_items(token)
+    if not all_items: return set()
+
+    all_keys = set()
+    for item_data in all_items.values():
+        if 'attributes' in item_data and isinstance(item_data['attributes'], dict):
+            for key in item_data['attributes'].keys():
+                all_keys.add(key)
+    return all_keys
+
+
+def get_attributes_with_examples(token):
+    """
+    Fetches all unique attribute keys from all products in Firebase,
+    along with a single example value for each key.
+    """
+    if not token:
+        return set(), {}
+
+    all_items = get_all_items(token)
+    if not all_items:
+        return set(), {}
+
+    all_keys = set()
+    example_values = {}
+
+    items_iterator = all_items.values() if isinstance(all_items, dict) else all_items
+
+    for item in items_iterator:
+        if not item or not isinstance(item, dict):
+            continue
+
+        # Process 'attributes' dictionary
+        if 'attributes' in item and isinstance(item['attributes'], dict):
+            for key, value in item['attributes'].items():
+                if value is not None and str(value).strip() != "":
+                    all_keys.add(key)
+                    if key not in example_values:
+                        example_values[key] = str(value)
+    return all_keys, example_values
+
+
 
 
 # --- Template Management ---

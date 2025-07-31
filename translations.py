@@ -193,6 +193,17 @@ TRANSLATIONS = {
         "user_mgmt_confirm_promote_title": "Confirm Promotion",
         "user_mgmt_confirm_promote_message": "Are you sure you want to promote {} to an Admin?",
 
+        # Column Mapping Manager
+        "column_mapping_menu": "Column Mapping Manager",
+        "column_mapping_title": "Column Mapping Manager",
+        "column_mapping_info": "Define how to display columns from your master file on the price tag.",
+        "column_mapping_refresh_button": "Refresh Columns from Database",
+        "column_mapping_header_original": "Original Column Name",
+        "column_mapping_header_display": "Display Name (on Tag)",
+        "column_mapping_header_ignore": "Ignore Column",
+        "column_mapping_save_success": "Column mappings saved successfully.",
+        "column_mapping_save_error": "Failed to save column mappings.",
+
         # New Item & Template Dialogs
         "new_item_dialog_title": "Register New Item",
         "new_item_sku_label": "SKU:",
