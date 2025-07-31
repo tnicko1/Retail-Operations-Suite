@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 
 import pytz
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -36,6 +36,11 @@ class RetailOperationsSuite(QMainWindow):
         self.tr = self.translator.get
         self.printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         self.column_mappings = firebase_handler.get_column_mappings(self.token)
+
+        # Barcode scanner detection setup
+        self.scan_timer = QTimer(self)
+        self.scan_timer.setSingleShot(True)
+        self.scan_timer.timeout.connect(self.process_scan)
 
         self.branch_data_map = {
             "branch_vaja": {"db_key": "Vazha-Pshavela Shop", "stock_col": "Stock Vaja"},
@@ -1050,3 +1055,16 @@ class RetailOperationsSuite(QMainWindow):
     def select_printer(self):
         dialog = QPrintDialog(self.printer, self)
         dialog.exec()
+
+    def handle_sku_input(self, text):
+        # Any text change restarts the timer and appends to the buffer.
+        self.scan_buffer += text
+        self.scan_timer.start()
+
+    def process_scan(self):
+        # When the timer times out, process the buffer.
+        # We check if the buffer is long enough to be a scan and not just fast typing.
+        if len(self.scan_buffer) > 3:
+            self.sku_input.setText(self.scan_buffer)
+            self.find_item()
+        self.scan_buffer = '' # Clear buffer after processing
