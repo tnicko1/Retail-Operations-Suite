@@ -134,12 +134,17 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
 
     display_price = ""
     try:
-        if sale_price and float(sale_price.replace(',', '.')) > 0:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+
+        if sale_val > 0 and sale_val != regular_val:
             display_price = sale_price
-        elif regular_price:
+        elif regular_val > 0:
             display_price = regular_price
+        elif sale_val > 0: # Fallback if only sale price exists
+             display_price = sale_price
     except (ValueError, TypeError):
-        display_price = regular_price
+        display_price = regular_price or sale_price
 
     if display_price:
         price_text = f"₾{display_price}"
@@ -253,13 +258,14 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     regular_price = item_data.get('Regular price', '').strip()
 
     try:
-        has_sale_price = sale_price and float(sale_price.replace(',', '.')) > 0
-        has_regular_price = regular_price and float(regular_price.replace(',', '.')) > 0
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
 
-        if has_sale_price:
+        # Condition: sale price is valid, greater than zero, and different from regular price
+        if sale_val > 0 and sale_val != regular_val:
             sale_text = f"₾{sale_price}"
             draw.text((right_panel_center_x, price_y), sale_text, font=price_font, fill=price_color, anchor="mm")
-            if has_regular_price:
+            if regular_val > 0:
                 orig_text = f"₾{regular_price}"
                 strikethrough_y = price_y - (base_strikethrough_size * scale_factor * 1.2)
                 draw.text((right_panel_center_x, strikethrough_y), orig_text, font=strikethrough_font,
@@ -269,12 +275,19 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
                 draw.line(
                     [(bbox[0], bbox[1] + (bbox[3] - bbox[1]) / 2), (bbox[2], bbox[1] + (bbox[3] - bbox[1]) / 2)],
                     fill=text_color, width=3)
-        elif has_regular_price:
+        elif regular_val > 0:
             price_text = f"₾{regular_price}"
             draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+        elif sale_val > 0: # Fallback if only sale price exists
+            price_text = f"₾{sale_price}"
+            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+
     except (ValueError, TypeError):
-        if regular_price:
+        if regular_price: # Fallback for non-numeric price data
             price_text = f"₾{regular_price}"
+            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+        elif sale_price:
+            price_text = f"₾{sale_price}"
             draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
 
     # --- Footer Info (SKU, P/N) ---
@@ -488,8 +501,9 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if ':' in spec:
             label, value = spec.split(':', 1)
             value = value.strip()
-            # The label is already what it should be, we just add the colon for display
-            label_text = label.strip() + ': '
+            # The label needs to be translated before display
+            translated_label = translator.get_spec_label(label.strip(), language)
+            label_text = translated_label + ': '
             draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color, anchor='ls')
             
             # Calculate position for the value part
@@ -521,11 +535,22 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     price_x = width_px - margin
     price_y = footer_center_y
     try:
-        has_sale_price = sale_price and float(sale_price.replace(',', '.')) > 0
-        has_regular_price = regular_price and float(regular_price.replace(',', '.')) > 0
-        if has_sale_price:
+        sale_val, regular_val = 0, 0
+        if sale_price:
+            try:
+                sale_val = float(sale_price.replace(',', '.'))
+            except ValueError:
+                sale_val = 0
+        if regular_price:
+            try:
+                regular_val = float(regular_price.replace(',', '.'))
+            except ValueError:
+                regular_val = 0
+
+        # Condition: sale price is valid, greater than zero, and different from regular price
+        if sale_val > 0 and sale_val != regular_val:
             draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
-            if has_regular_price:
+            if regular_val > 0:
                 orig_text = f"₾{regular_price}"
                 sale_bbox = draw.textbbox((price_x, price_y), f"₾{sale_price}", font=price_font, anchor='rm')
                 orig_x = sale_bbox[0] - (20 * scale_factor)
@@ -533,11 +558,16 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
                 drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
                 draw.line([(drawn_orig_bbox[0], price_y), (drawn_orig_bbox[2], price_y)], fill=strikethrough_color,
                           width=line_width)
-        elif has_regular_price:
+        elif regular_val > 0:
             draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
+        elif sale_val > 0: # Fallback if only sale price exists
+            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
+
     except (ValueError, TypeError):
-        if regular_price:
+        if regular_price: # Fallback for non-numeric price data
             draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
+        elif sale_price:
+            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
 
     # --- LOGO & P/N ---
     logo_top_y = 0.03 * height_px

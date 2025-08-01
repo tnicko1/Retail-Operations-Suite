@@ -3,8 +3,8 @@ import sys
 from datetime import datetime
 
 import pytz
-from PyQt6.QtCore import Qt, QSize, QTimer
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage
+from PyQt6.QtCore import Qt, QSize, QTimer, QRectF
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage, QPainter, QPageLayout
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
@@ -801,25 +801,26 @@ class RetailOperationsSuite(QMainWindow):
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
 
-        q_pixmaps = []
+        a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                      language='en')
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                      language='ka')
-            q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
-                                QImage.Format.Format_RGB888)
-            q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
-                                QImage.Format.Format_RGB888)
-            q_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
+            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='en')
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='ka')
+            
+            # Use the A4 layout generator for dual language tags
+            a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
+            for a4_img in a4_images:
+                q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
+                a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                   language=lang)
-            q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
-            q_pixmaps.append(QPixmap.fromImage(q_image))
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language=lang)
+            
+            # Use the A4 layout generator for a single tag
+            a4_img = a4_layout_generator.create_a4_for_single(img)
+            q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
+            a4_pixmaps.append(QPixmap.fromImage(q_image))
 
-        self.handle_single_print_with_dialog(q_pixmaps, size_config)
+        self.handle_a4_print_with_dialog(a4_pixmaps)
 
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
@@ -843,7 +844,7 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         all_items_data = firebase_handler.get_items_by_sku(skus_to_print, self.token)
-        all_tags_pixmaps = []
+        all_tags_images = []
 
         for sku in skus_to_print:
             item_data = all_items_data.get(sku)
@@ -859,39 +860,64 @@ class RetailOperationsSuite(QMainWindow):
                                                           language='en')
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
                                                           language='ka')
-                q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
-                                    QImage.Format.Format_RGB888)
-                q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
-                                    QImage.Format.Format_RGB888)
-                all_tags_pixmaps.extend([QPixmap.fromImage(q_image_en), QPixmap.fromImage(q_image_ka)])
+                all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
                                                        language=lang)
-                q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
-                all_tags_pixmaps.append(QPixmap.fromImage(q_image))
+                all_tags_images.append(img)
 
-        if not all_tags_pixmaps:
+        if not all_tags_images:
             QMessageBox.warning(self, "No Items Found", "None of the SKUs in the queue could be found.")
             return
 
-        a4_pixmap = a4_layout_generator.create_a4_layout(all_tags_pixmaps, size_config['dims'])
-        self.handle_batch_print_with_dialog(a4_pixmap)
-        firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items.")
+        a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info)
 
-    def handle_single_print_with_dialog(self, pixmaps, size_config):
+        a4_pixmaps = []
+        for page in a4_pages:
+            q_image = QImage(page.tobytes(), page.width, page.height, page.width * 3,
+                             QImage.Format.Format_RGB888)
+            a4_pixmaps.append(QPixmap.fromImage(q_image))
+
+        if not a4_pixmaps:
+            QMessageBox.warning(self, "No Pages", "Could not generate any pages to print.")
+            return
+
+        if self.handle_a4_print_with_dialog(a4_pixmaps):
+            branch_db_key = self.get_current_branch_db_key()
+            for sku in skus_to_print:
+                firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+
+            if self.current_item_data and self.current_item_data.get('SKU') in skus_to_print:
+                self.update_status_display()
+
+            firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items and set them to 'on display'.")
+
+    def handle_a4_print_with_dialog(self, pixmaps):
         dialog = QPrintDialog(self.printer, self)
         if dialog.exec():
+            self.printer.setResolution(price_generator.DPI)
             painter = QPainter(self.printer)
-            page_rect = self.printer.pageRect(QPrinter.Unit.Point)
+            for i, pixmap in enumerate(pixmaps):
+                # Get the printable area rectangle in device pixels. This rectangle's top-left
+                # (x, y) coordinate gives us the physical hardware margins of the printer.
+                printable_rect_px = self.printer.pageRect(QPrinter.Unit.DevicePixel)
 
-            for pixmap in pixmaps:
-                target_rect = QRectF(0, 0, pixmap.width(), pixmap.height())
-                target_rect.moveCenter(page_rect.center())
-                painter.drawPixmap(target_rect.toRect(), pixmap)
-                if pixmaps.index(pixmap) < len(pixmaps) - 1:
+                # The painter's coordinate system starts at the top-left of the printable area.
+                # To draw our full-page pixmap as if we're drawing on the physical paper (origin 0,0),
+                # we must offset our drawing by the negative of the printable area's origin.
+                # This effectively cancels out the printer's hardware margins, ensuring a true 1:1 print.
+                x_offset = -printable_rect_px.x()
+                y_offset = -printable_rect_px.y()
+
+                # Draw the pixmap at the calculated offset.
+                painter.drawPixmap(int(x_offset), int(y_offset), pixmap)
+
+                if i < len(pixmaps) - 1:
                     self.printer.newPage()
             painter.end()
+            return True
+        return False
 
     def handle_batch_print_with_dialog(self, pixmap):
         dialog = QPrintDialog(self.printer, self)

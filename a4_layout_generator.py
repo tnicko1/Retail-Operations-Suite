@@ -100,29 +100,36 @@ def calculate_layout(tag_width_cm, tag_height_cm):
         return {"total": total_p, "cols": cols_p, "rows": rows_p, "tag_dims": (tag_w_px, tag_h_px), "rotated": False}
 
 
-def create_a4_sheet(tag_images, layout_info):
+def create_a4_layouts(tag_images, layout_info):
     """
-    Pastes a list of tag images onto a blank A4 sheet for batch printing.
-    The grid of tags is centered on the page.
+    Pastes a list of tag images onto one or more blank A4 sheets for batch printing.
+    The grid of tags is centered on each page.
+    Returns a list of A4 sheet images.
     """
     a4_w_px, a4_h_px = cm_to_pixels(A4_WIDTH_CM), cm_to_pixels(A4_HEIGHT_CM)
-    a4_sheet = Image.new('RGB', (a4_w_px, a4_h_px), 'white')
-
     tag_w, tag_h = layout_info['tag_dims']
     cols, rows = layout_info['cols'], layout_info['rows']
+    tags_per_sheet = layout_info['total']
+
+    if tags_per_sheet == 0:
+        return []
 
     # Center the entire grid of tags on the full A4 page.
     grid_width, grid_height = cols * tag_w, rows * tag_h
     start_x, start_y = (a4_w_px - grid_width) // 2, (a4_h_px - grid_height) // 2
 
-    x, y = start_x, start_y
-    for i, tag_img in enumerate(tag_images):
-        if i > 0 and i % cols == 0:
-            y += tag_h
-            x = start_x
-        if layout_info['rotated']:
-            tag_img = tag_img.rotate(90, expand=True)
-        a4_sheet.paste(tag_img, (x, y))
-        x += tag_w
+    a4_sheets = []
+    for sheet_tags in chunks(tag_images, tags_per_sheet):
+        a4_sheet = Image.new('RGB', (a4_w_px, a4_h_px), 'white')
+        x, y = start_x, start_y
+        for i, tag_img in enumerate(sheet_tags):
+            if i > 0 and i % cols == 0:
+                y += tag_h
+                x = start_x
+            if layout_info['rotated']:
+                tag_img = tag_img.rotate(90, expand=True)
+            a4_sheet.paste(tag_img, (x, y))
+            x += tag_w
+        a4_sheets.append(a4_sheet)
 
-    return a4_sheet
+    return a4_sheets

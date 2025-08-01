@@ -290,6 +290,23 @@ def get_all_items(token):
         return None
 
 
+def get_items_by_sku(skus, token):
+    """Fetches a batch of items from Firebase by their SKUs and returns them as a dictionary."""
+    if not skus or not token:
+        return {}
+
+    items_data = {}
+    for sku in skus:
+        try:
+            item = db.child("items").child(sku).get(token).val()
+            if item:
+                items_data[sku] = item
+        except Exception as e:
+            print(f"Error fetching item with SKU {sku}: {e}")
+
+    return items_data
+
+
 def find_item_by_identifier(identifier, token):
     if not identifier: return None
 

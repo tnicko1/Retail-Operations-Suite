@@ -212,8 +212,14 @@ def extract_specs_from_html(html_content):
     if not html_content:
         return []
     soup = BeautifulSoup(html_content, 'html.parser')
-    # Find all <li> tags, as they contain the specs
-    return [li.get_text(strip=True) for li in soup.find_all('li')]
+    specs = []
+    # These prefixes will be ignored, case-insensitively with leading space removal.
+    ignore_prefixes = ("brand:", "model:")
+    for li in soup.find_all('li'):
+        spec_text = li.get_text(strip=True)
+        if not spec_text.lower().lstrip().startswith(ignore_prefixes):
+            specs.append(spec_text)
+    return specs
 
 
 def _natural_sort_key(s):
@@ -234,6 +240,8 @@ def extract_specs_from_attributes(attributes, column_mappings):
     # Sort keys naturally to ensure c1, c2, c10 order
     sorted_keys = sorted(attributes.keys(), key=_natural_sort_key)
     
+    ignore_spec_keys = {"Brand", "Model"}
+
     # --- Process paired 'c' columns first ---
     processed_c_keys = set()
     # Iterate through the sorted keys to find 'c' columns that are attribute names
@@ -255,7 +263,7 @@ def extract_specs_from_attributes(attributes, column_mappings):
                 spec_key = attributes.get(key_col)
                 spec_value = attributes.get(value_col_name)
 
-                if spec_key and spec_value:  # Both key and value must exist
+                if spec_key and spec_value and spec_key not in ignore_spec_keys:  # Both key and value must exist
                     specs.append(f"{spec_key}: {spec_value}")
                 
                 processed_c_keys.add(key_col)
@@ -278,7 +286,8 @@ def extract_specs_from_attributes(attributes, column_mappings):
             continue
             
         display_name = mapping.get('displayName', '').strip() or key
-        specs.append(f"{display_name}: {value}")
+        if display_name not in ignore_spec_keys:
+            specs.append(f"{display_name}: {value}")
         
     return specs
 
@@ -292,7 +301,8 @@ def extract_specs_from_toplevel(item_data, column_mappings):
     known_non_spec_keys = {
         'SKU', 'Name', 'Regular price', 'Sale price', 'Description',
         'Categories', 'attributes', 'all_specs', 'part_number',
-        'Tags', 'Type', 'On sale?', 'In stock?'
+        'Tags', 'Type', 'On sale?', 'In stock?', 'Short description', 'category_sanitized',
+        'Brand', 'Model'
     }
 
     # Process all other top-level fields that are not known non-spec fields,
