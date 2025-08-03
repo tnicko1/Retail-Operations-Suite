@@ -1,0 +1,7 @@
+feat: Add comprehensive icon set and new font
+
+This commit introduces a major visual and functional upgrade to the application by replacing the previous placeholder assets with a full set of professional icons and a new font family.
+
+- Replaces the basic `arial.ttf` font with the full `Montserrat` font family. This provides a more modern and readable typeface for all UI elements and generated price tags.
+- Adds a comprehensive set of over 60 unique icons for product specifications. These icons provide clear visual cues for various product attributes (e.g., CPU, RAM, screen size, connectivity), significantly improving the clarity and professional appearance of the price tags.
+- The new assets enhance the overall user experience and the quality of the final output.

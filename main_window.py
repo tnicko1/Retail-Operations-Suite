@@ -69,6 +69,8 @@ class RetailOperationsSuite(QMainWindow):
 
         self.tab_widget.addTab(self.generator_tab, "Price Tag Generator")
 
+        self.active_dialog = None  # To hold a reference to any active dialog
+
         self.setup_generator_ui()
 
         if self.user.get('role') == 'Admin':
@@ -197,7 +199,7 @@ class RetailOperationsSuite(QMainWindow):
                         "name": item_data.get("Name", "N/A"),
                         "category": item_data.get("Categories", "N/A"),
                         "stock_val": int(stock_str),
-                        "stock_display": f"{branch_info['db_key']}: {int(stock_str)}"
+                        "stock_display": f"{self.tr(branch_key)}: {int(stock_str)}"
                     })
 
         self.populate_low_stock_table(low_stock_items)
@@ -272,8 +274,9 @@ class RetailOperationsSuite(QMainWindow):
             admin_menu.addAction(user_mgmt_action)
 
     def open_quick_stock_checker(self):
-        dialog = QuickStockDialog(self.translator, self.token, self.branch_data_map, self)
-        dialog.exec()
+        self.active_dialog = QuickStockDialog(self.translator, self.token, self.branch_data_map, self)
+        self.active_dialog.exec()
+        self.active_dialog = None
 
     def open_size_manager(self):
         dialog = CustomSizeManagerDialog(self.translator, self)
@@ -321,12 +324,13 @@ class RetailOperationsSuite(QMainWindow):
         top_layout.addWidget(self.lang_button)
         layout.addLayout(top_layout)
 
-        branch_group = QGroupBox(self.tr("branch_group_title"))
+        self.branch_group = QGroupBox()
         branch_layout = QFormLayout()
         self.branch_combo = QComboBox()
         self.branch_combo.currentIndexChanged.connect(self.handle_branch_change)
-        branch_layout.addRow(self.tr("branch_label"), self.branch_combo)
-        branch_group.setLayout(branch_layout)
+        self.branch_label_widget = QLabel()
+        branch_layout.addRow(self.branch_label_widget, self.branch_combo)
+        self.branch_group.setLayout(branch_layout)
 
         self.find_item_group = QGroupBox(self.tr("find_item_group"))
         find_layout = QVBoxLayout()
@@ -443,7 +447,7 @@ class RetailOperationsSuite(QMainWindow):
         actions_layout.addWidget(self.batch_button)
         self.output_group.setLayout(actions_layout)
 
-        layout.addWidget(branch_group)
+        layout.addWidget(self.branch_group)
         layout.addWidget(self.find_item_group)
         layout.addWidget(self.details_group)
         layout.addWidget(self.style_group)
@@ -481,6 +485,8 @@ class RetailOperationsSuite(QMainWindow):
         self.update_theme_combo()
         self.create_menu()
 
+        self.branch_group.setTitle(self.tr("branch_group_title"))
+        self.branch_label_widget.setText(self.tr("branch_label"))
         self.find_item_group.setTitle(self.tr("find_item_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
         self.find_button.setText(self.tr("find_button"))
@@ -504,6 +510,7 @@ class RetailOperationsSuite(QMainWindow):
         self.single_button.setText(self.tr("generate_single_button"))
         self.batch_button.setText(self.tr("generate_batch_button"))
         self.status_label_title.setText(f"{self.tr('status_label')}:")
+        self.stock_label_title.setText(self.tr("stock_label"))
         self.lang_button.setIcon(QIcon(resource_path("assets/en.png" if self.translator.language == "en" else "assets/ka.png")))
         self.update_status_display()
         if not self.current_item_data:
@@ -516,6 +523,11 @@ class RetailOperationsSuite(QMainWindow):
         self.settings["language"] = new_lang
         data_handler.save_settings(self.settings)
         self.retranslate_ui()
+
+        # If a dialog with retranslate_ui is active, call it
+        if self.active_dialog and hasattr(self.active_dialog, 'retranslate_ui'):
+            self.active_dialog.retranslate_ui()
+
         index = self.branch_combo.findData(branch_key)
         if index != -1:
             self.branch_combo.setCurrentIndex(index)
@@ -554,8 +566,9 @@ class RetailOperationsSuite(QMainWindow):
     def open_display_manager(self):
         branch_db_key = self.get_current_branch_db_key()
         branch_stock_col = self.get_current_branch_stock_column()
-        dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
-        dialog.exec()
+        self.active_dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
+        self.active_dialog.exec()
+        self.active_dialog = None  # Clear reference after dialog closes
 
     def open_print_queue(self):
         dialog = PrintQueueDialog(self.translator, self.user, self)
@@ -597,7 +610,7 @@ class RetailOperationsSuite(QMainWindow):
         if index != -1:
             self.paper_size_combo.setCurrentIndex(index)
         else:
-            self.paper_size_combo.setCurrentText(self.settings.get("default_size", "14.4x8cm"))
+            self.paper_size_combo.setCurrentText(self.settings.get("default_size", "14.8x8cm"))
         self.paper_size_combo.blockSignals(False)
 
     def update_theme_combo(self):
@@ -636,10 +649,15 @@ class RetailOperationsSuite(QMainWindow):
         self.toggle_status_button.setVisible(False)
 
     def find_item(self):
-        identifier = self.sku_input.text().strip().upper()
+        identifier = self.sku_input.text().strip()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        # Automatically prefix with 'I' if it's a 5-digit number
+        if len(identifier) == 5 and identifier.isdigit():
+            identifier = f"I{identifier}"
+            self.sku_input.setText(identifier) # Update the UI to reflect the change
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
             self.clear_all_fields()
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
@@ -824,8 +842,10 @@ class RetailOperationsSuite(QMainWindow):
 
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
-            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
-            firebase_handler.log_activity(self.token, f"User printed and marked {sku} as on display.")
+            # Only update the status if it's not already set to "On Display"
+            if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token):
+                firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+                firebase_handler.log_activity(self.token, f"User printed and marked {sku} as on display.")
 
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
@@ -836,7 +856,10 @@ class RetailOperationsSuite(QMainWindow):
 
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
-        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
+        
+        # Define a safe margin in cm to avoid printer cut-off
+        A4_MARGIN_CM = 0.5
+        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'], margin_cm=A4_MARGIN_CM)
 
         tags_per_sheet = layout_info.get('total', 0)
         if tags_per_sheet <= 0:
@@ -871,7 +894,7 @@ class RetailOperationsSuite(QMainWindow):
             QMessageBox.warning(self, "No Items Found", "None of the SKUs in the queue could be found.")
             return
 
-        a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info)
+        a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info, margin_cm=A4_MARGIN_CM)
 
         a4_pixmaps = []
         for page in a4_pages:
@@ -886,7 +909,9 @@ class RetailOperationsSuite(QMainWindow):
         if self.handle_a4_print_with_dialog(a4_pixmaps):
             branch_db_key = self.get_current_branch_db_key()
             for sku in skus_to_print:
-                firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+                # Only update the status if it's not already set to "On Display"
+                if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token):
+                    firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
 
             if self.current_item_data and self.current_item_data.get('SKU') in skus_to_print:
                 self.update_status_display()
@@ -999,23 +1024,51 @@ class RetailOperationsSuite(QMainWindow):
                                 Qt.TransformationMode.SmoothTransformation))
 
     def process_specifications(self, item_data):
-        """Extracts, cleans, and formats specifications from various sources within item_data."""
+        """
+        Extracts, cleans, normalizes, and de-duplicates specifications from various sources within item_data.
+        """
         all_specs = []
         # 1. From "Description" (HTML list)
         all_specs.extend(data_handler.extract_specs_from_html(item_data.get("Description", "")))
         # 2. From "attributes" dictionary
-        all_specs.extend(data_handler.extract_specs_from_attributes(item_data.get("attributes", {}), self.column_mappings))
+        all_specs.extend(
+            data_handler.extract_specs_from_attributes(item_data.get("attributes", {}), self.column_mappings))
         # 3. From other top-level fields
         all_specs.extend(data_handler.extract_specs_from_toplevel(item_data, self.column_mappings))
 
-        # Clean up and remove duplicates
-        unique_specs = []
-        seen_specs = set()
+        # --- De-duplication Logic ---
+        
+        def normalize_label(label):
+            """Normalizes a spec label for accurate comparison."""
+            norm = label.lower().strip()
+            # Handle special cases like "Warranty" and "Warranty Details"
+            if 'warranty' in norm:
+                return 'warranty'
+            
+            # Existing logic for plurals like "Material(s)"
+            norm = norm.replace('(s)', '')
+            if norm.endswith('s'):
+                norm = norm[:-1]
+            return norm
+
+        best_specs = {}
         for spec in all_specs:
-            if spec not in seen_specs:
-                unique_specs.append(spec)
-                seen_specs.add(spec)
-        return unique_specs
+            if ':' in spec:
+                label, value = spec.split(':', 1)
+                label = label.strip()
+                value = value.strip()
+                
+                normalized_label = normalize_label(label)
+
+                # If we haven't seen this normalized label, or the new value is longer, store it.
+                if normalized_label not in best_specs or len(value) > len(best_specs[normalized_label].split(':', 1)[1].strip()):
+                    best_specs[normalized_label] = f"{label}: {value}" # Store the original, un-normalized spec
+            else:
+                # For specs without a key-value pair, use the spec itself as the key to avoid duplicates
+                if spec not in best_specs:
+                    best_specs[spec] = spec
+
+        return list(best_specs.values())
 
     def update_specs_list(self):
         self.specs_list.clear()
@@ -1029,9 +1082,12 @@ class RetailOperationsSuite(QMainWindow):
             for spec in self.current_item_data['all_specs']:
                 item = QListWidgetItem(spec)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                
+
+                # Special handling for Warranty: always check it if present
+                if 'warranty' in spec.lower():
+                    item.setCheckState(Qt.CheckState.Checked)
                 # For keyboards, check all specs. Otherwise, respect the limit.
-                if is_keyboard_layout:
+                elif is_keyboard_layout:
                     item.setCheckState(Qt.CheckState.Checked)
                 else:
                     if count < spec_limit:

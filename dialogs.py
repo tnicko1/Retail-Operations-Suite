@@ -34,12 +34,12 @@ class LayoutSettingsDialog(QDialog):
 
         # Define slider properties: key, label_key, min_val, max_val
         slider_defs = [
-            ("logo_scale", "layout_logo_size", 50, 150),
-            ("title_scale", "layout_title_size", 70, 130),
-            ("spec_scale", "layout_spec_size", 70, 130),
-            ("price_scale", "layout_price_size", 70, 130),
-            ("sku_scale", "layout_sku_size", 70, 130),
-            ("pn_scale", "layout_pn_size", 70, 130),
+            ("logo_scale", "layout_logo_size", 50, 200),
+            ("title_scale", "layout_title_size", 70, 200),
+            ("spec_scale", "layout_spec_size", 70, 200),
+            ("price_scale", "layout_price_size", 70, 200),
+            ("sku_scale", "layout_sku_size", 70, 200),
+            ("pn_scale", "layout_pn_size", 70, 200),
         ]
 
         for key, label_key, min_val, max_val in slider_defs:
@@ -279,13 +279,29 @@ class QuickStockDialog(QDialog):
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         layout.addWidget(self.results_table)
 
+        self.retranslate_ui()
+
+    def retranslate_ui(self):
+        self.setWindowTitle(self.translator.get("stock_checker_title"))
+        self.sku_input.setPlaceholderText(self.translator.get("sku_placeholder"))
+        self.check_button.setText(self.translator.get("stock_checker_button"))
+        self.results_table.setHorizontalHeaderLabels([
+            self.translator.get("stock_checker_branch_header"),
+            self.translator.get("stock_checker_stock_header")
+        ])
+
     def check_stock(self):
         self.results_table.setRowCount(0)
-        identifier = self.sku_input.text().strip().upper()
+        identifier = self.sku_input.text().strip()
         if not identifier:
             return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        # Automatically prefix with 'I' if it's a 5-digit number
+        if len(identifier) == 5 and identifier.isdigit():
+            identifier = f"I{identifier}"
+            self.sku_input.setText(identifier)
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -476,10 +492,15 @@ class PrintQueueDialog(QDialog):
         super().keyPressEvent(event)
 
     def add_item_from_input(self):
-        identifier = self.sku_input.text().strip().upper()
+        identifier = self.sku_input.text().strip()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        # Automatically prefix with 'I' if it's a 5-digit number
+        if len(identifier) == 5 and identifier.isdigit():
+            identifier = f"I{identifier}"
+            self.sku_input.setText(identifier)
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
@@ -782,29 +803,31 @@ class DisplayManagerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # --- NEW: Find by Category Group ---
-        find_group = QGroupBox(self.translator.get("find_by_category_group"))
+        self.find_group = QGroupBox(self.translator.get("find_by_category_group"))
         find_layout = QHBoxLayout()
         self.category_combo = QComboBox()
         self.find_by_category_button = QPushButton(self.translator.get("find_available_button"))
         self.find_by_category_button.clicked.connect(self.find_available_for_display)
-        find_layout.addWidget(QLabel(self.translator.get("category_label")))
+        self.category_label = QLabel(self.translator.get("category_label"))
+        find_layout.addWidget(self.category_label)
         find_layout.addWidget(self.category_combo)
         find_layout.addWidget(self.find_by_category_button)
-        find_group.setLayout(find_layout)
+        self.find_group.setLayout(find_layout)
         self.populate_category_combo()
 
         # --- Return Item Group ---
-        return_group = QGroupBox(self.translator.get("return_tag_group"))
+        self.return_group = QGroupBox(self.translator.get("return_tag_group"))
         return_layout = QHBoxLayout()
         self.return_input = QLineEdit()
         self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
         self.return_input.returnPressed.connect(self.find_replacements_for_return)
         self.find_replacements_button = QPushButton(self.translator.get("find_replacements_button"))
         self.find_replacements_button.clicked.connect(self.find_replacements_for_return)
-        return_layout.addWidget(QLabel(self.translator.get("return_tag_label")))
+        self.return_tag_label = QLabel(self.translator.get("return_tag_label"))
+        return_layout.addWidget(self.return_tag_label)
         return_layout.addWidget(self.return_input)
         return_layout.addWidget(self.find_replacements_button)
-        return_group.setLayout(return_layout)
+        self.return_group.setLayout(return_layout)
 
         # --- Suggestions Group (reused for both actions) ---
         self.suggestions_group = QGroupBox(self.translator.get("suggestions_group_empty"))
@@ -814,7 +837,7 @@ class DisplayManagerDialog(QDialog):
         self.suggestions_table.setHorizontalHeaderLabels([
             self.translator.get("suggestions_header_sku"),
             self.translator.get("suggestions_header_name"),
-            self.translator.get("suggestions_header_stock"),
+            self.translator.get("suggestions_stock_header"),
             self.translator.get("suggestions_header_price"),
             self.translator.get("suggestions_header_action")
         ])
@@ -824,9 +847,37 @@ class DisplayManagerDialog(QDialog):
         suggestions_layout.addWidget(self.suggestions_table)
         self.suggestions_group.setLayout(suggestions_layout)
 
-        layout.addWidget(find_group)
-        layout.addWidget(return_group)
+        layout.addWidget(self.find_group)
+        layout.addWidget(self.return_group)
         layout.addWidget(self.suggestions_group)
+
+        self.retranslate_ui()
+
+    def retranslate_ui(self):
+        """Updates all translatable text in the dialog."""
+        self.setWindowTitle(self.translator.get("display_manager_title"))
+        self.find_group.setTitle(self.translator.get("find_by_category_group"))
+        self.category_label.setText(self.translator.get("category_label"))
+        self.find_by_category_button.setText(self.translator.get("find_available_button"))
+
+        # Repopulate combo to update the placeholder
+        current_data = self.category_combo.currentData()
+        self.populate_category_combo()
+        index = self.category_combo.findData(current_data)
+        if index != -1:
+            self.category_combo.setCurrentIndex(index)
+
+        self.return_group.setTitle(self.translator.get("return_tag_group"))
+        self.return_tag_label.setText(self.translator.get("return_tag_label"))
+        self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
+        self.find_replacements_button.setText(self.translator.get("find_replacements_button"))
+
+        # Update table headers and button text within the table
+        self.update_header_indicators()
+        for row in range(self.suggestions_table.rowCount()):
+            button = self.suggestions_table.cellWidget(row, 4)
+            if button:
+                button.setText(self.translator.get("quick_print_button"))
 
     def populate_category_combo(self):
         self.category_combo.clear()
@@ -857,10 +908,15 @@ class DisplayManagerDialog(QDialog):
         self.update_header_indicators()
 
     def find_replacements_for_return(self):
-        identifier = self.return_input.text().strip().upper()
+        identifier = self.return_input.text().strip()
         if not identifier: return
 
-        item_data = firebase_handler.find_item_by_identifier(identifier, self.token)
+        # Automatically prefix with 'I' if it's a 5-digit number
+        if len(identifier) == 5 and identifier.isdigit():
+            identifier = f"I{identifier}"
+            self.return_input.setText(identifier)
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))

@@ -106,6 +106,9 @@ TRANSLATIONS = {
         "stock_checker_branch_header": "Branch",
         "stock_checker_stock_header": "Stock",
         "stock_checker_menu": "Quick Stock Checker...",
+        "suggestions_stock_branch_header": "Stock Branch",
+        "suggestions_current_branch_header": "Current Branch",
+        "suggestions_stock_header": "Stock",
 
         # Display Manager
         "display_manager_title": "Display Manager",
@@ -303,6 +306,7 @@ TRANSLATIONS = {
             "ContrastRatio": "Contrast Ratio",
             "ViewingAngle": "Viewing Angle",
             "ColorGamut": "Color Gamut",
+            "TearingPreventionTechnology": "Tearing Prevention Technology",
 
             # --- Connectivity & Ports ---
             "Connectivity": "Connectivity",
@@ -342,6 +346,26 @@ TRANSLATIONS = {
             "Capacity": "Capacity",
             "InputVoltage": "Input Voltage",
             "OutputVoltage": "Output Voltage",
+
+            # --- UPS Specific ---
+            "Topology": "Topology",
+            "WaveformType": "Waveform Type",
+            "OutputFrequency": "Output Frequency",
+            "OutputConnectionCount": "Output Connection Count",
+            "OutputConnectionType": "Output Connection Type",
+            "InputConnectionType": "Input Connection Type",
+            "InputVoltageRange": "Input Voltage Range",
+            "InputFrequency": "Input Frequency",
+
+            # --- UPS Specific 2 ---
+            "BatteryType": "Battery Type",
+            "NumberOfBatteries": "Number of Batteries",
+            "TypicalRechargeTime": "Typical Recharge Time",
+            "NoiseLevel": "Noise Level",
+            "Noise": "Noise",
+            "Rackmount": "Rackmount",
+            "OutputWaveform": "Output Waveform",
+            "UPSCapacity": "UPS Capacity",
 
             # --- Input, Output & Multimedia ---
             "Audio": "Audio",
@@ -401,9 +425,11 @@ TRANSLATIONS = {
 
             # --- Miscellaneous ---
             "Warranty": "Warranty",
+            "WarrantyDetails": "Warranty Details",
             "IncludedAccessories": "Included Accessories",
             "Portable Design": "Portable Design",
             "Portability": "Portability",
+            "SALE": "SALE",
         }
     },
     "ka": {
@@ -497,6 +523,9 @@ TRANSLATIONS = {
         "stock_checker_branch_header": "ფილიალი",
         "stock_checker_stock_header": "მარაგი",
         "stock_checker_menu": "მარაგის სწრაფი შემოწმება...",
+        "suggestions_stock_branch_header": "ფილიალის მარაგი",
+        "suggestions_current_branch_header": "მიმდინარე ფილიალი",
+        "suggestions_stock_header": "მარაგი",
 
         # Display Manager
         "display_manager_title": "ვიტრინის მენეჯერი",
@@ -682,6 +711,7 @@ TRANSLATIONS = {
             "ContrastRatio": "კონტრასტულობა",
             "ViewingAngle": "ხედვის კუთხე",
             "ColorGamut": "ფერთა გამა",
+            "TearingPreventionTechnology": "დახევის საწინააღმდეგო ტექნოლოგია",
 
             # --- Connectivity & Ports ---
             "Connectivity": "კავშირი",
@@ -721,6 +751,26 @@ TRANSLATIONS = {
             "Capacity": "ტევადობა",
             "InputVoltage": "შემავალი ძაბვა",
             "OutputVoltage": "გამომავალი ძაბვა",
+
+            # --- UPS Specific ---
+            "Topology": "ტოპოლოგია",
+            "WaveformType": "ტალღის ტიპი",
+            "OutputFrequency": "გამომავალი სიხშირე",
+            "OutputConnectionCount": "გამომავალი პორტების რაოდენობა",
+            "OutputConnectionType": "გამომავალი პორტების ტიპი",
+            "InputConnectionType": "შემავალი პორტის ტიპი",
+            "InputVoltageRange": "შემავალი ძაბვის დიაპაზონი",
+            "InputFrequency": "შემავალი სიხშირე",
+
+            # --- UPS Specific 2 ---
+            "BatteryType": "ბატარეის ტიპი",
+            "NumberOfBatteries": "ბატარეების რაოდენობა",
+            "TypicalRechargeTime": "დატენვის დრო",
+            "NoiseLevel": "ხმაურის დონე",
+            "Noise": "ხმაური",
+            "Rackmount": "სერვერულ კარადაში მონტაჟი",
+            "OutputWaveform": "გამომავალი ტალღის ფორმა",
+            "UPSCapacity": "UPS-ის სიმძლავრე",
 
             # --- Input, Output & Multimedia ---
             "Audio": "აუდიო",
@@ -780,9 +830,11 @@ TRANSLATIONS = {
 
             # --- Miscellaneous ---
             "Warranty": "გარანტია",
+            "WarrantyDetails": "გარანტიის დეტალები",
             "IncludedAccessories": "კომპლექტაცია",
             "Portable Design": "პორტატული დიზაინი",
             "Portability": "პორტატულობა",
+            "SALE": "აქცია",
         }
     }
 }

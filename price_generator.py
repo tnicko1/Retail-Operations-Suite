@@ -25,44 +25,304 @@ import re
 from translations import Translator
 from data_handler import get_default_layout_settings
 
-# --- CONFIGURATION ---
+def get_icon_path_for_spec(spec_text):
+    """Returns an icon path based on keywords in the specification text."""
+    spec_lower = spec_text.lower()
+    icon_dir = resource_path("assets/spec_icons")
+
+    # Prioritize specific and important specs first
+    if 'chair frame' in spec_lower:
+        return os.path.join(icon_dir, 'furniture.png')
+    if 'print speed (iso)' in spec_lower:
+        return os.path.join(icon_dir, 'print_speed_iso.png')
+    if 'print speed' in spec_lower:
+        return os.path.join(icon_dir, 'print_speed.png')
+    if 'print technology' in spec_lower:
+        return os.path.join(icon_dir, 'print_technology.png')
+    if 'print resolution' in spec_lower:
+        return os.path.join(icon_dir, 'print_resolution.png')
+    if 'scan type' in spec_lower:
+        return os.path.join(icon_dir, 'scan_type.png')
+    if 'mobile printing' in spec_lower:
+        return os.path.join(icon_dir, 'mobile_printing.png')
+    if 'monthly duty cycle' in spec_lower:
+        return os.path.join(icon_dir, 'monthly_duty_cycle.png')
+    if 'topology' in spec_lower:
+        return os.path.join(icon_dir, 'topology.png')
+    if 'waveform type' in spec_lower:
+        return os.path.join(icon_dir, 'waveform_type.png')
+    if 'output voltage' in spec_lower:
+        return os.path.join(icon_dir, 'output_voltage.png')
+    if 'output frequency' in spec_lower:
+        return os.path.join(icon_dir, 'output_frequency.png')
+    if 'output connection count' in spec_lower:
+        return os.path.join(icon_dir, 'output_connection_count.png')
+    if any(k in spec_lower for k in ['output connection type', 'input connection type']):
+        return os.path.join(icon_dir, 'connection_type.png')
+    if 'input voltage range' in spec_lower:
+        return os.path.join(icon_dir, 'input_voltage_range.png')
+    if 'input frequency' in spec_lower:
+        return os.path.join(icon_dir, 'input_frequency.png')
+    if 'number of batteries' in spec_lower:
+        return os.path.join(icon_dir, 'number_of_batteries.png')
+    if any(k in spec_lower for k in ['warranty']):
+        return os.path.join(icon_dir, 'warranty.png')
+    if any(k in spec_lower for k in ['cpu', 'processor', 'chipset', 'cores']):
+        return os.path.join(icon_dir, 'cpu.png')
+    if any(k in spec_lower for k in ['motherboard', 'socket', 'threads', 'cpucooler']):
+        return os.path.join(icon_dir, 'motherboard.png')
+    if 'drive bays' in spec_lower:
+        return os.path.join(icon_dir, 'drive_bay.png')
+    if 'cooler support' in spec_lower:
+        return os.path.join(icon_dir, 'cooler.png')
+    if 'installed coolers' in spec_lower:
+        return os.path.join(icon_dir, 'case_fan.png')
+    if 'psu included' in spec_lower:
+        return os.path.join(icon_dir, 'psu.png')
+    if 'fan support' in spec_lower:
+        return os.path.join(icon_dir, 'fan_support.png')
+    if 'fans included' in spec_lower:
+        return os.path.join(icon_dir, 'accessories.png')
+    if 'ports' in spec_lower:
+        return os.path.join(icon_dir, 'ports_laptop.png')
+    if any(k in spec_lower for k in ['hdmi', 'usb', 'audio jack']):
+        return os.path.join(icon_dir, 'ports.png')
+    if any(k in spec_lower for k in ['ram', 'memory']):
+        return os.path.join(icon_dir, 'ram.png')
+    if any(k in spec_lower for k in ['ssd', 'hdd', 'storage']):
+        return os.path.join(icon_dir, 'storage.png')
+    if any(k in spec_lower for k in ['screen size']):
+        return os.path.join(icon_dir, 'dimensions.png')
+    if any(k in spec_lower for k in ['panel type']):
+        return os.path.join(icon_dir, 'display_details.png')
+    if any(k in spec_lower for k in ['resolution']):
+        return os.path.join(icon_dir, 'resolution.png')
+    if any(k in spec_lower for k in ['refresh rate']):
+        return os.path.join(icon_dir, 'refresh_rate.png')
+    if any(k in spec_lower for k in ['response time']):
+        return os.path.join(icon_dir, 'response_time.png')
+    if any(k in spec_lower for k in ['contrast']):
+        return os.path.join(icon_dir, 'contrast.png')
+    if any(k in spec_lower for k in ['tearing prevention', 'gsync', 'freesync', 'vsync']):
+        return os.path.join(icon_dir, 'tearing_prevention.png')
+    if any(k in spec_lower for k in ['backlight']):
+        return os.path.join(icon_dir, 'backlight.png')
+    if any(k in spec_lower for k in ['screen', 'display', 'matrix']):
+        return os.path.join(icon_dir, 'screen.png')
+    if any(k in spec_lower for k in ['graphics', 'gpu', 'vram']):
+        return os.path.join(icon_dir, 'graphics.png')
+    if any(k in spec_lower for k in ['battery', 'power', 'wattage', 'mah']):
+        return os.path.join(icon_dir, 'battery.png')
+    if any(k in spec_lower for k in ['camera', 'webcam']):
+        return os.path.join(icon_dir, 'camera.png')
+    if any(k in spec_lower for k in ['keyboard', 'mouse']):
+        return os.path.join(icon_dir, 'keyboard.png')
+    if any(k in spec_lower for k in ['wifi', 'bluetooth', 'nfc']):
+        return os.path.join(icon_dir, 'connectivity.png')
+    if 'design' in spec_lower:
+        return os.path.join(icon_dir, 'design.png')
+    if any(k in spec_lower for k in ['max weight', 'weight']):
+        return os.path.join(icon_dir, 'weight.png')
+    if any(k in spec_lower for k in ['armrest', 'armrests']):
+        return os.path.join(icon_dir, 'armrest.png')
+    if any(k in spec_lower for k in ['material', 'material(s)']):
+        return os.path.join(icon_dir, 'materials.png')
+    if 'number of wheels' in spec_lower:
+        return os.path.join(icon_dir, 'wheel.png')
+    if any(k in spec_lower for k in ['dimensions', 'size']):
+        return os.path.join(icon_dir, 'dimensions.png')
+    if 'color' in spec_lower:
+        return os.path.join(icon_dir, 'color.png')
+    if any(k in spec_lower for k in ['os', 'operating system']):
+        return os.path.join(icon_dir, 'os.png')
+    if any(k in spec_lower for k in ['print', 'scan', 'copy']):
+        return os.path.join(icon_dir, 'printer.png')
+    if any(k in spec_lower for k in ['brand', 'model', 'barcode', 'partnumber']):
+        return os.path.join(icon_dir, 'general.png')
+    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
+        return os.path.join(icon_dir, 'memory_details.png')
+    if any(k in spec_lower for k in ['brightness']):
+        return os.path.join(icon_dir, 'brightness.png')
+    if any(k in spec_lower for k in ['viewing angle']):
+        return os.path.join(icon_dir, 'viewing_angle.png')
+    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
+        return os.path.join(icon_dir, 'display_details.png')
+    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
+        return os.path.join(icon_dir, 'network.png')
+    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
+        return os.path.join(icon_dir, 'build.png')
+    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
+        return os.path.join(icon_dir, 'power_supply.png')
+    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
+        return os.path.join(icon_dir, 'audio.png')
+    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
+        return os.path.join(icon_dir, 'security.png')
+    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
+        return os.path.join(icon_dir, 'features.png')
+    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
+        return os.path.join(icon_dir, 'printer_details.png')
+    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
+        return os.path.join(icon_dir, 'projector.png')
+    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
+        return os.path.join(icon_dir, 'furniture.png')
+    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
+        return os.path.join(icon_dir, 'accessories.png')
+    if any(k in spec_lower for k in ['cpu', 'processor', 'chipset', 'cores']):
+        return os.path.join(icon_dir, 'cpu.png')
+    if any(k in spec_lower for k in ['ram', 'memory']):
+        return os.path.join(icon_dir, 'ram.png')
+    if any(k in spec_lower for k in ['ssd', 'hdd', 'storage']):
+        return os.path.join(icon_dir, 'storage.png')
+    if any(k in spec_lower for k in ['screen size']):
+        return os.path.join(icon_dir, 'dimensions.png')
+    if any(k in spec_lower for k in ['panel type']):
+        return os.path.join(icon_dir, 'display_details.png')
+    if any(k in spec_lower for k in ['resolution']):
+        return os.path.join(icon_dir, 'resolution.png')
+    if any(k in spec_lower for k in ['refresh rate']):
+        return os.path.join(icon_dir, 'refresh_rate.png')
+    if any(k in spec_lower for k in ['response time']):
+        return os.path.join(icon_dir, 'response_time.png')
+    if any(k in spec_lower for k in ['contrast']):
+        return os.path.join(icon_dir, 'contrast.png')
+    if any(k in spec_lower for k in ['tearing prevention', 'gsync', 'freesync', 'vsync']):
+        return os.path.join(icon_dir, 'tearing_prevention.png')
+    if any(k in spec_lower for k in ['backlight']):
+        return os.path.join(icon_dir, 'backlight.png')
+    if any(k in spec_lower for k in ['screen', 'display', 'matrix']):
+        return os.path.join(icon_dir, 'screen.png')
+    if any(k in spec_lower for k in ['graphics', 'gpu', 'vram']):
+        return os.path.join(icon_dir, 'graphics.png')
+    if any(k in spec_lower for k in ['battery', 'power', 'wattage', 'mah']):
+        return os.path.join(icon_dir, 'battery.png')
+    if any(k in spec_lower for k in ['camera', 'webcam']):
+        return os.path.join(icon_dir, 'camera.png')
+    if any(k in spec_lower for k in ['keyboard', 'mouse']):
+        return os.path.join(icon_dir, 'keyboard.png')
+    if any(k in spec_lower for k in ['wifi', 'bluetooth', 'nfc']):
+        return os.path.join(icon_dir, 'connectivity.png')
+    if 'design' in spec_lower:
+        return os.path.join(icon_dir, 'design.png')
+    if any(k in spec_lower for k in ['max weight', 'weight']):
+        return os.path.join(icon_dir, 'weight.png')
+    if any(k in spec_lower for k in ['armrest', 'armrests']):
+        return os.path.join(icon_dir, 'armrest.png')
+    if any(k in spec_lower for k in ['material', 'material(s)']):
+        return os.path.join(icon_dir, 'materials.png')
+    if 'number of wheels' in spec_lower:
+        return os.path.join(icon_dir, 'wheel.png')
+    if any(k in spec_lower for k in ['dimensions', 'size']):
+        return os.path.join(icon_dir, 'dimensions.png')
+    if 'color' in spec_lower:
+        return os.path.join(icon_dir, 'color.png')
+    if any(k in spec_lower for k in ['os', 'operating system']):
+        return os.path.join(icon_dir, 'os.png')
+    if any(k in spec_lower for k in ['print', 'scan', 'copy']):
+        return os.path.join(icon_dir, 'printer.png')
+    if any(k in spec_lower for k in ['brand', 'model', 'barcode', 'partnumber']):
+        return os.path.join(icon_dir, 'general.png')
+    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
+        return os.path.join(icon_dir, 'memory_details.png')
+    if any(k in spec_lower for k in ['brightness']):
+        return os.path.join(icon_dir, 'brightness.png')
+    if any(k in spec_lower for k in ['viewing angle']):
+        return os.path.join(icon_dir, 'viewing_angle.png')
+    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
+        return os.path.join(icon_dir, 'display_details.png')
+    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
+        return os.path.join(icon_dir, 'network.png')
+    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
+        return os.path.join(icon_dir, 'build.png')
+    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
+        return os.path.join(icon_dir, 'power_supply.png')
+    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
+        return os.path.join(icon_dir, 'audio.png')
+    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
+        return os.path.join(icon_dir, 'security.png')
+    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
+        return os.path.join(icon_dir, 'features.png')
+    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
+        return os.path.join(icon_dir, 'printer_details.png')
+    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
+        return os.path.join(icon_dir, 'projector.png')
+    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
+        return os.path.join(icon_dir, 'furniture.png')
+    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
+        return os.path.join(icon_dir, 'accessories.png')
+    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
+        return os.path.join(icon_dir, 'memory_details.png')
+    if any(k in spec_lower for k in ['brightness']):
+        return os.path.join(icon_dir, 'brightness.png')
+    if any(k in spec_lower for k in ['viewing angle']):
+        return os.path.join(icon_dir, 'viewing_angle.png')
+    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
+        return os.path.join(icon_dir, 'display_details.png')
+    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
+        return os.path.join(icon_dir, 'network.png')
+    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
+        return os.path.join(icon_dir, 'build.png')
+    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
+        return os.path.join(icon_dir, 'power_supply.png')
+    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
+        return os.path.join(icon_dir, 'audio.png')
+    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
+        return os.path.join(icon_dir, 'security.png')
+    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
+        return os.path.join(icon_dir, 'features.png')
+    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
+        return os.path.join(icon_dir, 'printer_details.png')
+    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
+        return os.path.join(icon_dir, 'projector.png')
+    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
+        return os.path.join(icon_dir, 'furniture.png')
+    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
+        return os.path.join(icon_dir, 'accessories.png')
+    # Default icon if no specific match
+    return os.path.join(icon_dir, 'default.png')
+
+
+def contains_georgian(text):
+    """Checks if a string contains any Georgian characters."""
+    # Georgian Unicode range: U+10A0 to U+10FF
+    return any('\u10A0' <= char <= '\u10FF' for char in text)
+
+
 DPI = 300
-PRIMARY_FONT_PATH = resource_path('fonts/NotoSansGeorgian-Regular.ttf')
-PRIMARY_FONT_BOLD_PATH = resource_path('fonts/NotoSansGeorgian-Bold.ttf')
-FALLBACK_FONT_EN = resource_path("fonts/arial.ttf")
-FALLBACK_FONT_EN_BOLD = resource_path("fonts/arialbd.ttf")
+# --- FONT PATHS (assuming they are in a 'fonts' directory) ---
+PRIMARY_FONT_PATH = resource_path("fonts/static/Montserrat-Regular.ttf")
+PRIMARY_FONT_BOLD_PATH = resource_path("fonts/static/Montserrat-Bold.ttf")
+GEL_FONT_PATH = resource_path("fonts/NotoSansGeorgian-Bold.ttf")
+FALLBACK_FONT_GEORGIAN_REGULAR = resource_path("fonts/NotoSansGeorgian-Regular.ttf")
+FALLBACK_FONT_GEORGIAN_BOLD = resource_path("fonts/NotoSansGeorgian-Bold.ttf")
 
-# --- BASE FONT SIZES (for a 14.4x8cm tag) ---
-BASE_WIDTH_CM = 14.4
-BASE_HEIGHT_CM = 8.0
-BASE_AREA = BASE_WIDTH_CM * BASE_HEIGHT_CM
-BASE_TITLE_FONT_SIZE = 60
-BASE_SPEC_FONT_SIZE = 42
-BASE_FOOTER_SKU_FONT_SIZE = 60
-BASE_FOOTER_PRICE_FONT_SIZE = 75
-BASE_STRIKETHROUGH_FONT_SIZE = 60
-BASE_PN_FONT_SIZE = 32
+# --- BASE DIMENSIONS AND FONT SIZES ---
+# Used for scaling elements based on the tag's surface area.
+# Base area for a standard tag (e.g., 8.8cm x 5.5cm)
+BASE_AREA = 8.8 * 5.5
+BASE_TITLE_FONT_SIZE = 48
+BASE_SPEC_FONT_SIZE = 22
+BASE_FOOTER_SKU_FONT_SIZE = 36
+BASE_FOOTER_PRICE_FONT_SIZE = 44
+BASE_STRIKETHROUGH_FONT_SIZE = 30
+BASE_PN_FONT_SIZE = 16
 
-# --- BASE FONT SIZES for ACCESSORY TAG (6x3.5cm) ---
-BASE_ACC_WIDTH_CM = 6.0
-BASE_ACC_HEIGHT_CM = 3.5
-BASE_ACC_AREA = BASE_ACC_WIDTH_CM * BASE_ACC_HEIGHT_CM
-BASE_ACC_SKU_FONT_SIZE = 50
-BASE_ACC_NAME_FONT_SIZE = 55
-BASE_ACC_PRICE_FONT_SIZE = 65
+# --- ACCESSORY TAG SPECIFIC ---
+BASE_ACC_AREA = 5.0 * 3.0  # Base area for a smaller accessory tag
+BASE_ACC_SKU_FONT_SIZE = 30
+BASE_ACC_NAME_FONT_SIZE = 22
+BASE_ACC_PRICE_FONT_SIZE = 32
 
 
-# --- HELPER FUNCTIONS ---
-def get_font(font_path, size, fallback_path=None):
+def get_font(primary_path, size, is_bold=False):
+    """
+    Tries to load the primary font. If it fails, returns the default PIL font.
+    """
+    size = int(size)
     try:
-        return ImageFont.truetype(font_path, int(size))
-    except IOError:
-        if fallback_path:
-            try:
-                return ImageFont.truetype(fallback_path, int(size))
-            except IOError:
-                return ImageFont.load_default()
-    return ImageFont.load_default()
+        return ImageFont.truetype(primary_path, size)
+    except (IOError, TypeError):
+        # Final fallback to a default font
+        return ImageFont.load_default()
 
 
 def cm_to_pixels(cm, dpi=DPI):
@@ -87,6 +347,127 @@ def wrap_text(text, font, max_width):
     return lines
 
 
+def _create_dynamic_background(width, height):
+    """Creates a visually interesting, abstract background for price tags."""
+    img = Image.new('RGB', (width, height), 'white')
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- Subtle Gradient Background ---
+    # Create a very light gray to white vertical gradient. Made it slightly darker.
+    top_color = (230, 230, 230)
+    bottom_color = (255, 255, 255)
+    for y in range(height):
+        # Interpolate color
+        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * (y / height))
+        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * (y / height))
+        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * (y / height))
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # --- Abstract Shapes and Lines ---
+    # Use a list of soft, appealing colors with higher transparency
+    colors = [
+        (227, 76, 94, 45),   # Soft Red
+        (76, 175, 80, 45),  # Muted Green
+        (33, 150, 243, 45),  # Soft Blue
+        (255, 193, 7, 40),   # Amber
+        (156, 39, 176, 40)   # Purple
+    ]
+
+    # Draw a few more large, semi-transparent circles
+    for _ in range(random.randint(3, 5)):
+        color = random.choice(colors)
+        radius = random.randint(int(width * 0.3), int(width * 0.7))
+        x = random.randint(-int(radius * 0.5), int(width - radius * 0.5))
+        y = random.randint(-int(radius * 0.5), int(height - radius * 0.5))
+        draw.ellipse([x, y, x + radius * 2, y + radius * 2], fill=color)
+
+    # Draw a few more, slightly thicker, sweeping lines
+    for _ in range(random.randint(4, 6)):
+        color = random.choice(colors)
+        start_x = random.randint(0, width)
+        start_y = random.randint(0, height)
+        end_x = random.randint(0, width)
+        end_y = random.randint(0, height)
+        line_width = random.randint(2, 5)
+        draw.line([(start_x, start_y), (end_x, end_y)], fill=color, width=line_width)
+
+    return img
+
+
+def _draw_bezier_curve(draw, start_point, end_point, control_point, fill, width):
+    """Draws a quadratic Bezier curve."""
+    points = []
+    for t in range(101):
+        t /= 100.0
+        x = (1 - t)**2 * start_point[0] + 2 * (1 - t) * t * control_point[0] + t**2 * end_point[0]
+        y = (1 - t)**2 * start_point[1] + 2 * (1 - t) * t * control_point[1] + t**2 * end_point[1]
+        points.append((x, y))
+    draw.line(points, fill=fill, width=width)
+
+
+def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None):
+    """
+    Draws a 'SALE' starburst overlay with rotated text.
+    Accepts optional center_x, center_y, and outer_radius for custom positioning and sizing.
+    """
+    translator = Translator()
+    # If center coordinates are not provided, use the default top-right position.
+    if center_x is None:
+        center_x = width_px * 0.92
+    if center_y is None:
+        center_y = height_px * 0.15
+
+    # Use provided radius or default, and calculate inner radius based on it
+    if outer_radius is None:
+        outer_radius = 80 * scale_factor
+    inner_radius = outer_radius * 0.75  # Maintain ratio
+
+    num_points = 12
+    points = []
+    for i in range(num_points * 2):
+        radius = outer_radius if i % 2 == 0 else inner_radius
+        angle = i * math.pi / num_points - (math.pi / 2)
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        points.append((x, y))
+
+    overlay_color = theme.get('price_color', '#D32F2F')
+    draw.polygon(points, fill=overlay_color, outline="black", width=int(2 * scale_factor))
+
+    # --- Rotated "SALE" text ---
+    # Scale font size based on the star's radius for better fitting
+    sale_font_size = outer_radius * 0.48
+    
+    # Choose font based on language
+    if language == 'ka':
+        sale_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, sale_font_size, is_bold=True)
+    else:
+        sale_font = get_font(PRIMARY_FONT_BOLD_PATH, sale_font_size, is_bold=True)
+        
+    sale_text = translator.get_spec_label("SALE", language)
+    rotation_angle = -25
+
+    # Get text size
+    text_bbox = sale_font.getbbox(sale_text)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    # Create a transparent image for the text
+    text_img = Image.new('RGBA', (text_width, text_height), (255, 255, 255, 0))
+    text_draw = ImageDraw.Draw(text_img)
+    text_draw.text((-text_bbox[0], -text_bbox[1]), sale_text, font=sale_font, fill="white")
+
+    # Rotate the text image
+    rotated_text_img = text_img.rotate(rotation_angle, expand=True, resample=Image.Resampling.BICUBIC)
+
+    # Calculate position to paste the rotated text image so it's centered in the star
+    paste_x = int(center_x - rotated_text_img.width / 2)
+    paste_y = int(center_y - rotated_text_img.height / 2)
+
+    # Paste onto the main image
+    img.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
+
+
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     img = Image.new('RGB', (width_px, height_px), 'white')
     draw = ImageDraw.Draw(img)
@@ -95,9 +476,10 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
 
-    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_SKU_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
-    name_font = get_font(PRIMARY_FONT_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor, FALLBACK_FONT_EN)
-    price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, FALLBACK_FONT_EN_BOLD)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_SKU_FONT_SIZE * scale_factor, is_bold=True)
+    name_font = get_font(PRIMARY_FONT_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
 
     margin = 0.06 * width_px
     top_area_height = 0.22 * height_px
@@ -147,8 +529,23 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
         display_price = regular_price or sale_price
 
     if display_price:
-        price_text = f"₾{display_price}"
-        draw.text((width_px / 2, price_y), price_text, font=price_font, fill=text_color, anchor="mm")
+        # Draw GEL symbol and price number separately
+        price_text = str(display_price)
+        gel_text = "₾"
+
+        # Calculate total width to center both elements together
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        spacing = int(5 * scale_factor)
+        total_width = gel_width + spacing + price_width
+        
+        start_x = (width_px - total_width) / 2
+        
+        # Draw GEL symbol
+        draw.text((start_x, price_y), gel_text, font=gel_font, fill=text_color, anchor="lm")
+        
+        # Draw Price Number
+        draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill=text_color, anchor="lm")
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img
@@ -156,12 +553,13 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
 
 def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language):
     """Creates a special price tag for keyboards with a unique design."""
-    img = Image.new('RGB', (width_px, height_px), 'white')
-    draw = ImageDraw.Draw(img)
+    # Use the new dynamic background
+    img = _create_dynamic_background(width_px, height_px)
+    draw = ImageDraw.Draw(img, 'RGBA')
 
     # --- Colors and Fonts ---
     text_color = "#000000"
-    price_color = "#D32F2F"  # Red for emphasis
+    price_color = theme.get('price_color', '#D32F2F')
     border_color = "#AAAAAA"
 
     # Base font sizes for this specific layout
@@ -175,11 +573,13 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     base_area = 17 * 5.7
     scale_factor = math.sqrt(current_area / base_area)
 
-    name_font = get_font(PRIMARY_FONT_BOLD_PATH, base_name_size * scale_factor, FALLBACK_FONT_EN_BOLD)
-    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_size * scale_factor, FALLBACK_FONT_EN_BOLD)
-    strikethrough_font = get_font(PRIMARY_FONT_PATH, base_strikethrough_size * scale_factor, FALLBACK_FONT_EN)
-    info_font = get_font(PRIMARY_FONT_PATH, base_info_size * scale_factor, FALLBACK_FONT_EN)
-    info_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, base_info_size * scale_factor, FALLBACK_FONT_EN_BOLD)
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, base_name_size * scale_factor, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_size * scale_factor, is_bold=True)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, base_strikethrough_size * scale_factor)
+    info_font = get_font(PRIMARY_FONT_PATH, base_info_size * scale_factor)
+    info_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, base_info_size * scale_factor, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, base_price_size * scale_factor, is_bold=True)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, base_strikethrough_size * scale_factor)
 
     # --- Layout ---
     margin = 0.03 * width_px
@@ -256,50 +656,74 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
 
     sale_price = item_data.get('Sale price', '').strip()
     regular_price = item_data.get('Regular price', '').strip()
+    is_on_sale = False
 
     try:
         sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
         regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
+
+        # Helper to draw price with GEL symbol
+        def draw_price(x, y, price_val, font, gel_font, color, anchor, strikethrough=False):
+            price_str = str(price_val)
+            gel_str = "₾"
+            price_width = font.getbbox(price_str)[2]
+            gel_width = gel_font.getbbox(gel_str)[2]
+            spacing = int(5 * scale_factor)
+            total_width = gel_width + spacing + price_width
+            
+            if anchor == "mm":
+                start_x = x - total_width / 2
+            else: # Add other anchors if needed
+                start_x = x
+            
+            draw.text((start_x, y), gel_str, font=gel_font, fill=color, anchor="lm")
+            draw.text((start_x + gel_width + spacing, y), price_str, font=font, fill=color, anchor="lm")
+            
+            if strikethrough:
+                bbox = (start_x, y - font.getbbox("A")[3]/2, start_x + total_width, y + font.getbbox("A")[3]/2)
+                draw.line([(bbox[0], (bbox[1] + bbox[3]) / 2), (bbox[2], (bbox[1] + bbox[3]) / 2)], fill=color, width=3)
+
 
         # Condition: sale price is valid, greater than zero, and different from regular price
-        if sale_val > 0 and sale_val != regular_val:
-            sale_text = f"₾{sale_price}"
-            draw.text((right_panel_center_x, price_y), sale_text, font=price_font, fill=price_color, anchor="mm")
+        if is_on_sale:
+            draw_price(right_panel_center_x, price_y, sale_price, price_font, gel_font, price_color, "mm")
             if regular_val > 0:
-                orig_text = f"₾{regular_price}"
                 strikethrough_y = price_y - (base_strikethrough_size * scale_factor * 1.2)
-                draw.text((right_panel_center_x, strikethrough_y), orig_text, font=strikethrough_font,
-                          fill=text_color, anchor="mm")
-                bbox = draw.textbbox((right_panel_center_x, strikethrough_y), orig_text, font=strikethrough_font,
-                                     anchor="mm")
-                draw.line(
-                    [(bbox[0], bbox[1] + (bbox[3] - bbox[1]) / 2), (bbox[2], bbox[1] + (bbox[3] - bbox[1]) / 2)],
-                    fill=text_color, width=3)
+                draw_price(right_panel_center_x, strikethrough_y, regular_price, strikethrough_font, gel_font_strikethrough, text_color, "mm", strikethrough=True)
+
         elif regular_val > 0:
-            price_text = f"₾{regular_price}"
-            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+            draw_price(right_panel_center_x, price_y, regular_price, price_font, gel_font, price_color, "mm")
         elif sale_val > 0: # Fallback if only sale price exists
-            price_text = f"₾{sale_price}"
-            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+            draw_price(right_panel_center_x, price_y, sale_price, price_font, gel_font, price_color, "mm")
 
     except (ValueError, TypeError):
-        if regular_price: # Fallback for non-numeric price data
-            price_text = f"₾{regular_price}"
-            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+        # Fallback for non-numeric data - this part is tricky with the new helper, will keep it simple
+        if regular_price:
+             draw.text((right_panel_center_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor="mm")
         elif sale_price:
-            price_text = f"₾{sale_price}"
-            draw.text((right_panel_center_x, price_y), price_text, font=price_font, fill=price_color, anchor="mm")
+            draw.text((right_panel_center_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor="mm")
 
     # --- Footer Info (SKU, P/N) ---
+    translator = Translator()
     info_y_start = height_px - margin
     info_line_height = base_info_size * scale_factor * 1.2
 
-    sku_label = "SKU: "
+    sku_label_text = translator.get_spec_label("SKU", language) + ": "
     sku_value = item_data.get('SKU', 'N/A')
     sku_y = info_y_start - info_line_height
+
+    sku_label_font = info_font_bold
+    if contains_georgian(sku_label_text):
+        sku_label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, base_info_size * scale_factor, is_bold=True)
+
+    # Draw value first to get its right edge
+    value_bbox = draw.textbbox((width_px - margin, sku_y), sku_value, font=info_font, anchor="rs")
     draw.text((width_px - margin, sku_y), sku_value, font=info_font, fill=text_color, anchor="rs")
-    sku_value_bbox = draw.textbbox((width_px - margin, sku_y), sku_value, font=info_font, anchor="rs")
-    draw.text((sku_value_bbox[0] - 5, sku_y), sku_label, font=info_font_bold, fill=price_color, anchor="rs")
+    
+    # Draw label to the left of the value
+    label_x = value_bbox[0] - 5
+    draw.text((label_x, sku_y), sku_label_text, font=sku_label_font, fill=price_color, anchor="rs")
 
     part_number = item_data.get('part_number', '')
     if part_number:
@@ -312,14 +736,27 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
 
     # --- Optional Specs & Red Accent Line ---
     line_y = y_start + total_text_height + (margin / 2)
-    draw.line([(margin, line_y), (separator_x - margin, line_y)], fill=price_color, width=2)
+    # Use a straight line instead of a curve
+    start_p = (margin, line_y)
+    end_p = (separator_x - margin, line_y)
+    draw.line([start_p, end_p], fill=price_color, width=int(3 * scale_factor))
+
 
     if displayed_specs:
         spec_text = " | ".join(displayed_specs)
-        spec_font = get_font(PRIMARY_FONT_PATH, base_info_size * 0.9 * scale_factor, FALLBACK_FONT_EN)
-        spec_y = line_y + margin
+        spec_font = get_font(PRIMARY_FONT_PATH, base_info_size * 0.9 * scale_factor)
+        spec_y = line_y + margin + (10 * scale_factor)
         draw.text((left_panel_center_x, spec_y), spec_text, font=spec_font, fill=text_color, anchor="ms",
                   align='center')
+
+    # --- Sale Overlay ---
+    if is_on_sale:
+        # For the keyboard layout, move the sale star to the footer area
+        star_center_x = separator_x + (right_panel_width / 4)
+        # Vertically center it on the SKU line for consistent placement
+        star_center_y = sku_y
+        _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language,
+                           center_x=star_center_x, center_y=star_center_y)
 
     # --- Final Border ---
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline=border_color, width=3)
@@ -340,7 +777,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     if size_config.get('is_accessory_style', False):
         return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
 
-    img = Image.new('RGB', (width_px, height_px), 'white')
+    # Use the new dynamic background
+    img = _create_dynamic_background(width_px, height_px)
     translator = Translator()
 
     current_area = width_cm * height_cm
@@ -355,13 +793,15 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     pn_font_size = BASE_PN_FONT_SIZE * scale_factor * layout_settings.get('pn_scale', 1.0)
     logo_scale_factor = layout_settings.get('logo_scale', 1.0)
 
-    title_font = get_font(PRIMARY_FONT_BOLD_PATH, title_font_size, FALLBACK_FONT_EN_BOLD)
-    spec_font_regular = get_font(PRIMARY_FONT_PATH, spec_font_size, FALLBACK_FONT_EN)
-    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, spec_font_size, FALLBACK_FONT_EN_BOLD)
-    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, sku_font_size, FALLBACK_FONT_EN_BOLD)
-    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, FALLBACK_FONT_EN_BOLD)
-    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size, FALLBACK_FONT_EN)
-    part_num_font = get_font(PRIMARY_FONT_PATH, pn_font_size, FALLBACK_FONT_EN)
+    title_font = get_font(PRIMARY_FONT_BOLD_PATH, title_font_size, is_bold=True)
+    spec_font_regular = get_font(PRIMARY_FONT_PATH, spec_font_size)
+    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, spec_font_size, is_bold=True)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, sku_font_size, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, is_bold=True)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size)
+    part_num_font = get_font(PRIMARY_FONT_PATH, pn_font_size)
+    gel_font = get_font(GEL_FONT_PATH, price_font_size, is_bold=True)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_font_size)
 
     border_width = max(2, int(5 * scale_factor))
     line_width = max(1, int(3 * scale_factor))
@@ -371,17 +811,20 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     strikethrough_color = theme.get("strikethrough_color", "black")
     logo_to_use = theme.get("logo_path_ka", "assets/logo-geo.png") if language == 'ka' else theme.get("logo_path",
                                                                                                       "assets/logo.png")
-    bullet_image_path = theme.get("bullet_image_path")
-
-    if theme.get("background_snow"):
-        snow_draw = ImageDraw.Draw(img)
-        for _ in range(70):
-            x, y = random.randint(0, width_px), random.randint(0, height_px)
-            radius = random.randint(int(10 * scale_factor), int(30 * scale_factor))
-            snow_draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(235, 245, 255, 50))
-
-    draw = ImageDraw.Draw(img)
+    
+    draw = ImageDraw.Draw(img, 'RGBA')
     margin = 0.05 * width_px
+
+    # --- Determine if on sale for layout adjustments ---
+    sale_price_str = item_data.get('Sale price', '').strip()
+    regular_price_str = item_data.get('Regular price', '').strip()
+    is_on_sale = False
+    try:
+        sale_val = float(sale_price_str.replace(',', '.')) if sale_price_str else 0
+        regular_val = float(regular_price_str.replace(',', '.')) if regular_price_str else 0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
+    except (ValueError, TypeError):
+        is_on_sale = False  # Ensure it's false if prices are not valid numbers
 
     # --- HEADER & TITLE ---
     y_cursor = 0.0
@@ -391,6 +834,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
 
     title_text = item_data.get('Name', 'N/A')
     title_area_width = width_px - (2 * margin)
+    if is_on_sale:
+        title_area_width *= 0.85  # Reduce width to avoid star
     wrapped_title_lines = wrap_text(title_text, title_font, title_area_width)
     if wrapped_title_lines:
         ascent, descent = title_font.getmetrics()
@@ -403,13 +848,16 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         y_cursor -= line_spacing
 
     y_cursor += 0.07 * height_px  # Title separator padding
-    draw.line([(margin, y_cursor), (width_px - margin, y_cursor)], fill=text_color, width=line_width)
-    y_cursor += 0.02 * height_px  # Separator to specs padding
+    # Use a straight line instead of a curve
+    start_p = (margin, y_cursor)
+    end_p = (width_px - margin, y_cursor)
+    draw.line([start_p, end_p], fill=text_color, width=line_width)
+    y_cursor += 0.02 * height_px + (10 * scale_factor) # Separator to specs padding
 
     # --- DYNAMIC SPECIFICATIONS ---
     footer_height = 0.14 * height_px
-    # Reduced the extra padding from 0.04 to 0.02 to allow more specs to fit
-    max_y_for_specs = height_px - footer_height - (0.02 * height_px)
+    footer_area_top = height_px - footer_height - border_width
+    max_y_for_specs = footer_area_top - (0.02 * height_px)
 
     all_specs = item_data.get('all_specs', [])
     warranty_spec = None
@@ -424,23 +872,13 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     spec_line_height = spec_ascent + spec_descent
     spec_line_spacing = int(4 * scale_factor)
 
-    # Helper function to accurately calculate the height of a spec line by
-    # determining the real width available for its value text.
+    # Helper function to accurately calculate the height of a spec line
     def get_real_spec_height(spec_text):
-        # Determine the starting X position for the text part of the spec
-        bullet_x = int(margin + 20 * scale_factor)
-        label_x = bullet_x
-        if bullet_image_path and os.path.exists(bullet_image_path):
-            try:
-                with Image.open(bullet_image_path) as bullet_img:
-                    bullet_size = int(spec_line_height * 0.8)
-                    label_x += bullet_size + 15
-            except Exception:
-                label_x += int(spec_font_regular.getbbox("• ")[2])
-        else:
-            label_x += int(spec_font_regular.getbbox("• ")[2])
+        icon_x = int(margin + 20 * scale_factor)
+        icon_size = int(spec_font_size)
+        # Use a fixed-width for the emoji area based on font size for consistency
+        label_x = icon_x + icon_size + int(10 * scale_factor)
 
-        # Calculate available width for the value part
         if ':' in spec_text:
             label, value = spec_text.split(':', 1)
             translated_label = translator.get_spec_label(label.strip(), language)
@@ -448,15 +886,13 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
             label_width = spec_font_bold.getbbox(label_text)[2]
             value_x = label_x + label_width
             remaining_width = width_px - value_x - margin
-
             wrapped_values = wrap_text(value.strip(), spec_font_regular, remaining_width)
             num_lines = max(1, len(wrapped_values))
             return num_lines * (spec_line_height + spec_line_spacing)
         else:
-            # The whole line is the spec, no wrapping calculation needed
             return spec_line_height + spec_line_spacing
 
-    # Determine which specs can fit using the accurate height calculation
+    # Determine which specs can fit
     drawable_specs = []
     current_spec_height = 0
     for spec in other_specs:
@@ -465,7 +901,6 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
             drawable_specs.append(spec)
             current_spec_height += h
 
-    # Always try to fit warranty at the end
     if warranty_spec:
         h = get_real_spec_height(warranty_spec)
         if y_cursor + current_spec_height + h < max_y_for_specs:
@@ -476,50 +911,50 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
                 drawable_specs[-1] = warranty_spec
 
     # Draw the determined specs
-    bullet_img = None
-    if bullet_image_path and os.path.exists(bullet_image_path):
-        try:
-            bullet_img = Image.open(bullet_image_path).convert("RGBA")
-        except:
-            pass
-
     for spec in drawable_specs:
-        bullet_x = int(margin + 20 * scale_factor)
-        label_x = bullet_x
+        icon_size = int(spec_font_size)
+        icon_x = int(margin + 20 * scale_factor)
+        icon_y = int(y_cursor + (spec_line_height - icon_size) / 2)
 
-        if bullet_img:
-            bullet_size = min(int(spec_line_height * 0.8), int(spec_font_regular.getbbox("M")[3]))
-            if bullet_size > 0:
-                bullet_y = int(y_cursor + (spec_line_height - bullet_size) / 2)
-                bullet_resized = bullet_img.resize((bullet_size, bullet_size), Image.Resampling.LANCZOS)
-                img.paste(bullet_resized, (bullet_x, bullet_y), bullet_resized)
-                label_x += bullet_size + 15
-        else:
-            draw.text((bullet_x, y_cursor + spec_ascent), "•", font=spec_font_regular, fill=text_color, anchor='ls')
-            label_x += int(spec_font_regular.getbbox("• ")[2])
+        icon_path = get_icon_path_for_spec(spec)
+        try:
+            with Image.open(icon_path) as icon_img:
+                icon_img = icon_img.convert("RGBA")
+                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+                img.paste(icon_img, (icon_x, icon_y), icon_img)
+        except FileNotFoundError:
+            print(f"Warning: Icon not found at {icon_path}")
+
+        # Use a fixed-width for the icon area based on font size for consistency
+        label_x = icon_x + icon_size + int(10 * scale_factor)
 
         if ':' in spec:
             label, value = spec.split(':', 1)
             value = value.strip()
-            # The label needs to be translated before display
             translated_label = translator.get_spec_label(label.strip(), language)
             label_text = translated_label + ': '
-            draw.text((label_x, y_cursor + spec_ascent), label_text, font=spec_font_bold, fill=text_color, anchor='ls')
+
+            # Choose font based on content
+            label_font = spec_font_bold # Default to Montserrat
+            if contains_georgian(translated_label):
+                label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, spec_font_size, is_bold=True)
+
+            draw.text((label_x, y_cursor + spec_ascent), label_text, font=label_font, fill=text_color, anchor='ls')
             
-            # Calculate position for the value part
-            value_x = label_x + spec_font_bold.getbbox(label_text)[2]
+            value_x = label_x + label_font.getbbox(label_text)[2]
             remaining_width = width_px - value_x - margin
             
-            # Wrap the value text if it's too long
             wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
             for i, line in enumerate(wrapped_values):
                 draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
-                # If the value wraps, we need to move the cursor down for the next line of the value
                 if i < len(wrapped_values) - 1:
                     y_cursor += spec_line_height + spec_line_spacing
         else:
-            # If there's no colon, draw the whole spec as regular text
-            draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font_regular, fill=text_color, anchor='ls')
+            # Also handle non-key-value specs that might be in Georgian
+            spec_font = spec_font_regular
+            if contains_georgian(spec):
+                spec_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, spec_font_size)
+            draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font, fill=text_color, anchor='ls')
         y_cursor += spec_line_height + spec_line_spacing
 
     # --- FOOTER ---
@@ -527,47 +962,98 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
     footer_center_y = footer_area_top + (height_px - footer_area_top - border_width) / 2
 
-    sku_label_text = translator.get_spec_label("SKU", language)
-    sku_full_text = f"{sku_label_text}: {item_data.get('SKU', 'N/A')}"
-    draw.text((margin, footer_center_y), sku_full_text, font=sku_font, fill=text_color, anchor="lm")
+    sku_label_text = translator.get_spec_label("SKU", language) + ": "
+    sku_value_text = item_data.get('SKU', 'N/A')
 
-    sale_price, regular_price = item_data.get('Sale price', '').strip(), item_data.get('Regular price', '').strip()
+    sku_label_font = sku_font  # Default to Montserrat Bold
+    if contains_georgian(sku_label_text):
+        sku_label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, sku_font_size, is_bold=True)
+
+    # Draw label
+    draw.text((margin, footer_center_y), sku_label_text, font=sku_label_font, fill=text_color, anchor="lm")
+
+    # Calculate where to draw the value
+    label_bbox = draw.textbbox((margin, footer_center_y), sku_label_text, font=sku_label_font, anchor="lm")
+    value_x = label_bbox[2] + (5 * scale_factor)
+
+    # Draw value
+    draw.text((value_x, footer_center_y), sku_value_text, font=sku_font, fill=text_color, anchor="lm")
+
     price_x = width_px - margin
     price_y = footer_center_y
-    try:
-        sale_val, regular_val = 0, 0
-        if sale_price:
-            try:
-                sale_val = float(sale_price.replace(',', '.'))
-            except ValueError:
-                sale_val = 0
-        if regular_price:
-            try:
-                regular_val = float(regular_price.replace(',', '.'))
-            except ValueError:
-                regular_val = 0
 
-        # Condition: sale price is valid, greater than zero, and different from regular price
-        if sale_val > 0 and sale_val != regular_val:
-            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
+    # --- Price Drawing Logic ---
+    try:
+        # Note: is_on_sale is already calculated at the top of the function
+        sale_val = float(sale_price_str.replace(',', '.')) if sale_price_str else 0
+        regular_val = float(regular_price_str.replace(',', '.')) if regular_price_str else 0
+
+        # --- 1. Calculate Bounding Boxes without drawing ---
+        def get_composite_bbox(price_val, p_font, g_font):
+            price_str = str(price_val)
+            gel_str = "₾"
+            price_w = p_font.getbbox(price_str)[2] - p_font.getbbox(price_str)[0]
+            gel_w = g_font.getbbox(gel_str)[2] - g_font.getbbox(gel_str)[0]
+            spacing = int(5 * scale_factor)
+            total_w = gel_w + spacing + price_w
+            ascent, descent = p_font.getmetrics()
+            total_h = ascent + descent
+            return total_w, total_h
+
+        sale_bbox_w, sale_bbox_h = 0, 0
+        orig_bbox_w, orig_bbox_h = 0, 0
+        total_width_of_prices = 0
+        
+        if is_on_sale:
+            sale_bbox_w, sale_bbox_h = get_composite_bbox(sale_price_str, price_font, gel_font)
+            total_width_of_prices += sale_bbox_w
             if regular_val > 0:
-                orig_text = f"₾{regular_price}"
-                sale_bbox = draw.textbbox((price_x, price_y), f"₾{sale_price}", font=price_font, anchor='rm')
-                orig_x = sale_bbox[0] - (20 * scale_factor)
-                draw.text((orig_x, price_y), orig_text, font=strikethrough_font, fill=strikethrough_color, anchor='rm')
-                drawn_orig_bbox = draw.textbbox((orig_x, price_y), orig_text, font=strikethrough_font, anchor='rm')
-                draw.line([(drawn_orig_bbox[0], price_y), (drawn_orig_bbox[2], price_y)], fill=strikethrough_color,
-                          width=line_width)
+                orig_bbox_w, orig_bbox_h = get_composite_bbox(regular_price_str, strikethrough_font, gel_font_strikethrough)
+                total_width_of_prices += orig_bbox_w + (20 * scale_factor)
         elif regular_val > 0:
-            draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
-        elif sale_val > 0: # Fallback if only sale price exists
-            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
+            sale_bbox_w, sale_bbox_h = get_composite_bbox(regular_price_str, price_font, gel_font)
+            total_width_of_prices += sale_bbox_w
+        elif sale_val > 0:
+            sale_bbox_w, sale_bbox_h = get_composite_bbox(sale_price_str, price_font, gel_font)
+            total_width_of_prices += sale_bbox_w
+
+        # --- 3. Draw Text ---
+        def draw_composite_price(x, y, price_val, p_font, g_font, color, anchor, is_strikethrough=False):
+            price_str = str(price_val)
+            gel_str = "₾"
+            price_w = p_font.getbbox(price_str)[2] - p_font.getbbox(price_str)[0]
+            gel_w = g_font.getbbox(gel_str)[2] - g_font.getbbox(gel_str)[0]
+            spacing = int(5 * scale_factor)
+            total_w = gel_w + spacing + price_w
+            
+            start_x = x - total_w if anchor == 'rm' else x
+
+            draw.text((start_x, y), gel_str, font=g_font, fill=color, anchor='lm')
+            draw.text((start_x + gel_w + spacing, y), price_str, font=p_font, fill=color, anchor='lm')
+            
+            if is_strikethrough:
+                ascent, descent = p_font.getmetrics()
+                line_y = y
+                draw.line([(start_x, line_y), (start_x + total_w, line_y)], fill=color, width=line_width)
+            
+            return start_x
+
+        if is_on_sale:
+            sale_x_left = draw_composite_price(price_x, price_y, sale_price_str, price_font, gel_font, price_color, 'rm')
+            if regular_val > 0:
+                orig_x_right = sale_x_left - (20 * scale_factor)
+                draw_composite_price(orig_x_right, price_y, regular_price_str, strikethrough_font, gel_font_strikethrough, strikethrough_color, 'rm', is_strikethrough=True)
+        elif regular_val > 0:
+            draw_composite_price(price_x, price_y, regular_price_str, price_font, gel_font, price_color, 'rm')
+        elif sale_val > 0:
+            draw_composite_price(price_x, price_y, sale_price_str, price_font, gel_font, price_color, 'rm')
 
     except (ValueError, TypeError):
-        if regular_price: # Fallback for non-numeric price data
-            draw.text((price_x, price_y), f"₾{regular_price}", font=price_font, fill=price_color, anchor='rm')
-        elif sale_price:
-            draw.text((price_x, price_y), f"₾{sale_price}", font=price_font, fill=price_color, anchor='rm')
+        # Fallback for non-numeric data
+        if regular_price_str:
+            draw.text((price_x, price_y), f"₾{regular_price_str}", font=price_font, fill=price_color, anchor='rm')
+        elif sale_price_str:
+            draw.text((price_x, price_y), f"₾{sale_price_str}", font=price_font, fill=price_color, anchor='rm')
 
     # --- LOGO & P/N ---
     logo_top_y = 0.03 * height_px
@@ -585,7 +1071,11 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     if part_number:
         pn_text = f"P/N: {part_number}"
         pn_y = logo_top_y + (logo_area_height - logo_top_y) / 2
-        draw.text((width_px - margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="rm")
+        draw.text((margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="lm")
+
+    # --- Sale Overlay ---
+    if is_on_sale:
+        _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language)
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img

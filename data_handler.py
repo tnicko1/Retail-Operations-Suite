@@ -51,7 +51,7 @@ TEMPLATES_FILE = 'templates.json'
 DEFAULT_PAPER_SIZES = {
     '6x3.5cm': {'dims': (6, 3.5), 'spec_limit': 0, 'is_accessory_style': True},
     '10x8cm': {'dims': (10, 8), 'spec_limit': 8},
-    '14.4x8cm': {'dims': (14.4, 8), 'spec_limit': 12},
+    '14.8x8cm': {'dims': (14.8, 8), 'spec_limit': 12},
     '15x10cm': {'dims': (15, 10), 'spec_limit': 13},
     '17x5.7cm Keyboard': {'dims': (17, 5.7), 'spec_limit': 4, 'design': 'keyboard'},
     '17.5x12.5cm': {'dims': (17.5, 12.5), 'spec_limit': 11}
@@ -69,7 +69,7 @@ def get_default_layout_settings():
 
 def get_default_settings():
     return {
-        "default_size": "14.4x8cm",
+        "default_size": "14.8x8cm",
         "custom_sizes": {},
         "default_theme": "Default",
         "language": "en",
