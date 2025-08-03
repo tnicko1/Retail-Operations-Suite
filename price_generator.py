@@ -308,9 +308,9 @@ BASE_PN_FONT_SIZE = 16
 
 # --- ACCESSORY TAG SPECIFIC ---
 BASE_ACC_AREA = 5.0 * 3.0  # Base area for a smaller accessory tag
-BASE_ACC_SKU_FONT_SIZE = 30
-BASE_ACC_NAME_FONT_SIZE = 22
-BASE_ACC_PRICE_FONT_SIZE = 32
+BASE_ACC_SKU_FONT_SIZE = 42
+BASE_ACC_NAME_FONT_SIZE = 42
+BASE_ACC_PRICE_FONT_SIZE = 45
 
 
 def get_font(primary_path, size, is_bold=False):
@@ -477,7 +477,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
 
     sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_SKU_FONT_SIZE * scale_factor, is_bold=True)
-    name_font = get_font(PRIMARY_FONT_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor)
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor, is_bold=True)
     price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
     gel_font = get_font(GEL_FONT_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
 
