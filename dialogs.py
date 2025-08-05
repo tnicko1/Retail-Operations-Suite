@@ -1,5 +1,7 @@
 import copy
 from datetime import datetime
+import sys
+import winsound
 
 import pytz
 from PyQt6.QtCore import Qt, QSize
@@ -376,6 +378,7 @@ class NewItemDialog(QDialog):
         self.sku_label = QLineEdit(sku)
         self.sku_label.setReadOnly(True)
         self.name_input = QLineEdit()
+        self.part_number_input = QLineEdit()
         self.price_input = QLineEdit()
         self.sale_price_input = QLineEdit()
         self.specs_input = QTextEdit()
@@ -388,6 +391,7 @@ class NewItemDialog(QDialog):
 
         form_layout.addRow(self.translator.get("new_item_sku_label"), self.sku_label)
         form_layout.addRow(self.translator.get("new_item_name_label"), self.name_input)
+        form_layout.addRow(self.translator.get("part_number_label"), self.part_number_input)
         form_layout.addRow(self.translator.get("new_item_price_label"), self.price_input)
         form_layout.addRow(self.translator.get("new_item_sale_price_label"), self.sale_price_input)
         form_layout.addRow(self.translator.get("new_item_specs_label"), self.specs_input)
@@ -409,12 +413,22 @@ class NewItemDialog(QDialog):
         self.new_item_data["Name"] = name
         self.new_item_data["Regular price"] = self.price_input.text().strip()
         self.new_item_data["Sale price"] = self.sale_price_input.text().strip()
+        self.new_item_data["isManual"] = True
+
+        part_number = self.part_number_input.text().strip()
+        if part_number:
+            # Store it in both places for consistency with how existing data is handled
+            self.new_item_data['part_number'] = part_number
+            if 'attributes' not in self.new_item_data:
+                self.new_item_data['attributes'] = {}
+            self.new_item_data['attributes']['Part Number'] = part_number
 
         specs_html = "".join(
             [f"<li>{line}</li>" for line in self.specs_input.toPlainText().strip().split('\n') if line and ':' in line])
         self.new_item_data["Description"] = f"<ul>{specs_html}</ul>"
 
         self.accept()
+
 
 
 class PrintQueueDialog(QDialog):
@@ -502,19 +516,30 @@ class PrintQueueDialog(QDialog):
 
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
+            if sys.platform == "win32":
+                winsound.Beep(440, 100)
+                winsound.Beep(440, 100)
             QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
                                 self.translator.get("sku_not_found_message", identifier))
             return
 
         sku_to_add = item_data.get('SKU')
-        if sku_to_add in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
-            QMessageBox.warning(self, self.translator.get("batch_duplicate_title"),
-                                self.translator.get("batch_duplicate_message", sku_to_add))
-            return
+
+        # Check for duplicates only if the selected size is NOT the accessory size
+        if self.parent_window and self.parent_window.paper_size_combo.currentText() != "6x3.5cm":
+            if sku_to_add in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
+                if sys.platform == "win32":
+                    winsound.Beep(440, 100)
+                    winsound.Beep(440, 100)
+                QMessageBox.warning(self, self.translator.get("batch_duplicate_title"),
+                                    self.translator.get("batch_duplicate_message", sku_to_add))
+                return
 
         self.sku_list_widget.addItem(sku_to_add)
         self.save_queue()
         self.sku_input.clear()
+        if sys.platform == "win32":
+            winsound.Beep(880, 150)
 
     def load_queue(self):
         self.sku_list_widget.clear()

@@ -236,7 +236,26 @@ def sync_products_from_file(filepath, admin_token):
                     }
                     price_history_payload[f"price_history/{sku}/{timestamp.replace('.', ':')}"] = history_entry
 
-        skus_to_delete = firebase_skus - file_skus
+        skus_to_potentially_delete = firebase_skus - file_skus
+        skus_to_delete = set()
+
+        # Filter out manually added items from the deletion list
+        for sku in skus_to_potentially_delete:
+            item_data = firebase_items.get(sku, {})
+            if not item_data.get("isManual"):
+                skus_to_delete.add(sku)
+
+        # Before deleting items, clear their display status
+        if skus_to_delete:
+            all_display_statuses = get_display_status(admin_token)
+            display_update_payload = {}
+            for branch, on_display_items in all_display_statuses.items():
+                for sku in skus_to_delete:
+                    if sku in on_display_items:
+                        display_update_payload[f"displayStatus/{branch}/{sku}"] = None
+            if display_update_payload:
+                db.update(display_update_payload, admin_token)
+
 
         update_payload = {}
         for sku in skus_to_delete:

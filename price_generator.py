@@ -405,7 +405,7 @@ def _draw_bezier_curve(draw, start_point, end_point, control_point, fill, width)
     draw.line(points, fill=fill, width=width)
 
 
-def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None):
+def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None, is_special=False):
     """
     Draws a 'SALE' starburst overlay with rotated text.
     Accepts optional center_x, center_y, and outer_radius for custom positioning and sizing.
@@ -431,7 +431,7 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
         y = center_y + radius * math.sin(angle)
         points.append((x, y))
 
-    overlay_color = theme.get('price_color', '#D32F2F')
+    overlay_color = 'purple' if is_special else theme.get('price_color', '#D32F2F')
     draw.polygon(points, fill=overlay_color, outline="black", width=int(2 * scale_factor))
 
     # --- Rotated "SALE" text ---
@@ -444,7 +444,7 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
     else:
         sale_font = get_font(PRIMARY_FONT_BOLD_PATH, sale_font_size, is_bold=True)
         
-    sale_text = translator.get_spec_label("SALE", language)
+    sale_text = translator.get_spec_label("SPECIAL" if is_special else "SALE", language)
     rotation_angle = -25
 
     # Get text size
@@ -551,7 +551,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     return img
 
 
-def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language):
+def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
     """Creates a special price tag for keyboards with a unique design."""
     # Use the new dynamic background
     img = _create_dynamic_background(width_px, height_px)
@@ -750,13 +750,13 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
                   align='center')
 
     # --- Sale Overlay ---
-    if is_on_sale:
+    if is_on_sale or is_special:
         # For the keyboard layout, move the sale star to the footer area
         star_center_x = separator_x + (right_panel_width / 4)
         # Vertically center it on the SKU line for consistent placement
         star_center_y = sku_y
         _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language,
-                           center_x=star_center_x, center_y=star_center_y)
+                           center_x=star_center_x, center_y=star_center_y, is_special=is_special)
 
     # --- Final Border ---
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline=border_color, width=3)
@@ -764,7 +764,7 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     return img
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en'):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 
@@ -773,7 +773,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
     if size_config.get('design') == 'keyboard':
-        return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language)
+        return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
         return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
 
@@ -834,7 +834,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
 
     title_text = item_data.get('Name', 'N/A')
     title_area_width = width_px - (2 * margin)
-    if is_on_sale:
+    if is_on_sale or is_special:
         title_area_width *= 0.85  # Reduce width to avoid star
     wrapped_title_lines = wrap_text(title_text, title_font, title_area_width)
     if wrapped_title_lines:
@@ -1074,8 +1074,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         draw.text((margin, pn_y), pn_text, font=part_num_font, fill=text_color, anchor="lm")
 
     # --- Sale Overlay ---
-    if is_on_sale:
-        _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language)
+    if is_on_sale or is_special:
+        _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language, is_special=is_special)
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img

@@ -403,10 +403,20 @@ class RetailOperationsSuite(QMainWindow):
         self.dual_lang_checkbox = QCheckBox();
         self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False));
         self.dual_lang_checkbox.stateChanged.connect(self.toggle_dual_language)
+        self.special_tag_label = QLabel()
+        self.special_tag_checkbox = QCheckBox()
+        self.special_tag_checkbox.stateChanged.connect(self.update_preview)
         settings_layout.addRow(self.paper_size_label, self.paper_size_combo);
         settings_layout.addRow(self.theme_label, self.theme_combo);
-        settings_layout.addRow(self.dual_lang_label, self.dual_lang_checkbox)
+        checkbox_layout = QHBoxLayout()
+        checkbox_layout.addWidget(self.dual_lang_label)
+        checkbox_layout.addWidget(self.dual_lang_checkbox)
+        checkbox_layout.addStretch()
+        checkbox_layout.addWidget(self.special_tag_label)
+        checkbox_layout.addWidget(self.special_tag_checkbox)
+        checkbox_layout.addStretch()
         style_layout.addLayout(settings_layout)
+        style_layout.addLayout(checkbox_layout)
 
         self.layout_settings_button = QPushButton()
         self.layout_settings_button.clicked.connect(self.open_layout_settings)
@@ -500,6 +510,7 @@ class RetailOperationsSuite(QMainWindow):
         self.paper_size_label.setText(self.tr("paper_size_label"))
         self.theme_label.setText(self.tr("theme_label"))
         self.dual_lang_label.setText(self.tr("dual_language_label"))
+        self.special_tag_label.setText(self.tr("special_tag_label"))
         self.layout_settings_button.setText(self.tr("layout_settings_button"))
         self.specs_group.setTitle(self.tr("specs_group"))
         self.add_spec_button.setText(self.tr("add_button"))
@@ -818,11 +829,12 @@ class RetailOperationsSuite(QMainWindow):
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
+        is_special = self.special_tag_checkbox.isChecked()
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='en')
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='ka')
+            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='en', is_special=is_special)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='ka', is_special=is_special)
             
             # Use the A4 layout generator for dual language tags
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
@@ -831,7 +843,7 @@ class RetailOperationsSuite(QMainWindow):
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language=lang)
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language=lang, is_special=is_special)
             
             # Use the A4 layout generator for a single tag
             a4_img = a4_layout_generator.create_a4_for_single(img)
@@ -877,17 +889,18 @@ class RetailOperationsSuite(QMainWindow):
 
             data_to_print = self._prepare_data_for_printing(item_data)
             is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
+            is_special = self.special_tag_checkbox.isChecked()
 
             if is_dual:
                 img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                          language='en')
+                                                          language='en', is_special=is_special)
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                          language='ka')
+                                                          language='ka', is_special=is_special)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
-                                                       language=lang)
+                                                       language=lang, is_special=is_special)
                 all_tags_images.append(img)
 
         if not all_tags_images:
@@ -991,11 +1004,12 @@ class RetailOperationsSuite(QMainWindow):
         is_accessory = size_config.get("is_accessory_style", False)
         lang = 'en' if is_accessory else self.translator.language
         is_dual = self.dual_lang_checkbox.isChecked() and not is_accessory
+        is_special = self.special_tag_checkbox.isChecked()
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='en')
-            img_ka = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='ka')
+            img_en = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='en', is_special=is_special)
+            img_ka = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='ka', is_special=is_special)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1015,7 +1029,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language=lang)
+            img = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language=lang, is_special=is_special)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 

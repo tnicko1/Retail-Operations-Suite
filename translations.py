@@ -35,6 +35,7 @@ TRANSLATIONS = {
         "paper_size_label": "Paper Size:",
         "theme_label": "Theme:",
         "dual_language_label": "Generate Georgian Tag:",
+        "special_tag_label": "Generate Special Tag:",
         "layout_settings_button": "Layout Settings...",
         "specs_group": "Specifications",
         "add_button": "Add",
@@ -218,6 +219,7 @@ TRANSLATIONS = {
         "new_item_dialog_title": "Register New Item",
         "new_item_sku_label": "SKU:",
         "new_item_name_label": "Item Name:",
+        "part_number_label": "Part Number:",
         "new_item_price_label": "Regular Price:",
         "new_item_sale_price_label": "Sale Price (optional):",
         "new_item_specs_label": "Specifications:",
@@ -411,7 +413,7 @@ TRANSLATIONS = {
             "Mounting": "Mounting",
 
             # --- Chairs & Desks ---
-            "Maximum Weight": "Maximum Weight",
+            "MaximumWeight": "Maximum Weight",
             "Max Weight": "Max Weight",
             "Materials": "Materials",
             "Number of Wheels": "Number of Wheels",
@@ -430,6 +432,7 @@ TRANSLATIONS = {
             "Portable Design": "Portable Design",
             "Portability": "Portability",
             "SALE": "SALE",
+            "SPECIAL": "SPECIAL",
         }
     },
     "ka": {
@@ -452,6 +455,7 @@ TRANSLATIONS = {
         "paper_size_label": "ქაღალდის ზომა:",
         "theme_label": "თემა:",
         "dual_language_label": "ინგლისური ვერსიის დამატება:",
+        "special_tag_label": "სპეც. ფასმაჩვენებლის გენერირება:",
         "layout_settings_button": "დიზაინის პარამეტრები...",
         "specs_group": "მონაცემები",
         "add_button": "დამატება",
@@ -623,6 +627,7 @@ TRANSLATIONS = {
         "new_item_dialog_title": "ახალი პროდუქტის რეგისტრაცია",
         "new_item_sku_label": "კოდი:",
         "new_item_name_label": "პროდუქტის სახელი:",
+        "part_number_label": "მწარმოებლის ნომერი:",
         "new_item_price_label": "სტანდარტული ფასი:",
         "new_item_sale_price_label": "ფასდაკლებული ფასი:",
         "new_item_specs_label": "მონაცემები:",
@@ -816,7 +821,7 @@ TRANSLATIONS = {
             "Mounting": "მონტაჟი",
 
             # --- Chairs & Desks ---
-            "Maximum Weight": "მაქსიმუმი წონა",
+            "MaximumWeight": "მაქსიმუმი წონა",
             "Max Weight": "მაქსიმუმი წონა",
             "Materials": "მატერიალები",
             "Number of Wheels": "ბორბლების რაოდენობა",
@@ -835,6 +840,7 @@ TRANSLATIONS = {
             "Portable Design": "პორტატული დიზაინი",
             "Portability": "პორტატულობა",
             "SALE": "აქცია",
+            "SPECIAL": "სპეც",
         }
     }
 }
