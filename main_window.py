@@ -869,9 +869,7 @@ class RetailOperationsSuite(QMainWindow):
         size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         
-        # Define a safe margin in cm to avoid printer cut-off
-        A4_MARGIN_CM = 0.5
-        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'], margin_cm=A4_MARGIN_CM)
+        layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
         tags_per_sheet = layout_info.get('total', 0)
         if tags_per_sheet <= 0:
@@ -907,7 +905,7 @@ class RetailOperationsSuite(QMainWindow):
             QMessageBox.warning(self, "No Items Found", "None of the SKUs in the queue could be found.")
             return
 
-        a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info, margin_cm=A4_MARGIN_CM)
+        a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info)
 
         a4_pixmaps = []
         for page in a4_pages:

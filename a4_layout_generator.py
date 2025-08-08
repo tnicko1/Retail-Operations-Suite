@@ -76,14 +76,14 @@ def create_a4_for_single(tag_image):
     return a4_sheet
 
 
-def calculate_layout(tag_width_cm, tag_height_cm, margin_cm=0.5):
+def calculate_layout(tag_width_cm, tag_height_cm, margin_h_cm=0.7, margin_v_cm=1.0):
     """
     Calculates how many tags can fit on a single A4 sheet,
-    considering a safe margin from the paper edge.
+    considering safe horizontal and vertical margins from the paper edge.
     """
-    # A4 dimensions minus the margin on both sides (left/right, top/bottom)
-    printable_width_cm = A4_WIDTH_CM - (2 * margin_cm)
-    printable_height_cm = A4_HEIGHT_CM - (2 * margin_cm)
+    # A4 dimensions minus the margin on both sides
+    printable_width_cm = A4_WIDTH_CM - (2 * margin_h_cm)
+    printable_height_cm = A4_HEIGHT_CM - (2 * margin_v_cm)
 
     a4_w_px, a4_h_px = cm_to_pixels(printable_width_cm), cm_to_pixels(printable_height_cm)
     tag_w_px, tag_h_px = cm_to_pixels(tag_width_cm), cm_to_pixels(tag_height_cm)
@@ -128,9 +128,9 @@ def create_a4_layouts(tag_images, layout_info, margin_cm=0.5):
     printable_width = a4_w_px - (2 * margin_px)
     printable_height = a4_h_px - (2 * margin_px)
 
-    # Center the grid within the printable area. The starting point is the margin plus the centering offset.
-    start_x = margin_px + (printable_width - grid_width) // 2
-    start_y = margin_px + (printable_height - grid_height) // 2
+    # Center the grid on the page.
+    start_x = (a4_w_px - grid_width) // 2
+    start_y = (a4_h_px - grid_height) // 2
 
     a4_sheets = []
     for sheet_tags in chunks(tag_images, tags_per_sheet):
