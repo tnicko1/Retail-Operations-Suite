@@ -180,100 +180,103 @@ def sync_products_from_file(filepath, admin_token):
     if not admin_token:
         return False, "Authentication token is missing. Cannot sync.", 0
     try:
-        # Define keys that should NOT be treated as attributes and should remain at the top level of the item.
-        known_top_level_keys = [
-            "SKU", "Name", "Short description", "Description", "Stock", "Stock Vaja", "Stock Marj", "Stock Gldan",
-            "Regular price", "Sale price", "Categories", "Image", "category_sanitized"
-        ]
-
-        file_skus = set()
         file_items = {}
+        all_fieldnames = []
         with open(filepath, mode='r', encoding='utf-8-sig') as infile:
             reader = csv.DictReader(infile)
+            all_fieldnames = reader.fieldnames or []
             for row in reader:
                 sku = row.get("SKU")
                 if not sku:
                     continue
+                file_items[sku] = row
 
-                new_item = {'attributes': {}}
-
-                # Iterate through all columns in the row from the CSV
-                for key, value in row.items():
-                    if not key or value is None or value.strip() in ['', '-']:
-                        continue  # Skip empty keys or values
-
-                    # If the key is a known top-level field, add it directly to the item.
-                    if key in known_top_level_keys:
-                        new_item[key] = value
-                    # Otherwise, treat it as a specification and add it to the 'attributes' dictionary.
-                    else:
-                        new_item['attributes'][key.strip()] = value.strip()
-
-                # Add the sanitized category for indexing
-                category = new_item.get("Categories")
-                new_item["category_sanitized"] = sanitize_for_indexing(category)
-
-                file_skus.add(sku)
-                file_items[sku] = new_item
+        file_skus = set(file_items.keys())
+        branch_stock_columns = [field for field in all_fieldnames if field.startswith("Stock ")]
+        known_top_level_keys = [
+            "SKU", "Name", "Short description", "Description", "Stock",
+            "Regular price", "Sale price", "Categories", "Image", "category_sanitized"
+        ] + branch_stock_columns
 
         firebase_items = db.child("items").get(admin_token).val() or {}
         firebase_skus = set(firebase_items.keys())
 
+        update_payload = {}
         price_history_payload = {}
+        display_update_payload = {}
+        
         tbilisi_tz = pytz.timezone('Asia/Tbilisi')
         timestamp = datetime.now(tbilisi_tz).strftime('%Y-%m-%d %H:%M:%S')
 
-        for sku, new_item_data in file_items.items():
-            old_item_data = firebase_items.get(sku)
-            if old_item_data:
-                old_price = old_item_data.get("Regular price", "N/A")
-                new_price = new_item_data.get("Regular price", "N/A")
-                if old_price != new_price:
-                    history_entry = {
-                        "timestamp": timestamp,
-                        "old_price": old_price,
-                        "new_price": new_price
-                    }
-                    price_history_payload[f"price_history/{sku}/{timestamp.replace('.', ':')}"] = history_entry
-
         skus_to_potentially_delete = firebase_skus - file_skus
-        skus_to_delete = set()
+        skus_to_delete = {sku for sku in skus_to_potentially_delete if not firebase_items.get(sku, {}).get("isManual")}
+        
+        all_display_statuses = get_display_status(admin_token)
 
-        # Filter out manually added items from the deletion list
-        for sku in skus_to_potentially_delete:
-            item_data = firebase_items.get(sku, {})
-            if not item_data.get("isManual"):
-                skus_to_delete.add(sku)
-
-        # Before deleting items, clear their display status
         if skus_to_delete:
-            all_display_statuses = get_display_status(admin_token)
-            display_update_payload = {}
             for branch, on_display_items in all_display_statuses.items():
                 for sku in skus_to_delete:
                     if sku in on_display_items:
                         display_update_payload[f"displayStatus/{branch}/{sku}"] = None
-            if display_update_payload:
-                db.update(display_update_payload, admin_token)
+            for sku in skus_to_delete:
+                update_payload[f"items/{sku}"] = None
 
+        # --- Use the user-provided hardcoded mapping ---
+        branch_mapping = {
+            "Gldani Shop": "Stock Gldan",
+            "Marjanishvili": "Stock Marj",
+            "Vazha-Pshavela Shop": "Stock Vaja"
+        }
 
-        update_payload = {}
-        for sku in skus_to_delete:
-            update_payload[f"items/{sku}"] = None
+        for branch_db_key, stock_col_name in branch_mapping.items():
+            on_display_items_for_branch = all_display_statuses.get(branch_db_key, {})
+            if not on_display_items_for_branch:
+                continue
 
-        for sku, item_data in file_items.items():
-            update_payload[f"items/{sku}"] = item_data
+            for sku in on_display_items_for_branch:
+                item_data_from_file = file_items.get(sku)
+                if item_data_from_file:
+                    stock_value_str = item_data_from_file.get(stock_col_name, '0').replace(',', '')
+                    try:
+                        stock_value = int(stock_value_str)
+                    except (ValueError, TypeError):
+                        stock_value = 0
+                    
+                    if stock_value <= 0:
+                        display_update_payload[f"displayStatus/{branch_db_key}/{sku}"] = None
 
+        for sku, row_data in file_items.items():
+            new_item = {'attributes': {}}
+            for key, value in row_data.items():
+                if not key or value is None or value.strip() in ['', '-']:
+                    continue
+                # Use all_fieldnames to determine what is a top-level key vs an attribute
+                if key in known_top_level_keys:
+                    new_item[key] = value
+                else:
+                    new_item['attributes'][key.strip()] = value.strip()
+            
+            new_item["category_sanitized"] = sanitize_for_indexing(new_item.get("Categories"))
+            update_payload[f"items/{sku}"] = new_item
+
+            old_item_data = firebase_items.get(sku)
+            if old_item_data:
+                old_price = old_item_data.get("Regular price", "N/A")
+                new_price = new_item.get("Regular price", "N/A")
+                if old_price != new_price:
+                    history_entry = {"timestamp": timestamp, "old_price": old_price, "new_price": new_price}
+                    price_history_payload[f"price_history/{sku}/{timestamp.replace('.', ':')}"] = history_entry
+
+        if display_update_payload:
+            db.update(display_update_payload, admin_token)
+        
         update_payload.update(price_history_payload)
-
         if update_payload:
             db.update(update_payload, admin_token)
 
         num_synced = len(file_items)
         num_deleted = len(skus_to_delete)
-
-        log_activity(admin_token,
-                     f"Admin performed database sync. Updated/Added: {num_synced}, Removed: {num_deleted}.")
+        log_activity(admin_token, f"Admin performed database sync. Updated/Added: {num_synced}, Removed: {num_deleted}.")
         return True, num_synced, num_deleted
 
     except FileNotFoundError:
