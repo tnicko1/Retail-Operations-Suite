@@ -52,7 +52,7 @@ class RetailOperationsSuite(QMainWindow):
         self.setGeometry(100, 100, 1400, 800)
         self.paper_sizes = data_handler.get_all_paper_sizes()
         self.current_item_data = {}
-        self.all_items_cache = {}
+        self.all_items_cache = firebase_handler.get_all_items(self.token) or {}
         self.themes = {
             "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
                         "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png")},
