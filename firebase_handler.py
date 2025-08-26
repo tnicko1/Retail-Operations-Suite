@@ -149,11 +149,13 @@ def register_user(email, password, username, is_first):
         return user, None
     except Exception as e:
         try:
-            error_json = e.args[1]
-            error_message = json.loads(error_json)['error']['message']
+            # Attempt to parse a Firebase-specific error
+            error_json = json.loads(e.args[1])
+            error_message = error_json.get('error', {}).get('message', 'An unknown error occurred.')
             return None, error_message
-        except (IndexError, KeyError, json.JSONDecodeError):
-            return None, str(e)
+        except (IndexError, KeyError, json.JSONDecodeError, AttributeError):
+            # Fallback for non-Firebase errors or unexpected structures
+            return None, f"An unexpected error occurred: {e}"
 
 
 def get_all_users(token):
