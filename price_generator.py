@@ -24,6 +24,12 @@ import math
 import re
 from translations import Translator
 from data_handler import get_default_layout_settings
+try:
+    from assets.school_icons import create_laptop_icon, create_book_icon, create_ruler_icon
+except ImportError:
+    # This might happen during packaging, handle gracefully.
+    create_laptop_icon = create_book_icon = create_ruler_icon = None
+
 
 def get_icon_path_for_spec(spec_text):
     """Returns an icon path based on keywords in the specification text."""
@@ -468,10 +474,16 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
     img.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
 
 
-def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
-    img = Image.new('RGB', (width_px, height_px), 'white')
-    draw = ImageDraw.Draw(img)
-    text_color = "black"
+def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme):
+    # --- BACKGROUND ---
+    if theme.get('background_grid'):
+        img = _create_grid_background(width_px, height_px, color=theme.get('background_color', '#2E7D32'))
+    else:
+        img = Image.new('RGB', (width_px, height_px), 'white')
+
+    draw = ImageDraw.Draw(img, 'RGBA') # Use RGBA for transparency pasting
+    text_color = theme.get("text_color", "black")
+    price_color = theme.get("price_color", text_color) # Fallback to text_color if not specified
 
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
@@ -487,14 +499,49 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     border_width = max(2, int(3 * scale_factor))
 
     top_sep_y = top_area_height
-    draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=text_color,
-              width=max(1, int(2 * scale_factor)))
     bottom_sep_y = height_px - bottom_area_height
-    draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=text_color,
-              width=max(1, int(2 * scale_factor)))
+
+    # Conditionally draw separators
+    if not theme.get('draw_school_icons'):
+        draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=text_color,
+                  width=max(1, int(2 * scale_factor)))
+        draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=text_color,
+                  width=max(1, int(2 * scale_factor)))
 
     sku_text = item_data.get('SKU', 'N/A')
-    draw.text((width_px / 2, top_sep_y / 2), sku_text, font=sku_font, fill=text_color, anchor="mm")
+    sku_y = top_sep_y / 2
+
+    # --- Sticky Note for SKU ---
+    if theme.get('draw_school_icons'):
+        note_padding = 15 * scale_factor
+        sku_bbox = sku_font.getbbox(sku_text)
+        sku_width = sku_bbox[2] - sku_bbox[0]
+        sku_height = sku_bbox[3] - sku_bbox[1]
+        
+        note_rect_x1 = (width_px / 2) - (sku_width / 2) - note_padding
+        note_rect_y1 = sku_y - (sku_height / 2) - note_padding
+        note_rect_x2 = (width_px / 2) + (sku_width / 2) + note_padding
+        note_rect_y2 = sku_y + (sku_height / 2) + note_padding
+
+        rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
+        rect_draw = ImageDraw.Draw(rect_img)
+        
+        # Shadow
+        shadow_offset = 5 * scale_factor
+        rect_draw.rectangle(
+            (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
+             note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
+            fill=(0, 0, 0, 80)
+        )
+        # Note Body
+        rect_draw.rectangle(
+            (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
+            fill='#FFFFE0'
+        )
+        rotated_rect = rect_img.rotate(-2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, sku_y))
+        img.paste(rotated_rect, (0,0), rotated_rect)
+
+    draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
 
     name_text = item_data.get('Name', 'N/A')
     name_area_width = width_px - (2 * margin)
@@ -503,12 +550,45 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
     bbox = name_font.getbbox("Ag")
     line_height = bbox[3] - bbox[1]
     total_text_height = len(wrapped_lines) * line_height
+    
+    max_line_width = 0
+    for line in wrapped_lines:
+        line_width = name_font.getbbox(line)[2]
+        if line_width > max_line_width:
+            max_line_width = line_width
+
     middle_area_height = bottom_sep_y - top_sep_y
     start_y = top_sep_y + (middle_area_height - total_text_height) / 2
 
+    # --- Sticky Note for Name ---
+    if theme.get('draw_school_icons'):
+        note_padding = 15 * scale_factor
+        note_rect_x1 = (width_px / 2) - (max_line_width / 2) - note_padding
+        note_rect_y1 = start_y - note_padding
+        note_rect_x2 = (width_px / 2) + (max_line_width / 2) + note_padding
+        note_rect_y2 = start_y + total_text_height + note_padding
+        
+        rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
+        rect_draw = ImageDraw.Draw(rect_img)
+        
+        # Shadow
+        shadow_offset = 5 * scale_factor
+        rect_draw.rectangle(
+            (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
+             note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
+            fill=(0, 0, 0, 80) # Semi-transparent black for shadow
+        )
+        # Note Body
+        rect_draw.rectangle(
+            (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
+            fill='#FFFFE0' # Pale yellow
+        )
+        rotated_rect = rect_img.rotate(2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, start_y + total_text_height/2))
+        img.paste(rotated_rect, (0,0), rotated_rect)
+
     for i, line in enumerate(wrapped_lines):
         y_pos = start_y + (i * line_height)
-        draw.text((width_px / 2, y_pos), line, font=name_font, fill=text_color, anchor="ma", align='center')
+        draw.text((width_px / 2, y_pos), line, font=name_font, fill="black", anchor="ma", align='center')
 
     price_y = bottom_sep_y + (height_px - bottom_sep_y) / 2
     sale_price = item_data.get('Sale price', '').strip()
@@ -529,23 +609,47 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm):
         display_price = regular_price or sale_price
 
     if display_price:
-        # Draw GEL symbol and price number separately
         price_text = str(display_price)
         gel_text = "₾"
-
-        # Calculate total width to center both elements together
         price_width = price_font.getbbox(price_text)[2]
         gel_width = gel_font.getbbox(gel_text)[2]
         spacing = int(5 * scale_factor)
         total_width = gel_width + spacing + price_width
+
+        # --- Sticky Note for Price ---
+        if theme.get('draw_school_icons'):
+            note_padding = 15 * scale_factor
+            price_bbox = price_font.getbbox(price_text)
+            price_height = price_bbox[3] - price_bbox[1]
+            note_rect_x1 = (width_px / 2) - (total_width / 2) - note_padding
+            note_rect_y1 = price_y - (price_height / 2) - note_padding
+            note_rect_x2 = (width_px / 2) + (total_width / 2) + note_padding
+            note_rect_y2 = price_y + (price_height / 2) + note_padding
+
+            rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
+            rect_draw = ImageDraw.Draw(rect_img)
+            # Shadow
+            shadow_offset = 5 * scale_factor
+            rect_draw.rectangle(
+                (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
+                 note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
+                fill=(0, 0, 0, 80)
+            )
+            # Note Body
+            rect_draw.rectangle(
+                (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
+                fill='#FFFFE0'
+            )
+            rotated_rect = rect_img.rotate(-3, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, price_y))
+            img.paste(rotated_rect, (0,0), rotated_rect)
         
         start_x = (width_px - total_width) / 2
-        
-        # Draw GEL symbol
-        draw.text((start_x, price_y), gel_text, font=gel_font, fill=text_color, anchor="lm")
-        
-        # Draw Price Number
-        draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill=text_color, anchor="lm")
+        draw.text((start_x, price_y), gel_text, font=gel_font, fill="black", anchor="lm")
+        draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill="black", anchor="lm")
+
+    # --- THEME SPECIFIC ELEMENTS ---
+    if theme.get('draw_school_icons'):
+        _draw_school_theme_elements(img, draw, width_px, height_px, scale_factor)
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img
@@ -764,6 +868,44 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     return img
 
 
+def _draw_school_theme_elements(img, draw, width_px, height_px, scale_factor):
+    """Draws the 'Back To School' theme icons on the tag."""
+    if not all([create_laptop_icon, create_book_icon, create_ruler_icon]):
+        print("Warning: School icon creation functions are not available.")
+        return
+
+    icon_size = int(90 * scale_factor) # Increased size
+    padding = int(10 * scale_factor)
+
+    # Create and rotate icons
+    laptop_icon = create_laptop_icon((icon_size, icon_size)).rotate(15, expand=True, resample=Image.Resampling.BICUBIC)
+    book_icon = create_book_icon((icon_size, icon_size)).rotate(-15, expand=True, resample=Image.Resampling.BICUBIC)
+    ruler_icon = create_ruler_icon((icon_size, icon_size)).rotate(10, expand=True, resample=Image.Resampling.BICUBIC)
+
+    # Top-left
+    img.paste(laptop_icon, (padding, padding), laptop_icon)
+    # Top-right
+    img.paste(book_icon, (width_px - book_icon.width - padding, padding), book_icon)
+    # Bottom-left
+    img.paste(ruler_icon, (padding, height_px - ruler_icon.height - padding), ruler_icon)
+
+
+def _create_grid_background(width, height, color="#2E7D32", line_color=(255, 255, 255, 160)):
+    """Creates a green background with a white grid, like a blackboard."""
+    img = Image.new('RGB', (width, height), color)
+    draw = ImageDraw.Draw(img, 'RGBA')
+    
+    spacing = 60 # Increased spacing from 30 to 60
+    # Draw vertical lines
+    for x in range(0, width, spacing):
+        draw.line([(x, 0), (x, height)], fill=line_color, width=4)
+    # Draw horizontal lines
+    for y in range(0, height, spacing):
+        draw.line([(0, y), (width, y)], fill=line_color, width=4)
+        
+    return img
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -775,10 +917,18 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
-        return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm)
+        return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme)
 
-    # Use the new dynamic background
-    img = _create_dynamic_background(width_px, height_px)
+    # --- BACKGROUND ---
+    if theme.get('background_grid'):
+        img = _create_grid_background(width_px, height_px, color=theme.get('background_color', '#2E7D32'))
+    elif theme.get('background_snow'):
+        # This is a placeholder for the original snow logic if you want to merge it.
+        # For now, we'll just use the dynamic background for Winter theme too.
+        img = _create_dynamic_background(width_px, height_px)
+    else:
+        img = _create_dynamic_background(width_px, height_px)
+
     translator = Translator()
 
     current_area = width_cm * height_cm
@@ -1076,6 +1226,10 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     # --- Sale Overlay ---
     if is_on_sale or is_special:
         _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language, is_special=is_special)
+
+    # --- THEME SPECIFIC ELEMENTS ---
+    if theme.get('draw_school_icons'):
+        _draw_school_theme_elements(img, draw, width_px, height_px, scale_factor)
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img

@@ -58,7 +58,10 @@ class RetailOperationsSuite(QMainWindow):
                         "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png")},
             "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
                        "logo_path": resource_path("assets/logo-santa-hat.png"), "logo_path_ka": resource_path("assets/logo-geo-santa-hat.png"),
-                       "bullet_image_path": resource_path("assets/snowflake.png"), "background_snow": True}
+                       "bullet_image_path": resource_path("assets/snowflake.png"), "background_snow": True},
+            "Back To School": {"price_color": "#FFC107", "text_color": "white", "strikethrough_color": "white",
+                               "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png"),
+                               "background_grid": True, "background_color": "#2E7D32", "draw_school_icons": True}
         }
 
         self.tab_widget = QTabWidget()
@@ -626,8 +629,22 @@ class RetailOperationsSuite(QMainWindow):
 
     def update_theme_combo(self):
         self.theme_combo.clear()
-        self.theme_combo.addItems(self.themes.keys())
-        self.theme_combo.setCurrentText(self.settings.get("default_theme", "Default"))
+        
+        current_size = self.paper_size_combo.currentText()
+        available_themes = list(self.themes.keys())
+
+        # Special condition for "Back To School" theme
+        if "Back To School" in available_themes and current_size != "6x3.5cm":
+            available_themes.remove("Back To School")
+
+        self.theme_combo.addItems(available_themes)
+        
+        # If the currently selected theme is not available for the new size, switch to Default
+        current_theme = self.settings.get("default_theme", "Default")
+        if self.theme_combo.findText(current_theme) == -1:
+            self.theme_combo.setCurrentText("Default")
+        else:
+            self.theme_combo.setCurrentText(current_theme)
 
     def open_layout_settings(self):
         # Store a deep copy of the settings before opening the dialog
@@ -1111,6 +1128,7 @@ class RetailOperationsSuite(QMainWindow):
 
     def handle_paper_size_change(self):
         self.update_specs_list()
+        self.update_theme_combo() # Update themes when size changes
         self.update_preview()
         size_name = self.paper_size_combo.currentText()
         if size_name:
