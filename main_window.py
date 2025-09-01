@@ -30,7 +30,8 @@ class RetailOperationsSuite(QMainWindow):
         super().__init__()
         self.user = user
         self.uid = self.user.get('localId')
-        self.token = self.user.get('idToken')
+        # self.token is now managed by self.ensure_token_valid()
+        self.token = self.user.get('idToken') 
         self.settings = data_handler.get_settings()
         self.translator = Translator(self.settings.get("language", "en"))
         self.tr = self.translator.get
@@ -158,8 +159,10 @@ class RetailOperationsSuite(QMainWindow):
         self.update_dashboard_data()
 
     def update_dashboard_data(self):
-        self.all_items_cache = firebase_handler.get_all_items(self.token) or {}
-        display_statuses = firebase_handler.get_display_status(self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+        self.all_items_cache = firebase_handler.get_all_items(token) or {}
+        display_statuses = firebase_handler.get_display_status(token)
 
         for key, data in self.branch_data_map.items():
             db_key = data['db_key']
@@ -277,7 +280,9 @@ class RetailOperationsSuite(QMainWindow):
             admin_menu.addAction(user_mgmt_action)
 
     def open_quick_stock_checker(self):
-        self.active_dialog = QuickStockDialog(self.translator, self.token, self.branch_data_map, self)
+        token = self.ensure_token_valid()
+        if not token: return
+        self.active_dialog = QuickStockDialog(self.translator, token, self.branch_data_map, self)
         self.active_dialog.exec()
         self.active_dialog = None
 
@@ -287,7 +292,9 @@ class RetailOperationsSuite(QMainWindow):
             self.update_paper_size_combo()
 
     def open_column_mapping_manager(self):
-        dialog = ColumnMappingManagerDialog(self.translator, self.token, self)
+        token = self.ensure_token_valid()
+        if not token: return
+        dialog = ColumnMappingManagerDialog(self.translator, token, self)
         dialog.exec()
 
     def open_user_management(self):
@@ -295,18 +302,24 @@ class RetailOperationsSuite(QMainWindow):
         dialog.exec()
 
     def open_template_manager(self):
-        dialog = TemplateManagerDialog(self.translator, self.token, self)
+        token = self.ensure_token_valid()
+        if not token: return
+        dialog = TemplateManagerDialog(self.translator, token, self)
         dialog.exec()
 
     def open_activity_log(self):
-        dialog = ActivityLogDialog(self.translator, self.token, self)
+        token = self.ensure_token_valid()
+        if not token: return
+        dialog = ActivityLogDialog(self.translator, token, self)
         dialog.exec()
 
     def upload_master_list(self):
         filepath, _ = QFileDialog.getOpenFileName(self, self.tr("open_master_list_title"), "",
                                                   "Text Files (*.txt);;All Files (*)")
         if filepath:
-            success, val1, val2 = firebase_handler.sync_products_from_file(filepath, self.token)
+            token = self.ensure_token_valid()
+            if not token: return
+            success, val1, val2 = firebase_handler.sync_products_from_file(filepath, token)
             if success:
                 message = self.tr("sync_results_message", val1, val2)
                 QMessageBox.information(self, self.tr("success_title"), message)
@@ -580,6 +593,8 @@ class RetailOperationsSuite(QMainWindow):
     def open_display_manager(self):
         branch_db_key = self.get_current_branch_db_key()
         branch_stock_col = self.get_current_branch_stock_column()
+        token = self.ensure_token_valid()
+        if not token: return
         self.active_dialog = DisplayManagerDialog(self.translator, branch_db_key, branch_stock_col, self.user, self)
         self.active_dialog.exec()
         self.active_dialog = None  # Clear reference after dialog closes
@@ -597,10 +612,12 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         sku = self.current_item_data.get("SKU")
-        queue = firebase_handler.get_print_queue(self.uid, self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+        queue = firebase_handler.get_print_queue(self.uid, token)
         if sku not in queue:
             queue.append(sku)
-            firebase_handler.save_print_queue(self.uid, self.token, queue)
+            firebase_handler.save_print_queue(self.uid, token, queue)
             QMessageBox.information(self, "Success", f"Item {sku} added to the print queue.")
         else:
             QMessageBox.information(self, "Duplicate", f"Item {sku} is already in the print queue.")
@@ -608,7 +625,9 @@ class RetailOperationsSuite(QMainWindow):
     def show_price_history(self):
         if not self.current_item_data: return
         sku = self.current_item_data.get("SKU")
-        dialog = PriceHistoryDialog(sku, self.translator, self.token, self)
+        token = self.ensure_token_valid()
+        if not token: return
+        dialog = PriceHistoryDialog(sku, self.translator, token, self)
         dialog.exec()
 
     def update_paper_size_combo(self):
@@ -676,6 +695,23 @@ class RetailOperationsSuite(QMainWindow):
         self.price_history_button.setVisible(False)
         self.toggle_status_button.setVisible(False)
 
+    def ensure_token_valid(self):
+        """
+        Checks if the token needs refreshing and refreshes it if necessary.
+        Returns the valid token.
+        """
+        # In a real app, you'd check the token's expiry time.
+        # For this fix, we'll attempt a refresh before critical operations.
+        refreshed_user = firebase_handler.refresh_token(self.user)
+        if refreshed_user:
+            self.user = refreshed_user
+            self.token = self.user['idToken']
+        else:
+            # Handle refresh failure: force logout
+            QMessageBox.critical(self, "Authentication Error", "Your session has expired. Please log in again.")
+            self.close() # Or emit a signal to the login window to handle this
+        return self.token
+
     def find_item(self):
         identifier = self.sku_input.text().strip()
         if not identifier: return
@@ -685,7 +721,10 @@ class RetailOperationsSuite(QMainWindow):
             identifier = f"I{identifier}"
             self.sku_input.setText(identifier) # Update the UI to reflect the change
 
-        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), token)
         if not item_data:
             self.clear_all_fields()
             reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
@@ -710,7 +749,9 @@ class RetailOperationsSuite(QMainWindow):
         dialog = NewItemDialog(sku, self.translator, template=template_specs, category_name=category_name, parent=self)
         if dialog.exec():
             new_data = dialog.new_item_data
-            if firebase_handler.add_new_item(new_data, self.token):
+            token = self.ensure_token_valid()
+            if not token: return
+            if firebase_handler.add_new_item(new_data, token):
                 QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
                 self.sku_input.setText(sku)
                 self.find_item()
@@ -775,7 +816,9 @@ class RetailOperationsSuite(QMainWindow):
 
         sku = self.current_item_data.get('SKU')
         branch_db_key = self.get_current_branch_db_key()
-        timestamp_str = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+        timestamp_str = firebase_handler.get_item_display_timestamp(sku, branch_db_key, token)
 
         if timestamp_str:
             self.status_label_value.setText(self.tr('status_on_display'))
@@ -815,12 +858,14 @@ class RetailOperationsSuite(QMainWindow):
         if not self.current_item_data: return
         sku = self.current_item_data.get('SKU')
         branch_db_key = self.get_current_branch_db_key()
-        is_on_display = firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token) is not None
+        token = self.ensure_token_valid()
+        if not token: return
+        is_on_display = firebase_handler.get_item_display_timestamp(sku, branch_db_key, token) is not None
 
         if is_on_display:
-            firebase_handler.remove_item_from_display(sku, branch_db_key, self.token)
+            firebase_handler.remove_item_from_display(sku, branch_db_key, token)
         else:
-            firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+            firebase_handler.add_item_to_display(sku, branch_db_key, token)
 
         self.update_status_display()
 
@@ -832,7 +877,9 @@ class RetailOperationsSuite(QMainWindow):
         self.generate_single_by_sku(sku, mark_on_display=True)
 
     def generate_single_by_sku(self, sku, mark_on_display=False):
-        item_data = firebase_handler.find_item_by_identifier(sku, self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+        item_data = firebase_handler.find_item_by_identifier(sku, token)
         if not item_data:
             QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
             return
@@ -872,9 +919,9 @@ class RetailOperationsSuite(QMainWindow):
         if mark_on_display:
             branch_db_key = self.get_current_branch_db_key()
             # Only update the status if it's not already set to "On Display"
-            if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token):
-                firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
-                firebase_handler.log_activity(self.token, f"User printed and marked {sku} as on display.")
+            if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, token):
+                firebase_handler.add_item_to_display(sku, branch_db_key, token)
+                firebase_handler.log_activity(token, f"User printed and marked {sku} as on display.")
 
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
@@ -893,7 +940,9 @@ class RetailOperationsSuite(QMainWindow):
             QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
             return
 
-        all_items_data = firebase_handler.get_items_by_sku(skus_to_print, self.token)
+        token = self.ensure_token_valid()
+        if not token: return
+        all_items_data = firebase_handler.get_items_by_sku(skus_to_print, token)
         all_tags_images = []
 
         for sku in skus_to_print:
@@ -938,13 +987,13 @@ class RetailOperationsSuite(QMainWindow):
             branch_db_key = self.get_current_branch_db_key()
             for sku in skus_to_print:
                 # Only update the status if it's not already set to "On Display"
-                if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, self.token):
-                    firebase_handler.add_item_to_display(sku, branch_db_key, self.token)
+                if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, token):
+                    firebase_handler.add_item_to_display(sku, branch_db_key, token)
 
             if self.current_item_data and self.current_item_data.get('SKU') in skus_to_print:
                 self.update_status_display()
 
-            firebase_handler.log_activity(self.token, f"User printed a batch of {len(skus_to_print)} items and set them to 'on display'.")
+            firebase_handler.log_activity(token, f"User printed a batch of {len(skus_to_print)} items and set them to 'on display'.")
 
     def handle_a4_print_with_dialog(self, pixmaps):
         dialog = QPrintDialog(self.printer, self)

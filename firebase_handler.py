@@ -103,6 +103,23 @@ def login_user(identifier, password):
             return None, f"An unexpected error occurred: {e}"
 
 
+def refresh_token(user_obj):
+    """Refreshes the user's ID token using the refresh token."""
+    if not user_obj or 'refreshToken' not in user_obj:
+        return None
+    try:
+        refreshed_user = auth.refresh(user_obj['refreshToken'])
+        # The refreshed response contains a new id_token and refresh_token
+        # It's important to update the stored user object with these new tokens
+        user_obj['idToken'] = refreshed_user['idToken']
+        user_obj['refreshToken'] = refreshed_user['refreshToken']
+        return user_obj
+    except Exception as e:
+        print(f"Failed to refresh token: {e}")
+        # This might indicate the refresh token has expired, requiring re-login
+        return None
+
+
 def is_first_user():
     """
     Checks if any users exist. With the new rules, this will only succeed

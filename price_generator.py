@@ -485,6 +485,11 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     text_color = theme.get("text_color", "black")
     price_color = theme.get("price_color", text_color) # Fallback to text_color if not specified
 
+    # For default theme on 6x3.5cm tags, price should be black.
+    is_default_theme = not theme.get('background_grid') and not theme.get('background_snow') and not theme.get('draw_school_icons')
+    if is_default_theme and width_cm == 6 and height_cm == 3.5:
+        price_color = "black"
+
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
 
@@ -680,7 +685,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
                 # --- ON SALE LOGIC ---
                 strikethrough_font_size = int(BASE_ACC_PRICE_FONT_SIZE * 0.75 * scale_factor)
                 strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size)
-                gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_font_size)
+                gel_font_strikethrough = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, strikethrough_font_size)
 
                 old_price_text = str(regular_price)
                 old_price_width = strikethrough_font.getbbox(old_price_text)[2]
