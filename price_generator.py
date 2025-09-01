@@ -527,17 +527,44 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         rect_draw = ImageDraw.Draw(rect_img)
         
         # Shadow
-        shadow_offset = 5 * scale_factor
-        rect_draw.rectangle(
-            (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
-             note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
-            fill=(0, 0, 0, 80)
+        shadow_offset = int(8 * scale_factor)
+        shadow_color = (0, 0, 0, 70)
+        # Create a blurred shadow by drawing multiple transparent rectangles
+        for i in range(shadow_offset, 0, -1):
+            blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
+            rect_draw.rectangle(
+                (note_rect_x1 + i, note_rect_y1 + i, note_rect_x2 + i, note_rect_y2 + i),
+                fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
+            )
+
+        # Note Body with Gradient
+        top_color = (255, 255, 224)  # #FFFFE0
+        bottom_color = (255, 255, 200)
+        for y in range(int(note_rect_y1), int(note_rect_y2)):
+            ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
+            r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+            g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+            b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+            rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
+
+        # Folded Corner Effect
+        corner_size = int(20 * scale_factor)
+        corner_x = note_rect_x2
+        corner_y = note_rect_y1
+
+        # The part of the note that is "under" the fold
+        rect_draw.polygon(
+            [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
+            fill=bottom_color  # Darker part of the gradient
         )
-        # Note Body
-        rect_draw.rectangle(
-            (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
-            fill='#FFFFE0'
+        # The fold itself
+        rect_draw.polygon(
+            [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
+            fill=(200, 200, 160) # A darker shade for the fold
         )
+        # A light line to simulate the edge
+        rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
+        
         rotated_rect = rect_img.rotate(-2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, sku_y))
         img.paste(rotated_rect, (0,0), rotated_rect)
 
@@ -572,17 +599,44 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         rect_draw = ImageDraw.Draw(rect_img)
         
         # Shadow
-        shadow_offset = 5 * scale_factor
-        rect_draw.rectangle(
-            (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
-             note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
-            fill=(0, 0, 0, 80) # Semi-transparent black for shadow
+        shadow_offset = int(8 * scale_factor)
+        shadow_color = (0, 0, 0, 70)
+        # Create a blurred shadow by drawing multiple transparent rectangles
+        for i in range(shadow_offset, 0, -1):
+            blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
+            rect_draw.rectangle(
+                (note_rect_x1 + i, note_rect_y1 + i, note_rect_x2 + i, note_rect_y2 + i),
+                fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
+            )
+
+        # Note Body with Gradient
+        top_color = (255, 255, 224)  # #FFFFE0
+        bottom_color = (255, 255, 200)
+        for y in range(int(note_rect_y1), int(note_rect_y2)):
+            ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
+            r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+            g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+            b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+            rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
+
+        # Folded Corner Effect
+        corner_size = int(20 * scale_factor)
+        corner_x = note_rect_x2
+        corner_y = note_rect_y1
+
+        # The part of the note that is "under" the fold
+        rect_draw.polygon(
+            [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
+            fill=bottom_color  # Darker part of the gradient
         )
-        # Note Body
-        rect_draw.rectangle(
-            (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
-            fill='#FFFFE0' # Pale yellow
+        # The fold itself
+        rect_draw.polygon(
+            [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
+            fill=(200, 200, 160) # A darker shade for the fold
         )
+        # A light line to simulate the edge
+        rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
+
         rotated_rect = rect_img.rotate(2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, start_y + total_text_height/2))
         img.paste(rotated_rect, (0,0), rotated_rect)
 
@@ -595,11 +649,13 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     regular_price = item_data.get('Regular price', '').strip()
 
     display_price = ""
+    is_on_sale = False
     try:
         sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
         regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
 
-        if sale_val > 0 and sale_val != regular_val:
+        if is_on_sale:
             display_price = sale_price
         elif regular_val > 0:
             display_price = regular_price
@@ -607,45 +663,173 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
              display_price = sale_price
     except (ValueError, TypeError):
         display_price = regular_price or sale_price
+        is_on_sale = False
 
     if display_price:
         price_text = str(display_price)
         gel_text = "₾"
-        price_width = price_font.getbbox(price_text)[2]
+        price_bbox = price_font.getbbox(price_text)
+        price_height = price_bbox[3] - price_bbox[1]
+        price_width = price_bbox[2]
         gel_width = gel_font.getbbox(gel_text)[2]
         spacing = int(5 * scale_factor)
-        total_width = gel_width + spacing + price_width
-
-        # --- Sticky Note for Price ---
-        if theme.get('draw_school_icons'):
-            note_padding = 15 * scale_factor
-            price_bbox = price_font.getbbox(price_text)
-            price_height = price_bbox[3] - price_bbox[1]
-            note_rect_x1 = (width_px / 2) - (total_width / 2) - note_padding
-            note_rect_y1 = price_y - (price_height / 2) - note_padding
-            note_rect_x2 = (width_px / 2) + (total_width / 2) + note_padding
-            note_rect_y2 = price_y + (price_height / 2) + note_padding
-
-            rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
-            rect_draw = ImageDraw.Draw(rect_img)
-            # Shadow
-            shadow_offset = 5 * scale_factor
-            rect_draw.rectangle(
-                (note_rect_x1 + shadow_offset, note_rect_y1 + shadow_offset, 
-                 note_rect_x2 + shadow_offset, note_rect_y2 + shadow_offset),
-                fill=(0, 0, 0, 80)
-            )
-            # Note Body
-            rect_draw.rectangle(
-                (note_rect_x1, note_rect_y1, note_rect_x2, note_rect_y2),
-                fill='#FFFFE0'
-            )
-            rotated_rect = rect_img.rotate(-3, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, price_y))
-            img.paste(rotated_rect, (0,0), rotated_rect)
         
-        start_x = (width_px - total_width) / 2
-        draw.text((start_x, price_y), gel_text, font=gel_font, fill="black", anchor="lm")
-        draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill="black", anchor="lm")
+        # --- Back to School Theme Price Logic ---
+        if theme.get('draw_school_icons'):
+            if is_on_sale and regular_price:
+                # --- ON SALE LOGIC ---
+                strikethrough_font_size = int(BASE_ACC_PRICE_FONT_SIZE * 0.75 * scale_factor)
+                strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size)
+                gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_font_size)
+
+                old_price_text = str(regular_price)
+                old_price_width = strikethrough_font.getbbox(old_price_text)[2]
+                old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
+                old_total_width = old_gel_width + spacing + old_price_width
+
+                new_price_width = gel_width + spacing + price_width
+                
+                price_spacing = int(15 * scale_factor)
+                # Recalculate total width to remove the checkmark
+                total_sale_width = old_total_width + price_spacing + new_price_width
+
+                note_padding = 15 * scale_factor
+                note_rect_x1 = (width_px / 2) - (total_sale_width / 2) - note_padding
+                note_rect_y1 = price_y - (price_height / 2) - note_padding
+                note_rect_x2 = (width_px / 2) + (total_sale_width / 2) + note_padding
+                note_rect_y2 = price_y + (price_height / 2) + note_padding
+                
+                rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
+                rect_draw = ImageDraw.Draw(rect_img)
+                shadow_offset = int(8 * scale_factor)
+                shadow_color = (0, 0, 0, 70)
+                # Create a blurred shadow by drawing multiple transparent rectangles
+                for i in range(shadow_offset, 0, -1):
+                    blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
+                    rect_draw.rectangle(
+                        (note_rect_x1 + i, note_rect_y1 + i, note_rect_x2 + i, note_rect_y2 + i),
+                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
+                    )
+
+                # Note Body with Gradient
+                top_color = (255, 255, 224)  # #FFFFE0
+                bottom_color = (255, 255, 200)
+                for y in range(int(note_rect_y1), int(note_rect_y2)):
+                    ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
+                    r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+                    g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+                    b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+                    rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
+
+                # Folded Corner Effect
+                corner_size = int(20 * scale_factor)
+                corner_x = note_rect_x2
+                corner_y = note_rect_y1
+
+                # The part of the note that is "under" the fold
+                rect_draw.polygon(
+                    [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
+                    fill=bottom_color  # Darker part of the gradient
+                )
+                # The fold itself
+                rect_draw.polygon(
+                    [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
+                    fill=(200, 200, 160) # A darker shade for the fold
+                )
+                # A light line to simulate the edge
+                rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
+                
+                rotated_rect = rect_img.rotate(-3, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, price_y))
+                img.paste(rotated_rect, (0,0), rotated_rect)
+
+                start_x = (width_px - total_sale_width) / 2
+                
+                draw.text((start_x, price_y), gel_text, font=gel_font_strikethrough, fill="black", anchor="lm")
+                draw.text((start_x + old_gel_width + spacing, price_y), old_price_text, font=strikethrough_font, fill="black", anchor="lm")
+
+                scribble_y_base = price_y
+                amplitude = 4 * scale_factor
+                frequency = (2 * math.pi * 2) / old_total_width
+                scribble_points = []
+                num_points = int(old_total_width * 2)
+                if num_points > 0:
+                    for i in range(num_points + 1):
+                        x = start_x + (i / num_points) * old_total_width
+                        y = scribble_y_base + amplitude * math.sin(frequency * (i / num_points) * old_total_width)
+                        scribble_points.append((x, y))
+                    draw.line(scribble_points, fill="#D32F2F", width=int(3 * scale_factor))
+
+                new_price_x = start_x + old_total_width + price_spacing
+                draw.text((new_price_x, price_y), gel_text, font=gel_font, fill="black", anchor="lm")
+                draw.text((new_price_x + gel_width + spacing, price_y), price_text, font=price_font, fill="black", anchor="lm")
+                
+                # Checkmark completely removed.
+            else:
+                # --- NOT ON SALE LOGIC (FOR SCHOOL THEME) ---
+                total_width = gel_width + spacing + price_width
+                
+                note_padding = 15 * scale_factor
+                note_rect_x1 = (width_px / 2) - (total_width / 2) - note_padding
+                note_rect_y1 = price_y - (price_height / 2) - note_padding
+                note_rect_x2 = (width_px / 2) + (total_width / 2) + note_padding
+                note_rect_y2 = price_y + (price_height / 2) + note_padding
+                
+                rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
+                rect_draw = ImageDraw.Draw(rect_img)
+                shadow_offset = int(8 * scale_factor)
+                shadow_color = (0, 0, 0, 70)
+                # Create a blurred shadow by drawing multiple transparent rectangles
+                for i in range(shadow_offset, 0, -1):
+                    blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
+                    rect_draw.rectangle(
+                        (note_rect_x1 + i, note_rect_y1 + i, note_rect_x2 + i, note_rect_y2 + i),
+                        fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
+                    )
+
+                # Note Body with Gradient
+                top_color = (255, 255, 224)  # #FFFFE0
+                bottom_color = (255, 255, 200)
+                for y in range(int(note_rect_y1), int(note_rect_y2)):
+                    ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
+                    r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+                    g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+                    b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+                    rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
+
+                # Folded Corner Effect
+                corner_size = int(20 * scale_factor)
+                corner_x = note_rect_x2
+                corner_y = note_rect_y1
+
+                # The part of the note that is "under" the fold
+                rect_draw.polygon(
+                    [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
+                    fill=bottom_color  # Darker part of the gradient
+                )
+                # The fold itself
+                rect_draw.polygon(
+                    [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
+                    fill=(200, 200, 160) # A darker shade for the fold
+                )
+                # A light line to simulate the edge
+                rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
+
+                rotated_rect = rect_img.rotate(-3, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, price_y))
+                img.paste(rotated_rect, (0,0), rotated_rect)
+
+                start_x = (width_px - total_width) / 2
+                # Draw the price in black
+                draw.text((start_x, price_y), gel_text, font=gel_font, fill="black", anchor="lm")
+                draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill="black", anchor="lm")
+
+        # --- Default Sale & Regular Price Logic ---
+        else:
+            total_width = gel_width + spacing + price_width
+            start_x = (width_px - total_width) / 2
+            draw.text((start_x, price_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
+            draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill=price_color, anchor="lm")
+            
+            # For default theme, previous price is not shown as per request.
 
     # --- THEME SPECIFIC ELEMENTS ---
     if theme.get('draw_school_icons'):
