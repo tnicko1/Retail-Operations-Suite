@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider)
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider, QApplication)
 
 import a4_layout_generator
 import data_handler
@@ -63,6 +63,9 @@ class RetailOperationsSuite(QMainWindow):
             "Back To School": {"price_color": "#FFC107", "text_color": "white", "strikethrough_color": "white",
                                "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png"),
                                "background_grid": True, "background_color": "#2E7D32", "draw_school_icons": True}
+        }
+        self.brands = {
+            "None": {}
         }
 
         self.tab_widget = QTabWidget()
@@ -252,6 +255,10 @@ class RetailOperationsSuite(QMainWindow):
 
         file_menu.addSeparator()
 
+        logout_action = QAction(self.tr("logout_menu"), self)
+        logout_action.triggered.connect(self.handle_logout)
+        file_menu.addAction(logout_action)
+
         if self.user.get('role') == 'Admin':
             admin_menu = menu_bar.addMenu(self.tr('admin_tools_menu'))
 
@@ -410,20 +417,23 @@ class RetailOperationsSuite(QMainWindow):
         self.style_group = QGroupBox()
         style_layout = QVBoxLayout()
         settings_layout = QFormLayout()
-        self.paper_size_label, self.theme_label = QLabel(), QLabel();
-        self.paper_size_combo = QComboBox();
+        self.paper_size_label, self.theme_label, self.brand_label = QLabel(), QLabel(), QLabel()
+        self.paper_size_combo = QComboBox()
         self.paper_size_combo.currentTextChanged.connect(self.handle_paper_size_change)
-        self.theme_combo = QComboBox();
-        self.theme_combo.currentTextChanged.connect(self.update_preview);
+        self.theme_combo = QComboBox()
+        self.theme_combo.currentTextChanged.connect(self.update_preview)
+        self.brand_combo = QComboBox()
+        self.brand_combo.currentTextChanged.connect(self.update_preview)
         self.dual_lang_label = QLabel()
-        self.dual_lang_checkbox = QCheckBox();
-        self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False));
+        self.dual_lang_checkbox = QCheckBox()
+        self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
         self.dual_lang_checkbox.stateChanged.connect(self.toggle_dual_language)
         self.special_tag_label = QLabel()
         self.special_tag_checkbox = QCheckBox()
         self.special_tag_checkbox.stateChanged.connect(self.update_preview)
-        settings_layout.addRow(self.paper_size_label, self.paper_size_combo);
-        settings_layout.addRow(self.theme_label, self.theme_combo);
+        settings_layout.addRow(self.paper_size_label, self.paper_size_combo)
+        settings_layout.addRow(self.theme_label, self.theme_combo)
+        settings_layout.addRow(self.brand_label, self.brand_combo)
         checkbox_layout = QHBoxLayout()
         checkbox_layout.addWidget(self.dual_lang_label)
         checkbox_layout.addWidget(self.dual_lang_checkbox)
@@ -509,6 +519,7 @@ class RetailOperationsSuite(QMainWindow):
         self.update_branch_combo()
         self.update_paper_size_combo()
         self.update_theme_combo()
+        self.update_brand_combo()
         self.create_menu()
 
         self.branch_group.setTitle(self.tr("branch_group_title"))
@@ -525,6 +536,7 @@ class RetailOperationsSuite(QMainWindow):
         self.style_group.setTitle(self.tr("style_group"))
         self.paper_size_label.setText(self.tr("paper_size_label"))
         self.theme_label.setText(self.tr("theme_label"))
+        self.brand_label.setText(self.tr("brand_label"))
         self.dual_lang_label.setText(self.tr("dual_language_label"))
         self.special_tag_label.setText(self.tr("special_tag_label"))
         self.layout_settings_button.setText(self.tr("layout_settings_button"))
@@ -664,6 +676,11 @@ class RetailOperationsSuite(QMainWindow):
             self.theme_combo.setCurrentText("Default")
         else:
             self.theme_combo.setCurrentText(current_theme)
+
+    def update_brand_combo(self):
+        self.brand_combo.clear()
+        self.brand_combo.addItems(list(self.brands.keys()))
+        self.brand_combo.setCurrentText(self.settings.get("default_brand_theme", "None"))
 
     def open_layout_settings(self):
         # Store a deep copy of the settings before opening the dialog
@@ -927,10 +944,13 @@ class RetailOperationsSuite(QMainWindow):
             self.update_status_display()
 
     def generate_batch(self, skus_to_print):
-        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
-        if not size_name or not theme_name: return
+        size_name, theme_name, brand_name = self.paper_size_combo.currentText(), self.theme_combo.currentText(), self.brand_combo.currentText()
+        if not size_name or not theme_name or not brand_name: return
 
-        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        size_config, theme_config, brand_config = self.paper_sizes[size_name], self.themes[theme_name], self.brands[brand_name]
+        final_theme_config = copy.deepcopy(theme_config)
+        final_theme_config.update(brand_config)
+        
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
@@ -956,14 +976,14 @@ class RetailOperationsSuite(QMainWindow):
             is_special = self.special_tag_checkbox.isChecked()
 
             if is_dual:
-                img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
                                                           language='en', is_special=is_special)
-                img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
                                                           language='ka', is_special=is_special)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-                img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
                                                        language=lang, is_special=is_special)
                 all_tags_images.append(img)
 
@@ -1056,12 +1076,20 @@ class RetailOperationsSuite(QMainWindow):
         data = self.get_current_data_from_ui()
         size_name = self.paper_size_combo.currentText()
         theme_name = self.theme_combo.currentText()
+        brand_name = self.brand_combo.currentText()
 
-        if not size_name or not theme_name:
+        if not size_name or not theme_name or not brand_name:
             return
 
         size_config = self.paper_sizes[size_name]
         theme_config = self.themes[theme_name]
+        brand_config = self.brands[brand_name]
+        
+        # Deep copy to avoid modifying the original theme/brand objects
+        final_theme_config = copy.deepcopy(theme_config)
+        # Merge brand config into theme config. Brand properties will overwrite theme properties.
+        final_theme_config.update(brand_config)
+
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
 
         # For accessory styles, always use 'en' and don't allow dual language
@@ -1072,8 +1100,8 @@ class RetailOperationsSuite(QMainWindow):
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='en', is_special=is_special)
-            img_ka = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language='ka', is_special=is_special)
+            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special)
+            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1093,7 +1121,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, theme_config, layout_settings, language=lang, is_special=is_special)
+            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 
@@ -1229,3 +1257,8 @@ class RetailOperationsSuite(QMainWindow):
             self.sku_input.setText(self.scan_buffer)
             self.find_item()
         self.scan_buffer = '' # Clear buffer after processing
+
+    def handle_logout(self):
+        data_handler.clear_refresh_token()
+        self.close()
+        QApplication.instance().exit(1)  # Signal to re-open login window

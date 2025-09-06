@@ -80,6 +80,22 @@ def get_default_settings():
     }
 
 
+def save_refresh_token(token):
+    settings = get_settings()
+    settings['refresh_token'] = token
+    save_settings(settings)
+
+def get_refresh_token():
+    settings = get_settings()
+    return settings.get('refresh_token')
+
+def clear_refresh_token():
+    settings = get_settings()
+    if 'refresh_token' in settings:
+        del settings['refresh_token']
+        save_settings(settings)
+
+
 def extract_part_number(description):
     if not description: return ""
     match = re.search(r'\[p/n\s*([^\]]+)\]', description, re.IGNORECASE)
