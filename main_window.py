@@ -55,26 +55,56 @@ class RetailOperationsSuite(QMainWindow):
         self.current_item_data = {}
         self.all_items_cache = firebase_handler.get_all_items(self.token) or {}
         self.themes = {
-            "Default": {"price_color": "#D32F2F", "text_color": "black", "strikethrough_color": "black",
-                        "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png")},
-            "Winter": {"price_color": "#0077be", "text_color": "#0a1931", "strikethrough_color": "#0a1931",
-                       "logo_path": resource_path("assets/logo-santa-hat.png"), "logo_path_ka": resource_path("assets/logo-geo-santa-hat.png"),
-                       "bullet_image_path": resource_path("assets/snowflake.png"), "background_snow": True},
-            "Back To School": {"price_color": "#FFC107", "text_color": "white", "strikethrough_color": "white",
-                               "logo_path": resource_path("assets/logo.png"), "logo_path_ka": resource_path("assets/logo-geo.png"),
-                               "background_grid": True, "background_color": "#2E7D32", "draw_school_icons": True}
+            "Default": {
+                "name_color": "black",
+                "price_color": "#D32F2F",
+                "sku_color": "black",
+                "accent_color": "black",
+                "strikethrough_color": "black",
+                "logo_path": resource_path("assets/logo.png"),
+                "logo_path_ka": resource_path("assets/logo-geo.png")
+            },
+            "Winter": {
+                "name_color": "#0a1931",
+                "price_color": "#0077be",
+                "sku_color": "#0a1931",
+                "accent_color": "#0a1931",
+                "strikethrough_color": "#0a1931",
+                "logo_path": resource_path("assets/logo-santa-hat.png"),
+                "logo_path_ka": resource_path("assets/logo-geo-santa-hat.png"),
+                "bullet_image_path": resource_path("assets/snowflake.png"),
+                "background_snow": True
+            },
+            "Back To School": {
+                "name_color": "white",
+                "price_color": "#FFC107",
+                "sku_color": "white",
+                "accent_color": "white",
+                "strikethrough_color": "white",
+                "logo_path": resource_path("assets/logo.png"),
+                "logo_path_ka": resource_path("assets/logo-geo.png"),
+                "background_grid": True,
+                "background_color": "#2E7D32",
+                "draw_school_icons": True
+            }
         }
         self.brands = {
             "None": {},
             "Logitech": {
                 "accessory_background_color": "white",
+                "accessory_name_color": "black",
+                "accessory_price_color": "black",
+                "accessory_sku_color": "black",
                 "accessory_accent_color": "#00B8FC",
                 "accessory_logo_path": resource_path("assets/brands/Logi.png")
             },
             "Logitech G": {
                 "accessory_background_color": "black",
-                "accessory_accent_color": "#00B8FC",
-                "accessory_text_color": "#00B8FC",
+                "accessory_background_style": "cosmic_veil",
+                "accessory_name_color": "#FFFFFF",
+                "accessory_price_color": "#FFFFFF",
+                "accessory_sku_color": "#FFFFFF",
+                "accessory_accent_color": "#FFFFFF",
                 "accessory_logo_path": resource_path("assets/brands/Logitech_G.png")
             }
         }
@@ -944,27 +974,37 @@ class RetailOperationsSuite(QMainWindow):
         else:
             data_to_print = self._prepare_data_for_printing(item_data)
 
-        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
-        size_config, theme_config = self.paper_sizes[size_name], self.themes[theme_name]
+        size_name = self.paper_size_combo.currentText()
+        theme_name = self.theme_combo.currentText()
+        brand_name = self.brand_combo.currentText()
+
+        if not size_name or not theme_name or not brand_name:
+            return
+
+        size_config = self.paper_sizes[size_name]
+        theme_config = self.themes[theme_name]
+        brand_config = self.brands[brand_name]
+        
+        final_theme_config = copy.deepcopy(theme_config)
+        final_theme_config.update(brand_config)
+
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
         is_special = self.special_tag_checkbox.isChecked()
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='en', is_special=is_special)
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language='ka', is_special=is_special)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special)
             
-            # Use the A4 layout generator for dual language tags
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
             for a4_img in a4_images:
                 q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings, language=lang, is_special=is_special)
+            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special)
             
-            # Use the A4 layout generator for a single tag
             a4_img = a4_layout_generator.create_a4_for_single(img)
             q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
             a4_pixmaps.append(QPixmap.fromImage(q_image))

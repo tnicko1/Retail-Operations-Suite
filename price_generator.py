@@ -411,6 +411,35 @@ def _draw_bezier_curve(draw, start_point, end_point, control_point, fill, width)
     draw.line(points, fill=fill, width=width)
 
 
+def _draw_cosmic_veil_accent(img, width, height):
+    """Draws a subtle, semi-transparent nebula effect on a dark background."""
+    # Colors with low alpha for subtlety
+    c1 = (46, 2, 109, 210)     # Deep Violet
+    c2 = (0, 184, 252, 220)    # Electric Blue
+    c3 = (255, 0, 122, 205)    # Neon Pink
+    colors = [c1, c2, c3]
+
+    for _ in range(4):  # Draw 4 soft glows
+        color = random.choice(colors)
+        
+        # Create a temporary image for the radial gradient
+        radius = random.randint(int(width * 0.5), int(width * 0.9))
+        glow_img = Image.new('RGBA', (radius * 2, radius * 2), (0, 0, 0, 0))
+        glow_draw = ImageDraw.Draw(glow_img)
+
+        # Draw concentric circles with decreasing alpha to create a soft glow
+        for i in range(radius, 0, -2):
+            alpha = int(color[3] * (1 - (i / radius)))
+            fill_color = (color[0], color[1], color[2], alpha)
+            glow_draw.ellipse([(radius - i, radius - i), (radius + i, radius + i)], fill=fill_color)
+
+        # Paste the glow onto the main draw object at a random position
+        paste_x = random.randint(-int(width * 0.6), int(width * 0.3))
+        paste_y = random.randint(-int(height * 0.6), int(height * 0.3))
+        
+        img.paste(glow_img, (paste_x, paste_y), glow_img)
+
+
 def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None, is_special=False):
     """
     Draws a 'SALE' starburst overlay with rotated text.
@@ -476,11 +505,11 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
 
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme):
     # --- BRANDING & THEME OVERRIDES ---
-    is_brand_theme = 'accessory_logo_path' in theme
-    
     bg_color = theme.get('accessory_background_color', 'white')
     accent_color = theme.get('accessory_accent_color', 'black')
-    text_color = theme.get('accessory_text_color', 'black')
+    name_color = theme.get('accessory_name_color', 'black')
+    price_color = theme.get('accessory_price_color', 'black')
+    sku_color = theme.get('accessory_sku_color', 'black')
     logo_path = theme.get('accessory_logo_path')
 
     # --- BACKGROUND ---
@@ -489,18 +518,18 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     else:
         img = Image.new('RGB', (width_px, height_px), bg_color)
 
+    # --- ACCENTS ---
+    # Must be drawn after the main background is set
+    if theme.get('accessory_background_style') == 'cosmic_veil':
+        _draw_cosmic_veil_accent(img, width_px, height_px)
+
     draw = ImageDraw.Draw(img, 'RGBA')
 
-    # --- COLOR LOGIC ---
-    # For default theme on 6x3.5cm tags, price should be black.
+    # --- Special case for default 6x3.5cm tags ---
     is_default_theme = not any(theme.get(key) for key in ['background_grid', 'background_snow', 'draw_school_icons', 'accessory_logo_path'])
     if is_default_theme and width_cm == 6 and height_cm == 3.5:
         price_color = "black"
-    else:
-        price_color = accent_color
 
-    # For brand themes, SKU and Name should also use the accent color
-    sku_name_color = accent_color if is_brand_theme else text_color
 
 
     current_area = width_cm * height_cm
@@ -534,10 +563,14 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
 
     # Conditionally draw separators
     if not theme.get('draw_school_icons'):
+        line_width = max(1, int(2 * scale_factor))
+        if theme.get('accessory_background_style') == 'cosmic_veil':
+            line_width = max(2, int(4 * scale_factor))  # Make lines thicker for Logitech G
+
         draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=accent_color,
-                  width=max(1, int(2 * scale_factor)))
+                  width=line_width)
         draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=accent_color,
-                  width=max(1, int(2 * scale_factor)))
+                  width=line_width)
 
     sku_text = item_data.get('SKU', 'N/A')
     sku_y = top_sep_y / 2
@@ -593,7 +626,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         # For school theme, text is always black on the note
         draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
     else:
-        draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill=sku_name_color, anchor="mm")
+        draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill=sku_color, anchor="mm")
 
 
     name_text = item_data.get('Name', 'N/A')
@@ -665,7 +698,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     else:
         for i, line in enumerate(wrapped_lines):
             y_pos = start_y + (i * line_height)
-            draw.text((width_px / 2, y_pos), line, font=name_font, fill=sku_name_color, anchor="ma", align='center')
+            draw.text((width_px / 2, y_pos), line, font=name_font, fill=name_color, anchor="ma", align='center')
 
 
     price_y = bottom_sep_y + (height_px - bottom_sep_y) / 2
