@@ -475,20 +475,33 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
 
 
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme):
+    # --- BRANDING & THEME OVERRIDES ---
+    is_brand_theme = 'accessory_logo_path' in theme
+    
+    bg_color = theme.get('accessory_background_color', 'white')
+    accent_color = theme.get('accessory_accent_color', 'black')
+    text_color = theme.get('accessory_text_color', 'black')
+    logo_path = theme.get('accessory_logo_path')
+
     # --- BACKGROUND ---
     if theme.get('background_grid'):
         img = _create_grid_background(width_px, height_px, color=theme.get('background_color', '#2E7D32'))
     else:
-        img = Image.new('RGB', (width_px, height_px), 'white')
+        img = Image.new('RGB', (width_px, height_px), bg_color)
 
-    draw = ImageDraw.Draw(img, 'RGBA') # Use RGBA for transparency pasting
-    text_color = theme.get("text_color", "black")
-    price_color = theme.get("price_color", text_color) # Fallback to text_color if not specified
+    draw = ImageDraw.Draw(img, 'RGBA')
 
+    # --- COLOR LOGIC ---
     # For default theme on 6x3.5cm tags, price should be black.
-    is_default_theme = not theme.get('background_grid') and not theme.get('background_snow') and not theme.get('draw_school_icons')
+    is_default_theme = not any(theme.get(key) for key in ['background_grid', 'background_snow', 'draw_school_icons', 'accessory_logo_path'])
     if is_default_theme and width_cm == 6 and height_cm == 3.5:
         price_color = "black"
+    else:
+        price_color = accent_color
+
+    # For brand themes, SKU and Name should also use the accent color
+    sku_name_color = accent_color if is_brand_theme else text_color
+
 
     current_area = width_cm * height_cm
     scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
@@ -505,12 +518,25 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
 
     top_sep_y = top_area_height
     bottom_sep_y = height_px - bottom_area_height
+    
+    # --- BRAND LOGO ---
+    if logo_path:
+        try:
+            with Image.open(logo_path) as logo:
+                logo_max_h = top_area_height * 0.8
+                logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
+                logo_x = int(margin)
+                logo_y = int((top_area_height - logo.height) / 2)
+                img.paste(logo, (logo_x, logo_y), logo)
+        except FileNotFoundError:
+            print(f"Warning: Brand logo not found at {logo_path}")
+
 
     # Conditionally draw separators
     if not theme.get('draw_school_icons'):
-        draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=text_color,
+        draw.line([(margin, top_sep_y), (width_px - margin, top_sep_y)], fill=accent_color,
                   width=max(1, int(2 * scale_factor)))
-        draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=text_color,
+        draw.line([(margin, bottom_sep_y), (width_px - margin, bottom_sep_y)], fill=accent_color,
                   width=max(1, int(2 * scale_factor)))
 
     sku_text = item_data.get('SKU', 'N/A')
@@ -531,10 +557,8 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
         rect_draw = ImageDraw.Draw(rect_img)
         
-        # Shadow
         shadow_offset = int(8 * scale_factor)
         shadow_color = (0, 0, 0, 70)
-        # Create a blurred shadow by drawing multiple transparent rectangles
         for i in range(shadow_offset, 0, -1):
             blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
             rect_draw.rectangle(
@@ -542,8 +566,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
                 fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
             )
 
-        # Note Body with Gradient
-        top_color = (255, 255, 224)  # #FFFFE0
+        top_color = (255, 255, 224)
         bottom_color = (255, 255, 200)
         for y in range(int(note_rect_y1), int(note_rect_y2)):
             ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
@@ -552,28 +575,26 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
             b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
             rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
 
-        # Folded Corner Effect
         corner_size = int(20 * scale_factor)
         corner_x = note_rect_x2
         corner_y = note_rect_y1
-
-        # The part of the note that is "under" the fold
         rect_draw.polygon(
             [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
-            fill=bottom_color  # Darker part of the gradient
+            fill=bottom_color
         )
-        # The fold itself
         rect_draw.polygon(
             [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
-            fill=(200, 200, 160) # A darker shade for the fold
+            fill=(200, 200, 160)
         )
-        # A light line to simulate the edge
         rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
         
         rotated_rect = rect_img.rotate(-2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, sku_y))
         img.paste(rotated_rect, (0,0), rotated_rect)
+        # For school theme, text is always black on the note
+        draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
+    else:
+        draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill=sku_name_color, anchor="mm")
 
-    draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
 
     name_text = item_data.get('Name', 'N/A')
     name_area_width = width_px - (2 * margin)
@@ -603,10 +624,8 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         rect_img = Image.new('RGBA', (width_px, height_px), (0,0,0,0))
         rect_draw = ImageDraw.Draw(rect_img)
         
-        # Shadow
         shadow_offset = int(8 * scale_factor)
         shadow_color = (0, 0, 0, 70)
-        # Create a blurred shadow by drawing multiple transparent rectangles
         for i in range(shadow_offset, 0, -1):
             blur_alpha = int(shadow_color[3] * (1 - i / shadow_offset))
             rect_draw.rectangle(
@@ -614,8 +633,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
                 fill=(shadow_color[0], shadow_color[1], shadow_color[2], blur_alpha)
             )
 
-        # Note Body with Gradient
-        top_color = (255, 255, 224)  # #FFFFE0
+        top_color = (255, 255, 224)
         bottom_color = (255, 255, 200)
         for y in range(int(note_rect_y1), int(note_rect_y2)):
             ratio = (y - note_rect_y1) / (note_rect_y2 - note_rect_y1)
@@ -624,30 +642,31 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
             b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
             rect_draw.line([(note_rect_x1, y), (note_rect_x2, y)], fill=(r, g, b))
 
-        # Folded Corner Effect
         corner_size = int(20 * scale_factor)
         corner_x = note_rect_x2
         corner_y = note_rect_y1
-
-        # The part of the note that is "under" the fold
         rect_draw.polygon(
             [(corner_x, corner_y), (corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)],
-            fill=bottom_color  # Darker part of the gradient
+            fill=bottom_color
         )
-        # The fold itself
         rect_draw.polygon(
             [(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size), (corner_x - corner_size, corner_y + corner_size)],
-            fill=(200, 200, 160) # A darker shade for the fold
+            fill=(200, 200, 160)
         )
-        # A light line to simulate the edge
         rect_draw.line([(corner_x - corner_size, corner_y), (corner_x, corner_y + corner_size)], fill=(255,255,255,150), width=1)
 
         rotated_rect = rect_img.rotate(2, expand=False, resample=Image.Resampling.BICUBIC, center=(width_px/2, start_y + total_text_height/2))
         img.paste(rotated_rect, (0,0), rotated_rect)
+        
+        for i, line in enumerate(wrapped_lines):
+            y_pos = start_y + (i * line_height)
+            # For school theme, text is always black on the note
+            draw.text((width_px / 2, y_pos), line, font=name_font, fill="black", anchor="ma", align='center')
+    else:
+        for i, line in enumerate(wrapped_lines):
+            y_pos = start_y + (i * line_height)
+            draw.text((width_px / 2, y_pos), line, font=name_font, fill=sku_name_color, anchor="ma", align='center')
 
-    for i, line in enumerate(wrapped_lines):
-        y_pos = start_y + (i * line_height)
-        draw.text((width_px / 2, y_pos), line, font=name_font, fill="black", anchor="ma", align='center')
 
     price_y = bottom_sep_y + (height_px - bottom_sep_y) / 2
     sale_price = item_data.get('Sale price', '').strip()

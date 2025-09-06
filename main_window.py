@@ -65,7 +65,18 @@ class RetailOperationsSuite(QMainWindow):
                                "background_grid": True, "background_color": "#2E7D32", "draw_school_icons": True}
         }
         self.brands = {
-            "None": {}
+            "None": {},
+            "Logitech": {
+                "accessory_background_color": "white",
+                "accessory_accent_color": "#00B8FC",
+                "accessory_logo_path": resource_path("assets/brands/Logi.png")
+            },
+            "Logitech G": {
+                "accessory_background_color": "black",
+                "accessory_accent_color": "#00B8FC",
+                "accessory_text_color": "#00B8FC",
+                "accessory_logo_path": resource_path("assets/brands/Logitech_G.png")
+            }
         }
 
         self.tab_widget = QTabWidget()
@@ -421,9 +432,12 @@ class RetailOperationsSuite(QMainWindow):
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.currentTextChanged.connect(self.handle_paper_size_change)
         self.theme_combo = QComboBox()
-        self.theme_combo.currentTextChanged.connect(self.update_preview)
         self.brand_combo = QComboBox()
-        self.brand_combo.currentTextChanged.connect(self.update_preview)
+        
+        # Connect signals for exclusivity
+        self.theme_combo.currentTextChanged.connect(self.handle_theme_selection)
+        self.brand_combo.currentTextChanged.connect(self.handle_brand_selection)
+
         self.dual_lang_label = QLabel()
         self.dual_lang_checkbox = QCheckBox()
         self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
@@ -681,6 +695,30 @@ class RetailOperationsSuite(QMainWindow):
         self.brand_combo.clear()
         self.brand_combo.addItems(list(self.brands.keys()))
         self.brand_combo.setCurrentText(self.settings.get("default_brand_theme", "None"))
+
+    def handle_theme_selection(self, theme_name):
+        if not theme_name or self.theme_combo.signalsBlocked():
+            return
+
+        # If a real theme is selected, unselect the brand
+        if theme_name != "Default":
+            self.brand_combo.blockSignals(True)
+            self.brand_combo.setCurrentText("None")
+            self.brand_combo.blockSignals(False)
+        
+        self.update_preview()
+
+    def handle_brand_selection(self, brand_name):
+        if not brand_name or self.brand_combo.signalsBlocked():
+            return
+
+        # If a real brand is selected, force the theme to Default
+        if brand_name != "None":
+            self.theme_combo.blockSignals(True)
+            self.theme_combo.setCurrentText("Default")
+            self.theme_combo.blockSignals(False)
+            
+        self.update_preview()
 
     def open_layout_settings(self):
         # Store a deep copy of the settings before opening the dialog
