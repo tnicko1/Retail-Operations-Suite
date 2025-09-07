@@ -2095,7 +2095,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
 
 
 def _draw_legion_hex_background(width, height, bg_color=(11, 16, 32), line_color1=(0, 178, 255, 110),
-                                line_color2=(0, 107, 255, 90), line_width=2, size_ratio=0.14):
+                                line_color2=(0, 107, 255, 90), line_width=4, size_ratio=0.14):
     """
     Creates a dark background with a hexagonal grid pattern using Legion blue tones.
     """
@@ -2191,7 +2191,7 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
         img = _draw_legion_hex_background(
             width_px, height_px,
             bg_color=bg_col, line_color1=c1, line_color2=c2,
-            line_width=max(1, int(2 * scale_factor)),
+            line_width=max(2, int(5 * scale_factor)),
             size_ratio=0.14
         )
         if background_cache is not None:
@@ -2210,28 +2210,31 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
             b = int(start_color[2] * (1 - t) + end_color[2] * t)
             draw_ctx.line([(x0, y0 + i), (x1, y0 + i)], fill=(r, g, b))
 
-    # Helper: draw pill with simple 3D shadow
-    def draw_pill(bbox, radius, fill=(13, 18, 36), outline=(34, 48, 80, 200), shadow=True):
+    # Helper: draw pill with blue shadows; optionally skip top shadow
+    def draw_pill(bbox, radius, fill=(13, 18, 36), outline=(34, 48, 80, 200), shadow=True, skip_top=False):
         overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
         o = ImageDraw.Draw(overlay, 'RGBA')
         x0, y0, x1, y1 = map(int, bbox)
         if shadow:
             shadow_offset = int(6 * scale_factor)
-            shadow_color = (0, 0, 0, 90)
-            o.rounded_rectangle(
-                [(x0 + shadow_offset, y0 + shadow_offset), (x1 + shadow_offset, y1 + shadow_offset)],
-                radius=radius, fill=shadow_color
-            )
+            shadow_color = (0, 122, 255, 160)  # Blue shadow for better print contrast
+            # Shadows on all sides (left, right, bottom, top)
+            offsets = [( shadow_offset,  0),  # right
+                       (-shadow_offset,  0),  # left
+                       ( 0,  shadow_offset)]  # bottom
+            if not skip_top:
+                offsets.append((0, -shadow_offset))  # top
+            for dx, dy in offsets:
+                o.rounded_rectangle(
+                    [(x0 + dx, y0 + dy), (x1 + dx, y1 + dy)],
+                    radius=radius, fill=shadow_color
+                )
         # Main pill
         o.rounded_rectangle([(x0, y0), (x1, y1)], radius=radius, fill=fill, outline=outline, width=max(1, int(2 * scale_factor)))
-        # Subtle top highlight
-        highlight = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        hdraw = ImageDraw.Draw(highlight, 'RGBA')
-        hdraw.rounded_rectangle([(x0, y0), (x1, y0 + max(2, int(6 * scale_factor)))], radius=radius, fill=(255, 255, 255, 25))
+        # Paste shadows + pill
         img.paste(overlay, (0, 0), overlay)
-        img.paste(highlight, (0, 0), highlight)
 
-    # Helper: gradient text rendering
+    # Helper: gradient text rendering (kept for reference if needed elsewhere)
     def draw_gradient_text(text, font, center_pos=None, left_baseline_pos=None, gradient_colors=((0, 178, 255), (78, 91, 255))):
         # Measure
         bbox = font.getbbox(text)
@@ -2268,11 +2271,32 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
         img.paste(grad, (px, py), grad)
         return (w, h), (px, py)
 
-    # Header bar to improve black logo visibility
+    # Helper: solid-colored text rendering with same positioning API
+    def draw_colored_text(text, font, color, center_pos=None, left_baseline_pos=None):
+        bbox = font.getbbox(text)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        if w <= 0 or h <= 0:
+            return (0, 0), (0, 0)
+        if center_pos is not None:
+            cx, cy = center_pos
+            px = int(cx - w / 2)
+            py = int(cy - h / 2)
+        elif left_baseline_pos is not None:
+            lx, by = left_baseline_pos
+            ascent, _ = font.getmetrics()
+            px = int(lx)
+            py = int(by - ascent)
+        else:
+            return (w, h), (0, 0)
+        d = ImageDraw.Draw(img, 'RGBA')
+        d.text((px, py), text, font=font, fill=color)
+        return (w, h), (px, py)
+
+    # Header bar to improve black logo visibility (solid blue)
     header_h = 0.28 * height_px
-    header_start = (8, 16, 40)      # dark navy
-    header_end = (10, 80, 160)      # deeper blue
-    draw_vertical_gradient_rect(draw, (0, 0, width_px, header_h), header_start, header_end)
+    header_color = (0, 107, 255)
+    draw.rectangle([0, 0, width_px, int(header_h)], fill=header_color)
 
     # Logo centered in header
     logo_bottom_y = int(margin_y * 0.5)
@@ -2305,12 +2329,13 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
     pill_y0 = int(logo_bottom_y + margin_y * 0.4)
     pill_y1 = int(pill_y0 + pill_h)
     radius = int(22 * scale_factor)
-    draw_pill((pill_x0, pill_y0, pill_x1, pill_y1), radius)
+    draw_pill((pill_x0, pill_y0, pill_x1, pill_y1), radius, skip_top=True)
 
-    # Draw gradient name text lines centered
+    # Draw solid blue name text lines centered
+    blue_text = (0, 178, 255)
     y_cursor = pill_y0 + pill_pad_y + ascent
     for line in name_lines:
-        draw_gradient_text(line, name_font, center_pos=(width_px / 2, y_cursor))
+        draw_colored_text(line, name_font, blue_text, center_pos=(width_px / 2, y_cursor))
         y_cursor += line_h + line_spacing
 
     # Bottom-left: SKU in pill (value only)
@@ -2325,7 +2350,7 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
     sku_y0 = int(sku_y1 - sku_pill_h)
     sku_x1 = int(sku_x0 + sku_pill_w)
     draw_pill((sku_x0, sku_y0, sku_x1, sku_y1), int(18 * scale_factor))
-    draw_gradient_text(sku_text, sku_font, left_baseline_pos=(sku_x0 + sku_pill_pad_x, sku_y1 - sku_pill_pad_y))
+    draw_colored_text(sku_text, sku_font, (0, 178, 255), left_baseline_pos=(sku_x0 + sku_pill_pad_x, sku_y1 - sku_pill_pad_y))
 
     # Bottom-right: Price(s) in pill
     sale_price = str(item_data.get('Sale price', '')).strip()
@@ -2370,10 +2395,11 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
         # total widths
         w_total, w_gel, w_p, sp = composite_width(price_str, p_font, gel_f)
         start_x = price_x1 - int(16 * scale_factor) - w_total
+        blue_text = (0, 178, 255)
         # GEL
-        draw_gradient_text("₾", gel_f, left_baseline_pos=(start_x, base_y))
+        draw_colored_text("₾", gel_f, blue_text, left_baseline_pos=(start_x, base_y))
         # Amount
-        draw_gradient_text(price_str, p_font, left_baseline_pos=(start_x + w_gel + sp, base_y))
+        draw_colored_text(price_str, p_font, blue_text, left_baseline_pos=(start_x + w_gel + sp, base_y))
         return w_total, start_x
 
     # Baselines
