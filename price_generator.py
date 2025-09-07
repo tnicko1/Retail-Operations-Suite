@@ -538,7 +538,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         _draw_cosmic_veil_accent(img, width_px, height_px)
     elif theme.get('accessory_background_style') == 'logitech_style':
         header_height = int(0.22 * height_px)
-        start_color = (0, 184, 156)  # #00B89C
+        start_color = (41, 207, 203)  # #29CFCB
         end_color = (0, 128, 112)    # #008070
         for y in range(header_height):
             # Simple linear interpolation
@@ -1215,6 +1215,216 @@ def _create_grid_background(width, height, color="#2E7D32", line_color=(255, 255
     return img
 
 
+def _split_logitech_name(name_text):
+    """
+    Splits a Logitech product name into a model part and a description part.
+    e.g., "Logitech M170 Wireless Mouse" -> ("Logitech M170", "Wireless Mouse")
+    """
+    words = name_text.split()
+    split_index = -1
+
+    # Find the first word with a digit
+    for i, word in enumerate(words):
+        if any(char.isdigit() for char in word):
+            if i < len(words) - 1:
+                split_index = i
+                break
+
+    # If we found a word with a number, split after it.
+    if split_index != -1:
+        part1 = " ".join(words[:split_index + 1])
+        part2 = " ".join(words[split_index + 1:])
+        return part1, part2
+
+    # Fallback: if no number, return the whole name as part1
+    return name_text, ""
+
+
+def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    img = Image.new('RGB', (width_px, height_px), 'white')
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- Config ---
+    margin = 0.05 * width_px
+    text_color = theme.get('name_color', 'black')
+    price_color = "#00A99D"  # Greenish Teal
+    header_color = "#00A99D" # Greenish Teal
+    logo_path = theme.get('accessory_logo_path')
+
+    # --- Scaling ---
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / BASE_AREA)
+
+    # --- Fonts (Increased Sizes) ---
+    base_model_font_size = 90  # Increased from 72
+    base_desc_font_size = 50   # Increased from 40
+    base_price_font_size = 110
+    base_strikethrough_font_size = 75
+    base_sku_font_size = 65
+
+    model_font = get_font(PRIMARY_FONT_BOLD_PATH, base_model_font_size * scale_factor, is_bold=True)
+    desc_font = get_font(PRIMARY_FONT_PATH, base_desc_font_size * scale_factor)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_font_size * scale_factor, is_bold=True)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, base_strikethrough_font_size * scale_factor)
+    gel_font = get_font(GEL_FONT_PATH, base_price_font_size * scale_factor, is_bold=True)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, base_strikethrough_font_size * scale_factor)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, base_sku_font_size * scale_factor, is_bold=True)
+
+    # --- 1. Header Bar ---
+    header_height = height_px * 0.20
+    draw.rectangle([0, 0, width_px, header_height], fill=header_color)
+
+    # --- 2. Logo & SKU (In Header) ---
+    if logo_path:
+        try:
+            with Image.open(logo_path) as logo:
+                logo_max_h = header_height * 0.8
+                logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
+                logo_x = int(margin)
+                logo_y = int((header_height - logo.height) / 2)
+                img.paste(logo, (logo_x, logo_y), logo)
+        except FileNotFoundError:
+            print(f"Warning: Logitech logo not found at {logo_path}")
+
+    sku_text = item_data.get('SKU', 'N/A')
+    draw.text((width_px - margin, header_height / 2), sku_text, font=sku_font, fill='white', anchor="rm")
+
+    # --- 3. Main Text Block Calculation ---
+    name_text = item_data.get('Name', 'N/A')
+    model_text, desc_text = _split_logitech_name(name_text)
+
+    text_x = margin
+    text_y_start = header_height + (margin * 1.5)  # Moved down
+
+    # Calculate dimensions for the tile
+    model_ascent, model_descent = model_font.getmetrics()
+    model_line_height = model_ascent + model_descent
+    wrapped_model_lines = wrap_text(model_text, model_font, width_px - (2 * margin))
+
+    desc_ascent, desc_descent = desc_font.getmetrics()
+    desc_line_height = desc_ascent + desc_descent
+    wrapped_desc_lines = wrap_text(desc_text, desc_font, width_px - (2 * margin))
+
+    max_line_width = 0
+    for line in wrapped_model_lines:
+        line_width = model_font.getbbox(line)[2]
+        if line_width > max_line_width:
+            max_line_width = line_width
+    for line in wrapped_desc_lines:
+        line_width = desc_font.getbbox(line)[2]
+        if line_width > max_line_width:
+            max_line_width = line_width
+
+    total_text_height = (len(wrapped_model_lines) * model_line_height) + \
+                        (len(wrapped_desc_lines) * desc_line_height)
+    if wrapped_model_lines and wrapped_desc_lines:
+        total_text_height += 5 * scale_factor  # Add spacing if both exist
+
+    # --- 3a. Draw 3D Tile ---
+    tile_padding_x = margin * 0.5
+    tile_padding_y = margin * 0.4
+    tile_x0 = text_x - tile_padding_x
+    tile_y0 = text_y_start - tile_padding_y
+    tile_x1 = text_x + max_line_width + tile_padding_x
+    tile_y1 = text_y_start + total_text_height + tile_padding_y
+    radius = 15 * scale_factor
+
+    # Draw drop shadow
+    shadow_offset = 8 * scale_factor
+    shadow_color = (0, 0, 0, 80)  # Semi-transparent black
+    draw.rounded_rectangle(
+        [(tile_x0 + shadow_offset, tile_y0 + shadow_offset), (tile_x1 + shadow_offset, tile_y1 + shadow_offset)],
+        radius=radius,
+        fill=shadow_color
+    )
+
+    # Draw main tile
+    draw.rounded_rectangle(
+        [(tile_x0, tile_y0), (tile_x1, tile_y1)],
+        radius=radius,
+        fill='white',
+        outline=(220, 220, 220),
+        width=max(1, int(2 * scale_factor))
+    )
+
+    # --- 3b. Draw Text on Tile ---
+    y_cursor = text_y_start
+    for line in wrapped_model_lines:
+        draw.text((text_x, y_cursor), line, font=model_font, fill=text_color, anchor="la")
+        y_cursor += model_line_height
+
+    if wrapped_model_lines and wrapped_desc_lines:
+        y_cursor += 5 * scale_factor
+
+    for line in wrapped_desc_lines:
+        draw.text((text_x, y_cursor), line, font=desc_font, fill=text_color, anchor="la")
+        y_cursor += desc_line_height
+
+    # --- 4. Price (Bottom Right) ---
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    is_on_sale = False
+    display_price = ""
+
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
+
+        if is_on_sale:
+            display_price = sale_price
+        elif regular_val > 0:
+            display_price = regular_price
+        elif sale_val > 0:
+            display_price = sale_price
+    except (ValueError, TypeError):
+        display_price = regular_price or sale_price
+        is_on_sale = False
+
+    price_x = width_px - margin
+    price_y = height_px - margin
+
+    if display_price:
+        price_text = str(display_price)
+        gel_text = "₾"
+
+        # Draw main price
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        spacing = int(5 * scale_factor)
+
+        draw.text((price_x, price_y), price_text, font=price_font, fill=price_color, anchor="rs")
+        draw.text((price_x - price_width - spacing, price_y), gel_text, font=gel_font, fill=price_color, anchor="rs")
+
+        # Draw strikethrough price if on sale
+        if is_on_sale and regular_price:
+            old_price_text = str(regular_price)
+            old_price_ascent, old_price_descent = strikethrough_font.getmetrics()
+            old_price_height = old_price_ascent + old_price_descent
+
+            strikethrough_y = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+
+            old_price_width = strikethrough_font.getbbox(old_price_text)[2]
+            old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
+
+            draw.text((price_x, strikethrough_y), old_price_text, font=strikethrough_font, fill=text_color, anchor="rs")
+            draw.text((price_x - old_price_width - spacing, strikethrough_y), gel_text, font=gel_font_strikethrough,
+                      fill=text_color, anchor="rs")
+
+            # Draw strikethrough line
+            total_old_width = old_price_width + old_gel_width + spacing
+            line_y = strikethrough_y - (old_price_height / 2) + old_price_descent
+            draw.line([(price_x - total_old_width, line_y), (price_x, line_y)], fill=text_color,
+                      width=int(3 * scale_factor))
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=3)
+
+    return img
+
+
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -1223,6 +1433,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
+    if theme.get('design') == 'logitech_modern':
+        return _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):

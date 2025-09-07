@@ -91,6 +91,7 @@ class RetailOperationsSuite(QMainWindow):
         self.brands = {
             "None": {},
             "Logitech": {
+                "design": "logitech_modern",
                 "accessory_background_style": "logitech_style",
                 "accessory_logo_path": resource_path("assets/brands/Logi.png")
             },
