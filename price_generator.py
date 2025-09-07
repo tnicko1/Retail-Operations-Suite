@@ -1773,6 +1773,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         return _create_bloody_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'logitech_modern':
         return _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
+    if theme.get('design') == 'epson_modern':
+        return _create_epson_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
@@ -2423,4 +2425,217 @@ def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, heigh
 
     # Border
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
+    return img
+
+
+def _create_epson_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    """
+    Epson modern tag:
+    - Clean white canvas with a solid Epson-blue header band
+    - Centered Epson logo in the header
+    - Bold product name area beneath the header
+    - Left-aligned compact specs with blue square bullets
+    - Bottom-left SKU/P/N line
+    - Bottom-right price tile with sale handling (old price above with strikethrough)
+    """
+    # Colors
+    header_color = (0, 100, 168)  # #0064a8
+    accent_color = (45, 124, 230) # Lighter accent blue
+    text_color = "#0A0A0A"
+    price_color = header_color
+
+    # Scaling
+    current_area = width_cm * height_cm
+    base_area = BASE_AREA
+    scale_factor = math.sqrt(current_area / base_area)
+
+    # Fonts
+    base_model_font_size = 84
+    base_desc_font_size = 46
+    base_price_font_size = 118
+    base_strike_font_size = 76
+    base_info_font_size = 42
+    base_sku_font_size = 68  # slightly larger SKU in header
+
+    name_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, base_model_font_size * scale_factor, is_bold=True)
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, base_desc_font_size * scale_factor, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_font_size * scale_factor, is_bold=True)
+    strike_font = get_font(PRIMARY_FONT_BOLD_PATH, base_strike_font_size * scale_factor, is_bold=True)
+    info_font = get_font(PRIMARY_FONT_BOLD_PATH, base_info_font_size * scale_factor, is_bold=True)
+    info_font_bold = info_font
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, base_sku_font_size * scale_factor, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, base_price_font_size * scale_factor, is_bold=True)
+    gel_font_strike = get_font(GEL_FONT_PATH, base_strike_font_size * scale_factor)
+
+    # Canvas
+    img = Image.new('RGB', (width_px, height_px), 'white')
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # Header (white for logo contrast) + underline
+    margin = 0.05 * width_px
+    header_h = 0.24 * height_px
+    draw.rectangle([0, 0, width_px, int(header_h)], fill="white")
+    draw.line([(0, int(header_h)), (width_px, int(header_h))], fill=header_color, width=max(2, int(4 * scale_factor)))
+
+    # Logo aligned left in header; SKU in header top-right
+    logo_path = theme.get('accessory_logo_path') or theme.get('logo_path') or resource_path("assets/brands/Epson.png")
+    try:
+        with Image.open(logo_path).convert("RGBA") as logo:
+            logo_max_h = header_h * 0.7
+            logo.thumbnail((int(width_px * 0.45), int(logo_max_h)), Image.Resampling.LANCZOS)
+            lx = int(margin)
+            ly = int((header_h - logo.height) / 2)
+            img.paste(logo, (lx, ly), logo)
+    except FileNotFoundError:
+        print(f"Warning: Epson logo not found at {logo_path}")
+
+    # SKU number (no label) in header top-right
+    sku_header_val = item_data.get('SKU', 'N/A')
+    draw.text((width_px - margin, header_h / 2), sku_header_val, font=sku_font, fill=header_color, anchor="rm")
+
+    # Name area (use full name, bold)
+    name_text = item_data.get('Name', 'N/A')
+
+    # Compute wrapping
+    name_area_x = margin
+    name_area_y = header_h + (0.02 * height_px)
+    name_area_w = width_px - (2 * margin)
+
+    name_lines = wrap_text(name_text, name_font_bold, name_area_w)
+    # Draw name centered
+    y_cursor = name_area_y
+    for line in name_lines:
+        draw.text((width_px / 2, y_cursor), line, font=name_font_bold, fill=text_color, anchor="ma")
+        y_cursor += name_font_bold.getmetrics()[0] + name_font_bold.getmetrics()[1]
+    # Underline removed for cleaner look
+    pass
+
+    # Specs (left column)
+    all_specs = item_data.get('all_specs', [])
+    # Choose up to 4 concise specs excluding warranty; append warranty last if fits
+    specs = []
+    warranty = None
+    for s in all_specs:
+        if 'warranty' in s.lower():
+            if warranty is None:
+                warranty = s
+            continue
+        specs.append(s)
+    if warranty:
+        specs.append(warranty)
+    specs = specs[:4]
+
+    spec_font = get_font(PRIMARY_FONT_BOLD_PATH, (base_info_font_size - 2) * scale_factor, is_bold=True)
+    bullet_size = int(12 * scale_factor)
+    bullet_gap = int(10 * scale_factor)
+    spec_y = y_cursor + (0.02 * height_px)
+    for s in specs:
+        # bullet
+        bx = name_area_x
+        by = spec_y + int(spec_font.getmetrics()[0] * 0.15)
+        draw.rectangle([bx, by, bx + bullet_size, by + bullet_size], fill=accent_color)
+        # text
+        sx = bx + bullet_size + bullet_gap
+        # translate label if key:value
+        if ':' in s:
+            label, value = s.split(':', 1)
+            label_t = Translator().get_spec_label(label.strip(), language)
+            label_text = f"{label_t}:"
+            label_f = spec_font if not contains_georgian(label_text) else get_font(FALLBACK_FONT_GEORGIAN_BOLD, (base_info_font_size - 2) * scale_factor, is_bold=True)
+            value_f = spec_font if not contains_georgian(value) else get_font(FALLBACK_FONT_GEORGIAN_BOLD, (base_info_font_size - 2) * scale_factor, is_bold=True)
+            draw.text((sx, spec_y), label_text, font=label_f, fill=text_color, anchor="la")
+            label_w = label_f.getbbox(label_text)[2]
+            draw.text((sx + label_w + 6, spec_y), value.strip(), font=value_f, fill=text_color, anchor="la")
+        else:
+            s_font = spec_font if not contains_georgian(s) else get_font(FALLBACK_FONT_GEORGIAN_BOLD, (base_info_font_size - 2) * scale_factor, is_bold=True)
+            draw.text((sx, spec_y), s, font=s_font, fill=text_color, anchor="la")
+        spec_y += spec_font.getmetrics()[0] + spec_font.getmetrics()[1] + (4 * scale_factor)
+
+    # Bottom-left: printer icon (larger)
+    try:
+        printer_icon_path = resource_path("assets/props/Printer.png")
+        with Image.open(printer_icon_path).convert("RGBA") as printer_icon:
+            icon_h = int(0.36 * height_px)  # ~3x larger than before
+            printer_icon.thumbnail((icon_h, icon_h), Image.Resampling.LANCZOS)
+            icon_x = int(margin)
+            icon_y = int(height_px - margin - printer_icon.height)
+            img.paste(printer_icon, (icon_x, icon_y), printer_icon)
+    except FileNotFoundError:
+        print("Warning: Printer icon not found at assets/props/Printer.png")
+
+    # Price tile (bottom-right)
+    sale_price = str(item_data.get('Sale price', '')).strip()
+    regular_price = str(item_data.get('Regular price', '')).strip()
+    is_on_sale_flag = False
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale_flag = sale_val > 0 and sale_val != regular_val
+    except (ValueError, TypeError):
+        is_on_sale_flag = False
+
+    def composite_width(price_str, p_font, g_font):
+        w_price = p_font.getbbox(price_str)[2] - p_font.getbbox(price_str)[0]
+        w_gel = g_font.getbbox("₾")[2] - g_font.getbbox("₾")[0]
+        spacing = int(6 * scale_factor)
+        return w_gel + spacing + w_price, w_gel, w_price, spacing
+
+    # Compute tile size
+    if is_on_sale_flag and sale_price:
+        w_new, _, _, _ = composite_width(sale_price, price_font, gel_font)
+        w_old, _, _, _ = composite_width(regular_price, strike_font, gel_font_strike) if regular_price else (0, 0, 0, 0)
+        tile_w = max(w_new, w_old) + int(2 * 18 * scale_factor)
+        tile_h = (price_font.getmetrics()[0] + price_font.getmetrics()[1]) + \
+                 (strike_font.getmetrics()[0] + strike_font.getmetrics()[1]) + int(2 * 14 * scale_factor)
+    else:
+        display_val = regular_price if regular_price else sale_price
+        w_new, _, _, _ = composite_width(display_val, price_font, gel_font) if display_val else (0, 0, 0, 0)
+        tile_w = w_new + int(2 * 18 * scale_factor)
+        tile_h = (price_font.getmetrics()[0] + price_font.getmetrics()[1]) + int(2 * 14 * scale_factor)
+
+    tile_x1 = width_px - margin
+    tile_x0 = tile_x1 - tile_w
+    tile_y1 = height_px - margin
+    tile_y0 = tile_y1 - tile_h
+
+    # Draw tile (rounded rectangle with blue outline) + soft blue shadow (updated color)
+    radius = int(18 * scale_factor)
+    shadow_offset = int(5 * scale_factor)
+    draw.rounded_rectangle([(tile_x0 + shadow_offset, tile_y0 + shadow_offset), (tile_x1 + shadow_offset, tile_y1 + shadow_offset)],
+                           radius=radius, fill=(0, 100, 168, 90))
+    draw.rounded_rectangle([(tile_x0, tile_y0), (tile_x1, tile_y1)], radius=radius,
+                           outline=header_color, width=max(2, int(3 * scale_factor)), fill="white")
+
+    # Price drawing (right-aligned inside tile)
+    def draw_price_line_right(px_right, base_y, price_str, p_font, g_font, color, strike=False, strike_color=None):
+        total_w, w_gel, w_p, spacing = composite_width(price_str, p_font, g_font)
+        start_x = px_right - int(18 * scale_factor) - total_w
+        draw.text((start_x, base_y), "₾", font=g_font, fill=color, anchor="ls")
+        draw.text((start_x + w_gel + spacing, base_y), price_str, font=p_font, fill=color, anchor="ls")
+        if strike:
+            asc, desc = p_font.getmetrics()
+            sy = base_y - int((asc - desc) * 0.35)
+            draw.line([(start_x, sy), (start_x + total_w, sy)], fill=strike_color or color, width=max(1, int(2 * scale_factor)))
+        return start_x, total_w
+
+    base_y_main = tile_y1 - int(14 * scale_factor)
+    if is_on_sale_flag and sale_price:
+        base_y_old = base_y_main - (price_font.getmetrics()[0] + price_font.getmetrics()[1]) - int(6 * scale_factor)
+        if regular_price:
+            draw_price_line_right(tile_x1, base_y_old, regular_price, strike_font, gel_font_strike,
+                                  color=(140, 140, 140), strike=True, strike_color=(120, 120, 120))
+        draw_price_line_right(tile_x1, base_y_main, sale_price, price_font, gel_font, color=price_color)
+    else:
+        display_val = regular_price if regular_price else sale_price
+        if display_val:
+            asc, desc = price_font.getmetrics()
+            center_y = (tile_y0 + tile_y1) / 2.0
+            base_y_centered = int(center_y + (asc - desc) / 2.0)
+            draw_price_line_right(tile_x1, base_y_centered, display_val, price_font, gel_font, color=price_color)
+
+    # No sale overlay for Epson style
+    pass
+
+    # Border
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=max(2, int(5 * scale_factor)))
     return img

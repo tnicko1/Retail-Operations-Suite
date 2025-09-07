@@ -116,6 +116,10 @@ class RetailOperationsSuite(QMainWindow):
                 "accessory_price_color": "#00B2FF",
                 "accessory_sku_color": "#FFFFFF",
                 "accessory_accent_color": "#00B2FF"
+            },
+            "Epson": {
+                "design": "epson_modern",
+                "accessory_logo_path": resource_path("assets/brands/Epson.png")
             }
         }
 
