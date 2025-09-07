@@ -1555,7 +1555,7 @@ def _create_bloody_modern_tag(item_data, width_px, height_px, width_cm, height_c
     base_desc_font_size = 50
     base_price_font_size = 110
     base_strikethrough_font_size = 75
-    base_sku_font_size = 65
+    base_sku_font_size = 75
 
     model_font = get_font(PRIMARY_FONT_BOLD_PATH, base_model_font_size * scale_factor, is_bold=True)
     desc_font = get_font(PRIMARY_FONT_PATH, base_desc_font_size * scale_factor)
@@ -1566,14 +1566,14 @@ def _create_bloody_modern_tag(item_data, width_px, height_px, width_cm, height_c
     sku_font = get_font(PRIMARY_FONT_BOLD_PATH, base_sku_font_size * scale_factor, is_bold=True)
 
     # --- 1. Header Bar ---
-    header_height = height_px * 0.20
+    header_height = height_px * 0.30
     draw.rectangle([0, 0, width_px, header_height], fill=header_color)
 
     # --- 2. Logo & SKU (In Header) ---
     if logo_path:
         try:
             with Image.open(logo_path).convert("RGBA") as logo:
-                logo_max_h = header_height * 0.8
+                logo_max_h = header_height * 0.85
                 logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
                 logo_x = int(margin)
                 logo_y = int((header_height - logo.height) / 2)
