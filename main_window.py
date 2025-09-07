@@ -108,6 +108,14 @@ class RetailOperationsSuite(QMainWindow):
                 "design": "bloody_modern",
                 "accessory_background_style": "bloody_style",
                 "accessory_logo_path": resource_path("assets/brands/Bloody.png")
+            },
+            "Legion": {
+                "accessory_background_style": "legion_hex",
+                "accessory_logo_path": resource_path("assets/brands/Legion.png"),
+                "accessory_name_color": "#FFFFFF",
+                "accessory_price_color": "#00B2FF",
+                "accessory_sku_color": "#FFFFFF",
+                "accessory_accent_color": "#00B2FF"
             }
         }
 

@@ -533,6 +533,10 @@ def _draw_blood_splatter(draw, width, height):
 
 
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=None):
+    # Specialized Legion accessory layout
+    if theme.get('accessory_background_style') == 'legion_hex':
+        return _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=background_cache)
+
     # --- BRANDING & THEME OVERRIDES ---
     bg_color = theme.get('accessory_background_color', 'white')
     accent_color = theme.get('accessory_accent_color', 'black')
@@ -2086,5 +2090,311 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     if theme.get('draw_school_icons'):
         _draw_school_theme_elements(img, draw, width_px, height_px, scale_factor)
 
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
+    return img
+
+
+def _draw_legion_hex_background(width, height, bg_color=(11, 16, 32), line_color1=(0, 178, 255, 110),
+                                line_color2=(0, 107, 255, 90), line_width=2, size_ratio=0.14):
+    """
+    Creates a dark background with a hexagonal grid pattern using Legion blue tones.
+    """
+    # Background
+    if isinstance(bg_color, str) and bg_color.startswith("#"):
+        bg_color = tuple(int(bg_color[i:i+2], 16) for i in (1, 3, 5))
+    img = Image.new('RGB', (width, height), bg_color)
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # Hex geometry (flat-top orientation)
+    s = max(6, int(min(width, height) * size_ratio))  # hex radius/size
+    dx = 1.5 * s
+    dy = math.sqrt(3) * s
+
+    # Helper to compute hex vertices around center (cx, cy)
+    def hex_points(cx, cy, size):
+        pts = []
+        for i in range(6):
+            angle = math.radians(60 * i)
+            px = cx + size * math.cos(angle)
+            py = cy + size * math.sin(angle)
+            pts.append((px, py))
+        return pts
+
+    # Tiling
+    cols = int(width / dx) + 3
+    rows = int(height / dy) + 3
+    start_x = -dx
+    start_y = -dy
+
+    for col in range(cols):
+        x = start_x + col * dx
+        y_offset = dy / 2 if (col % 2 == 1) else 0
+        for row in range(rows):
+            y = start_y + row * dy + y_offset
+            pts = hex_points(x, y, s)
+            # Alternate colors subtly
+            color = line_color1 if ((col + row) % 2 == 0) else line_color2
+            # Ensure RGBA
+            if isinstance(color, tuple) and len(color) == 3:
+                color = color + (110,)
+            # Draw edges for better control on width
+            for i in range(6):
+                p1 = pts[i]
+                p2 = pts[(i + 1) % 6]
+                draw.line([p1, p2], fill=color, width=line_width)
+
+    return img
+
+
+def _create_legion_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=None):
+    """
+    Legion accessory tag:
+    - Top header with centered Legion logo for contrast
+    - Below: Name in a pill (centered)
+    - Bottom-left: SKU in a pill
+    - Bottom-right: Price (and discounted price if on sale) in a pill
+    - Background: Hexagonal grid in Legion blue colors
+    """
+    # Scaling
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / BASE_ACC_AREA)
+
+    # Colors and fonts
+    logo_path = theme.get('accessory_logo_path')
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_NAME_FONT_SIZE * scale_factor, is_bold=True)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_SKU_FONT_SIZE * scale_factor, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
+    old_price_font = get_font(PRIMARY_FONT_PATH, int(BASE_ACC_PRICE_FONT_SIZE * 0.75 * scale_factor))
+    gel_font = get_font(GEL_FONT_PATH, BASE_ACC_PRICE_FONT_SIZE * scale_factor, is_bold=True)
+    gel_font_old = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, int(BASE_ACC_PRICE_FONT_SIZE * 0.75 * scale_factor))
+
+    margin_x = 0.06 * width_px
+    margin_y = 0.06 * height_px
+    border_width = max(2, int(3 * scale_factor))
+
+    # Background (with optional cache) - larger hexes
+    sku_value_key = item_data.get('SKU', 'N/A')
+    if background_cache is not None and sku_value_key in background_cache:
+        img = background_cache[sku_value_key].copy()
+    else:
+        bg_col = theme.get('legion_bg_color', '#0B1020')
+        c1 = theme.get('legion_hex_color1', (0, 178, 255, 110))
+        c2 = theme.get('legion_hex_color2', (0, 107, 255, 90))
+        # Normalize hex strings to tuples if provided
+        def to_rgba(c, default_alpha=110):
+            if isinstance(c, str) and c.startswith("#"):
+                rgb = tuple(int(c[i:i+2], 16) for i in (1, 3, 5))
+                return rgb + (default_alpha,)
+            return c
+        c1 = to_rgba(c1)
+        c2 = to_rgba(c2)
+        img = _draw_legion_hex_background(
+            width_px, height_px,
+            bg_color=bg_col, line_color1=c1, line_color2=c2,
+            line_width=max(1, int(2 * scale_factor)),
+            size_ratio=0.14
+        )
+        if background_cache is not None:
+            background_cache[sku_value_key] = img.copy()
+
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # Helper: draw vertical gradient rectangle
+    def draw_vertical_gradient_rect(draw_ctx, bbox, start_color, end_color):
+        x0, y0, x1, y1 = map(int, bbox)
+        h = max(1, y1 - y0)
+        for i in range(h):
+            t = i / h
+            r = int(start_color[0] * (1 - t) + end_color[0] * t)
+            g = int(start_color[1] * (1 - t) + end_color[1] * t)
+            b = int(start_color[2] * (1 - t) + end_color[2] * t)
+            draw_ctx.line([(x0, y0 + i), (x1, y0 + i)], fill=(r, g, b))
+
+    # Helper: draw pill with simple 3D shadow
+    def draw_pill(bbox, radius, fill=(13, 18, 36), outline=(34, 48, 80, 200), shadow=True):
+        overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+        o = ImageDraw.Draw(overlay, 'RGBA')
+        x0, y0, x1, y1 = map(int, bbox)
+        if shadow:
+            shadow_offset = int(6 * scale_factor)
+            shadow_color = (0, 0, 0, 90)
+            o.rounded_rectangle(
+                [(x0 + shadow_offset, y0 + shadow_offset), (x1 + shadow_offset, y1 + shadow_offset)],
+                radius=radius, fill=shadow_color
+            )
+        # Main pill
+        o.rounded_rectangle([(x0, y0), (x1, y1)], radius=radius, fill=fill, outline=outline, width=max(1, int(2 * scale_factor)))
+        # Subtle top highlight
+        highlight = Image.new('RGBA', img.size, (0, 0, 0, 0))
+        hdraw = ImageDraw.Draw(highlight, 'RGBA')
+        hdraw.rounded_rectangle([(x0, y0), (x1, y0 + max(2, int(6 * scale_factor)))], radius=radius, fill=(255, 255, 255, 25))
+        img.paste(overlay, (0, 0), overlay)
+        img.paste(highlight, (0, 0), highlight)
+
+    # Helper: gradient text rendering
+    def draw_gradient_text(text, font, center_pos=None, left_baseline_pos=None, gradient_colors=((0, 178, 255), (78, 91, 255))):
+        # Measure
+        bbox = font.getbbox(text)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        if w <= 0 or h <= 0:
+            return (0, 0), (0, 0)
+        # Mask
+        text_img = Image.new('L', (w, h), 0)
+        tdraw = ImageDraw.Draw(text_img)
+        tdraw.text((-bbox[0], -bbox[1]), text, font=font, fill=255)
+        # Gradient
+        grad = Image.new('RGBA', (w, h))
+        gdraw = ImageDraw.Draw(grad)
+        for y in range(h):
+            t = y / max(1, h - 1)
+            r = int(gradient_colors[0][0] * (1 - t) + gradient_colors[1][0] * t)
+            g = int(gradient_colors[0][1] * (1 - t) + gradient_colors[1][1] * t)
+            b = int(gradient_colors[0][2] * (1 - t) + gradient_colors[1][2] * t)
+            gdraw.line([(0, y), (w, y)], fill=(r, g, b, 255))
+        grad.putalpha(text_img)
+        # Position
+        if center_pos is not None:
+            cx, cy = center_pos
+            px = int(cx - w / 2)
+            py = int(cy - h / 2)
+        elif left_baseline_pos is not None:
+            lx, by = left_baseline_pos
+            ascent, descent = font.getmetrics()
+            px = int(lx)
+            py = int(by - ascent)
+        else:
+            return (w, h), (0, 0)
+        img.paste(grad, (px, py), grad)
+        return (w, h), (px, py)
+
+    # Header bar to improve black logo visibility
+    header_h = 0.28 * height_px
+    header_start = (8, 16, 40)      # dark navy
+    header_end = (10, 80, 160)      # deeper blue
+    draw_vertical_gradient_rect(draw, (0, 0, width_px, header_h), header_start, header_end)
+
+    # Logo centered in header
+    logo_bottom_y = int(margin_y * 0.5)
+    if logo_path:
+        try:
+            with Image.open(logo_path).convert("RGBA") as logo:
+                logo_max_h = header_h * 0.7
+                logo.thumbnail((int(width_px * 0.8), int(logo_max_h)), Image.Resampling.LANCZOS)
+                logo_x = int((width_px - logo.width) / 2)
+                logo_y = int((header_h - logo.height) / 2)
+                img.paste(logo, (logo_x, logo_y), logo)
+                logo_bottom_y = logo_y + logo.height
+        except FileNotFoundError:
+            print(f"Warning: Brand logo not found at {logo_path}")
+
+    # Name inside pill, centered below header
+    name_text = item_data.get('Name', 'N/A')
+    name_area_width = width_px - (2 * margin_x)
+    name_lines = wrap_text(name_text, name_font, int(name_area_width * 0.9))
+    ascent, descent = name_font.getmetrics()
+    line_h = ascent + descent
+    line_spacing = int(6 * scale_factor)
+    total_h = len(name_lines) * line_h + max(0, len(name_lines) - 1) * line_spacing
+    pill_pad_x = int(20 * scale_factor)
+    pill_pad_y = int(12 * scale_factor)
+    pill_w = int(width_px - 2 * margin_x)
+    pill_h = int(total_h + 2 * pill_pad_y)
+    pill_x0 = int(margin_x)
+    pill_x1 = int(width_px - margin_x)
+    pill_y0 = int(logo_bottom_y + margin_y * 0.4)
+    pill_y1 = int(pill_y0 + pill_h)
+    radius = int(22 * scale_factor)
+    draw_pill((pill_x0, pill_y0, pill_x1, pill_y1), radius)
+
+    # Draw gradient name text lines centered
+    y_cursor = pill_y0 + pill_pad_y + ascent
+    for line in name_lines:
+        draw_gradient_text(line, name_font, center_pos=(width_px / 2, y_cursor))
+        y_cursor += line_h + line_spacing
+
+    # Bottom-left: SKU in pill (value only)
+    sku_text = item_data.get('SKU', 'N/A')
+    sku_bbox_w = sku_font.getbbox(sku_text)[2] - sku_font.getbbox(sku_text)[0]
+    sku_pill_pad_x = int(16 * scale_factor)
+    sku_pill_pad_y = int(10 * scale_factor)
+    sku_pill_w = sku_bbox_w + 2 * sku_pill_pad_x
+    sku_pill_h = sku_font.getmetrics()[0] + sku_font.getmetrics()[1] + 2 * sku_pill_pad_y
+    sku_x0 = int(margin_x)
+    sku_y1 = int(height_px - margin_y)
+    sku_y0 = int(sku_y1 - sku_pill_h)
+    sku_x1 = int(sku_x0 + sku_pill_w)
+    draw_pill((sku_x0, sku_y0, sku_x1, sku_y1), int(18 * scale_factor))
+    draw_gradient_text(sku_text, sku_font, left_baseline_pos=(sku_x0 + sku_pill_pad_x, sku_y1 - sku_pill_pad_y))
+
+    # Bottom-right: Price(s) in pill
+    sale_price = str(item_data.get('Sale price', '')).strip()
+    regular_price = str(item_data.get('Regular price', '')).strip()
+    is_on_sale = False
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0.0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0.0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
+    except (ValueError, TypeError):
+        is_on_sale = False
+
+    def composite_width(price_str, p_font, gel_f):
+        w_price = p_font.getbbox(price_str)[2] - p_font.getbbox(price_str)[0]
+        w_gel = gel_f.getbbox("₾")[2] - gel_f.getbbox("₾")[0]
+        sp = int(6 * scale_factor)
+        return w_gel + sp + w_price, w_gel, w_price, sp
+
+    if is_on_sale and sale_price:
+        w_new, w_gel_new, w_price_new, sp_new = composite_width(sale_price, price_font, gel_font)
+        w_old, w_gel_old, w_price_old, sp_old = composite_width(regular_price, old_price_font, gel_font_old) if regular_price else (0, 0, 0, 0)
+        price_pill_w = max(w_new, w_old) + int(2 * 16 * scale_factor)
+        line_gap = int(6 * scale_factor)
+        line_h_new = price_font.getmetrics()[0] + price_font.getmetrics()[1]
+        line_h_old = old_price_font.getmetrics()[0] + old_price_font.getmetrics()[1]
+        price_pill_h = line_h_new + (line_h_old if regular_price else 0) + line_gap + int(2 * 12 * scale_factor)
+    else:
+        display_val = regular_price if regular_price else sale_price
+        w_new, w_gel_new, w_price_new, sp_new = composite_width(display_val, price_font, gel_font) if display_val else (0, 0, 0, 0)
+        price_pill_w = w_new + int(2 * 16 * scale_factor)
+        line_h_new = price_font.getmetrics()[0] + price_font.getmetrics()[1]
+        price_pill_h = line_h_new + int(2 * 12 * scale_factor)
+
+    price_x1 = int(width_px - margin_x)
+    price_x0 = int(price_x1 - price_pill_w)
+    price_y1 = int(height_px - margin_y)
+    price_y0 = int(price_y1 - price_pill_h)
+    draw_pill((price_x0, price_y0, price_x1, price_y1), int(18 * scale_factor))
+
+    # Draw price text inside pill (right-aligned within pill)
+    def draw_price_line_right(price_str, p_font, gel_f, base_y):
+        # total widths
+        w_total, w_gel, w_p, sp = composite_width(price_str, p_font, gel_f)
+        start_x = price_x1 - int(16 * scale_factor) - w_total
+        # GEL
+        draw_gradient_text("₾", gel_f, left_baseline_pos=(start_x, base_y))
+        # Amount
+        draw_gradient_text(price_str, p_font, left_baseline_pos=(start_x + w_gel + sp, base_y))
+        return w_total, start_x
+
+    # Baselines
+    base_y_main = price_y1 - int(12 * scale_factor)
+    if is_on_sale and sale_price:
+        # old price above
+        base_y_old = base_y_main - (price_font.getmetrics()[0] + price_font.getmetrics()[1]) - int(6 * scale_factor)
+        if regular_price:
+            _, old_start_x = draw_price_line_right(regular_price, old_price_font, gel_font_old, base_y_old)
+            # Strikethrough
+            old_total_w, _, _, _ = composite_width(regular_price, old_price_font, gel_font_old)
+            asc_old, desc_old = old_price_font.getmetrics()
+            strike_y = base_y_old - int((asc_old - desc_old) * 0.35)
+            draw.line([(old_start_x, strike_y), (old_start_x + old_total_w, strike_y)],
+                      fill=(127, 160, 191, 200), width=max(1, int(2 * scale_factor)))
+        draw_price_line_right(sale_price, price_font, gel_font, base_y_main)
+    else:
+        display_val = regular_price if regular_price else sale_price
+        if display_val:
+            draw_price_line_right(display_val, price_font, gel_font, base_y_main)
+
+    # Border
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img
