@@ -103,6 +103,11 @@ class RetailOperationsSuite(QMainWindow):
                 "accessory_sku_color": "#FFFFFF",
                 "accessory_accent_color": "#FFFFFF",
                 "accessory_logo_path": resource_path("assets/brands/Logitech_G.png")
+            },
+            "Bloody": {
+                "design": "bloody_modern",
+                "accessory_background_style": "bloody_style",
+                "accessory_logo_path": resource_path("assets/brands/Bloody.png")
             }
         }
 

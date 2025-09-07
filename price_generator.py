@@ -503,6 +503,35 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
     img.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
 
 
+def _draw_blood_splatter(draw, width, height):
+    """Draws a blood splatter effect in the bottom-left corner."""
+    blood_color = (180, 0, 0, 200)
+    darker_blood_color = (130, 0, 0, 220)
+
+    # Main splat
+    for _ in range(random.randint(15, 25)):
+        x = random.gauss(width * 0.1, width * 0.15)
+        y = random.gauss(height * 0.9, height * 0.1)
+        radius = random.uniform(2, 20)
+        draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=blood_color)
+
+    # Smaller droplets
+    for _ in range(random.randint(30, 50)):
+        x = random.uniform(0, width * 0.5)
+        y = random.uniform(height * 0.6, height)
+        radius = random.uniform(1, 4)
+        if (x - width*0.1)**2 + (y - height*0.9)**2 < (width*0.2)**2: # concentrate near main splat
+             draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=darker_blood_color)
+
+    # Drips
+    for _ in range(random.randint(3, 5)):
+        start_x = random.randint(0, int(width * 0.3))
+        start_y = random.randint(int(height * 0.8), height)
+        end_y = start_y + random.randint(10, 50)
+        end_x = start_x + random.randint(-5, 5)
+        draw.line([(start_x, start_y), (end_x, end_y)], fill=darker_blood_color, width=random.randint(2, 4))
+
+
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=None):
     # --- BRANDING & THEME OVERRIDES ---
     bg_color = theme.get('accessory_background_color', 'white')
@@ -546,6 +575,16 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
             g = int(start_color[1] + (end_color[1] - start_color[1]) * (y / header_height))
             b = int(start_color[2] + (end_color[2] - start_color[2]) * (y / header_height))
             draw.line([(0, y), (width_px, y)], fill=(r, g, b))
+    elif theme.get('accessory_background_style') == 'bloody_style':
+        header_height = int(0.22 * height_px)
+        start_color = (255, 68, 68)  # Bright Red
+        end_color = (170, 0, 0)      # Dark Red
+        for y in range(header_height):
+            # Simple linear interpolation
+            r = int(start_color[0] + (end_color[0] - start_color[0]) * (y / header_height))
+            g = int(start_color[1] + (end_color[1] - start_color[1]) * (y / header_height))
+            b = int(start_color[2] + (end_color[2] - start_color[2]) * (y / header_height))
+            draw.line([(0, y), (width_px, y)], fill=(r, g, b))
 
     # --- Special case for default 6x3.5cm tags ---
     is_default_theme = not any(theme.get(key) for key in ['background_grid', 'background_snow', 'draw_school_icons', 'accessory_logo_path'])
@@ -573,8 +612,8 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     # --- BRAND LOGO ---
     if logo_path:
         try:
-            with Image.open(logo_path) as logo:
-                if theme.get('accessory_background_style') == 'logitech_style':
+            with Image.open(logo_path).convert("RGBA") as logo:
+                if theme.get('accessory_background_style') == 'logitech_style' or theme.get('accessory_background_style') == 'bloody_style':
                     logo_max_h = top_area_height * 0.8
                     logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
                     logo_x = int(margin)
@@ -590,7 +629,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
 
 
     # Conditionally draw separators
-    if not theme.get('draw_school_icons') and theme.get('accessory_background_style') != 'logitech_style':
+    if not theme.get('draw_school_icons') and theme.get('accessory_background_style') != 'logitech_style' and theme.get('accessory_background_style') != 'bloody_style':
         line_width = max(1, int(2 * scale_factor))
         if theme.get('accessory_background_style') == 'cosmic_veil':
             line_width = max(2, int(4 * scale_factor))  # Make lines thicker for Logitech G
@@ -653,7 +692,7 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         img.paste(rotated_rect, (0,0), rotated_rect)
         # For school theme, text is always black on the note
         draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
-    elif theme.get('accessory_background_style') == 'logitech_style':
+    elif theme.get('accessory_background_style') == 'logitech_style' or theme.get('accessory_background_style') == 'bloody_style':
         draw.text((width_px - margin, sku_y), sku_text, font=sku_font, fill='white', anchor="rm")
     else:
         draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill=sku_color, anchor="mm")
@@ -912,14 +951,14 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         # --- Default Sale & Regular Price Logic ---
         else:
             price_color_override = None
-            if theme.get('accessory_background_style') == 'logitech_style':
+            if theme.get('accessory_background_style') == 'logitech_style' or theme.get('accessory_background_style') == 'bloody_style':
                 price_color_override = 'black'
 
             final_price_color = price_color_override or price_color
             total_width = gel_width + spacing + price_width
             start_x = (width_px - total_width) / 2
 
-            if theme.get('accessory_background_style') == 'logitech_style':
+            if theme.get('accessory_background_style') == 'logitech_style' or theme.get('accessory_background_style') == 'bloody_style':
                 # Create a floating "pill" bubble for the price
                 bbox = price_font.getbbox("Ag")
                 line_height = bbox[3] - bbox[1]
@@ -959,6 +998,9 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     # --- THEME SPECIFIC ELEMENTS ---
     if theme.get('draw_school_icons'):
         _draw_school_theme_elements(img, draw, width_px, height_px, scale_factor)
+
+    if theme.get('accessory_background_style') == 'bloody_style':
+        _draw_blood_splatter(draw, width_px, height_px)
 
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=border_width)
     return img
@@ -1054,7 +1096,7 @@ def _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, th
     right_panel_center_x = separator_x + (right_panel_width / 2)
 
     try:
-        with Image.open(logo_to_use) as logo:
+        with Image.open(logo_to_use).convert("RGBA") as logo:
             logo.thumbnail((right_panel_width * 0.7, logo_area_height), Image.Resampling.LANCZOS)
             logo_x = int(right_panel_center_x - logo.width / 2)
             logo_y = int(margin)
@@ -1277,7 +1319,7 @@ def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height
     # --- 2. Logo & SKU (In Header) ---
     if logo_path:
         try:
-            with Image.open(logo_path) as logo:
+            with Image.open(logo_path).convert("RGBA") as logo:
                 logo_max_h = header_height * 0.8
                 logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
                 logo_x = int(margin)
@@ -1469,6 +1511,250 @@ def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height
     return img
 
 
+def _create_bloody_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    img = Image.new('RGB', (width_px, height_px), 'white')
+
+    # --- Paste Blood Splatter Image from file ---
+    try:
+        splatter_path = resource_path("assets/props/Blood_Splatter.png")
+        with Image.open(splatter_path).convert("RGBA") as splatter_img:
+            # Scale the splatter to be about 80% of the tag's height
+            splatter_h = int(height_px * 0.8)
+            splatter_w = int(splatter_img.width * (splatter_h / splatter_img.height))
+            splatter_img = splatter_img.resize((splatter_w, splatter_h), Image.Resampling.LANCZOS)
+
+            # Position it in the empty area
+            paste_x = int((width_px - splatter_w) / 2 + width_px / 6)
+            paste_y = height_px - splatter_h
+
+            # Paste onto a temporary transparent layer
+            temp_layer = Image.new('RGBA', img.size, (0,0,0,0))
+            temp_layer.paste(splatter_img, (paste_x, paste_y))
+
+            # Composite the splatter layer with the main image
+            img = Image.alpha_composite(img.convert("RGBA"), temp_layer).convert("RGB")
+
+    except FileNotFoundError:
+        print(f"Warning: Blood splatter image not found at assets/props/Blood_Splatter.png")
+
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- Config ---
+    margin = 0.05 * width_px
+    text_color = theme.get('name_color', 'black')
+    price_color = "#D32F2F"  # Bloody Red
+    header_color = "#000000"  # Black
+    logo_path = theme.get('accessory_logo_path')
+
+    # --- Scaling ---
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / BASE_AREA)
+
+    # --- Fonts ---
+    base_model_font_size = 90
+    base_desc_font_size = 50
+    base_price_font_size = 110
+    base_strikethrough_font_size = 75
+    base_sku_font_size = 65
+
+    model_font = get_font(PRIMARY_FONT_BOLD_PATH, base_model_font_size * scale_factor, is_bold=True)
+    desc_font = get_font(PRIMARY_FONT_PATH, base_desc_font_size * scale_factor)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_font_size * scale_factor, is_bold=True)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, base_strikethrough_font_size * scale_factor)
+    gel_font = get_font(GEL_FONT_PATH, base_price_font_size * scale_factor, is_bold=True)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, base_strikethrough_font_size * scale_factor)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, base_sku_font_size * scale_factor, is_bold=True)
+
+    # --- 1. Header Bar ---
+    header_height = height_px * 0.20
+    draw.rectangle([0, 0, width_px, header_height], fill=header_color)
+
+    # --- 2. Logo & SKU (In Header) ---
+    if logo_path:
+        try:
+            with Image.open(logo_path).convert("RGBA") as logo:
+                logo_max_h = header_height * 0.8
+                logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
+                logo_x = int(margin)
+                logo_y = int((header_height - logo.height) / 2)
+                img.paste(logo, (logo_x, logo_y), logo)
+        except FileNotFoundError:
+            print(f"Warning: Bloody logo not found at {logo_path}")
+
+    sku_text = item_data.get('SKU', 'N/A')
+    draw.text((width_px - margin, header_height / 2), sku_text, font=sku_font, fill='white', anchor="rm")
+
+    # --- DYNAMIC FONT SIZING & LAYOUT (Identical to Logitech style) ---
+    current_model_font_size = base_model_font_size
+    current_desc_font_size = base_desc_font_size
+
+    while True:
+        model_font = get_font(PRIMARY_FONT_BOLD_PATH, current_model_font_size * scale_factor, is_bold=True)
+        desc_font = get_font(PRIMARY_FONT_PATH, current_desc_font_size * scale_factor)
+
+        name_text = item_data.get('Name', 'N/A')
+        model_text, desc_text = _split_logitech_name(name_text)
+        text_x = margin
+        text_y_start = header_height + (margin * 1.5)
+
+        model_ascent, model_descent = model_font.getmetrics()
+        model_line_height = model_ascent + model_descent
+        wrapped_model_lines = wrap_text(model_text, model_font, width_px - (2 * margin))
+
+        desc_ascent, desc_descent = desc_font.getmetrics()
+        desc_line_height = desc_ascent + desc_descent
+        wrapped_desc_lines = wrap_text(desc_text, desc_font, width_px - (2 * margin))
+
+        max_line_width = 0
+        for line in wrapped_model_lines:
+            line_width = model_font.getbbox(line)[2]
+            if line_width > max_line_width: max_line_width = line_width
+        for line in wrapped_desc_lines:
+            line_width = desc_font.getbbox(line)[2]
+            if line_width > max_line_width: max_line_width = line_width
+
+        total_text_height = (len(wrapped_model_lines) * model_line_height) + (len(wrapped_desc_lines) * desc_line_height)
+        if wrapped_model_lines and wrapped_desc_lines:
+            total_text_height += 5 * scale_factor
+
+        tile_padding_x = margin * 0.5
+        tile_padding_y = margin * 0.4
+        tile_x0 = text_x - tile_padding_x
+        tile_y0 = text_y_start - tile_padding_y
+        tile_x1 = text_x + max_line_width + tile_padding_x
+        tile_y1 = text_y_start + total_text_height + tile_padding_y
+
+        price_block_left = width_px
+        price_block_top = height_px
+        sale_price = item_data.get('Sale price', '').strip()
+        regular_price = item_data.get('Regular price', '').strip()
+        is_on_sale = False
+        display_price = ""
+        try:
+            sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+            regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+            is_on_sale = sale_val > 0 and sale_val != regular_val
+            if is_on_sale: display_price = sale_price
+            elif regular_val > 0: display_price = regular_price
+            elif sale_val > 0: display_price = sale_price
+        except (ValueError, TypeError):
+            display_price = regular_price or sale_price
+            is_on_sale = False
+
+        if display_price:
+            price_x = width_px - margin
+            price_y = height_px - margin
+            price_width = price_font.getbbox(str(display_price))[2]
+            gel_width = gel_font.getbbox("₾")[2]
+            spacing = int(5 * scale_factor)
+            main_price_total_width = price_width + gel_width + spacing
+            price_block_width = main_price_total_width
+
+            if is_on_sale and regular_price:
+                old_price_width = strikethrough_font.getbbox(str(regular_price))[2]
+                old_gel_width = gel_font_strikethrough.getbbox("₾")[2]
+                old_price_total_width = old_price_width + old_gel_width + spacing
+                price_block_width = max(main_price_total_width, old_price_total_width)
+                strikethrough_y = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+                price_block_top = strikethrough_y - (strikethrough_font.getmetrics()[0] + strikethrough_font.getmetrics()[1])
+            else:
+                price_block_top = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+            price_block_left = price_x - price_block_width
+
+        safety_margin = 15 * scale_factor
+        overlap = (tile_x1 + safety_margin > price_block_left) and (tile_y1 + safety_margin > price_block_top)
+
+        if not overlap:
+            break
+
+        current_model_font_size *= 0.95
+        current_desc_font_size *= 0.95
+
+        if current_model_font_size < 20:
+            break
+
+    # --- 3a. Draw 3D Tile ---
+    radius = 15 * scale_factor
+    shadow_offset = 8 * scale_factor
+    shadow_color = (0, 0, 0, 80)
+    draw.rounded_rectangle(
+        [(tile_x0 + shadow_offset, tile_y0 + shadow_offset), (tile_x1 + shadow_offset, tile_y1 + shadow_offset)],
+        radius=radius, fill=shadow_color
+    )
+    draw.rounded_rectangle(
+        [(tile_x0, tile_y0), (tile_x1, tile_y1)],
+        radius=radius, fill='white', outline=(220, 220, 220), width=max(1, int(2 * scale_factor))
+    )
+
+    # --- 3b. Draw Text on Tile ---
+    y_cursor = text_y_start
+    for line in wrapped_model_lines:
+        draw.text((text_x, y_cursor), line, font=model_font, fill=text_color, anchor="la")
+        y_cursor += model_line_height
+    if wrapped_model_lines and wrapped_desc_lines:
+        y_cursor += 5 * scale_factor
+    for line in wrapped_desc_lines:
+        draw.text((text_x, y_cursor), line, font=desc_font, fill=text_color, anchor="la")
+        y_cursor += desc_line_height
+
+    # --- 4. Price (Bottom Right) ---
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    is_on_sale = False
+    display_price = ""
+
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale = sale_val > 0 and sale_val != regular_val
+
+        if is_on_sale:
+            display_price = sale_price
+        elif regular_val > 0:
+            display_price = regular_price
+        elif sale_val > 0:
+            display_price = sale_price
+    except (ValueError, TypeError):
+        display_price = regular_price or sale_price
+        is_on_sale = False
+
+    price_x = width_px - margin
+    price_y = height_px - margin
+
+    if display_price:
+        price_text = str(display_price)
+        gel_text = "₾"
+
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        spacing = int(5 * scale_factor)
+
+        draw.text((price_x, price_y), price_text, font=price_font, fill=price_color, anchor="rs")
+        draw.text((price_x - price_width - spacing, price_y), gel_text, font=gel_font, fill=price_color, anchor="rs")
+
+        if is_on_sale and regular_price:
+            old_price_text = str(regular_price)
+            old_price_ascent, old_price_descent = strikethrough_font.getmetrics()
+            old_price_height = old_price_ascent + old_price_descent
+
+            strikethrough_y = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+
+            old_price_width = strikethrough_font.getbbox(old_price_text)[2]
+            old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
+
+            draw.text((price_x, strikethrough_y), old_price_text, font=strikethrough_font, fill=text_color, anchor="rs")
+            draw.text((price_x - old_price_width - spacing, strikethrough_y), gel_text, font=gel_font_strikethrough,
+                      fill=text_color, anchor="rs")
+
+            total_old_width = old_price_width + old_gel_width + spacing
+            line_y = strikethrough_y - (old_price_height / 2) + old_price_descent
+            draw.line([(price_x - total_old_width, line_y), (price_x, line_y)], fill=text_color,
+                      width=int(3 * scale_factor))
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=3)
+
+    return img
 
 
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
@@ -1479,6 +1765,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
+    if theme.get('design') == 'bloody_modern':
+        return _create_bloody_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'logitech_modern':
         return _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if size_config.get('design') == 'keyboard':
@@ -1775,7 +2063,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     # --- LOGO & P/N ---
     logo_top_y = 0.03 * height_px
     try:
-        with Image.open(logo_to_use) as logo:
+        with Image.open(logo_to_use).convert("RGBA") as logo:
             logo_h = int((logo_area_height - (0.03 * height_px)) * logo_scale_factor)
             logo_w = int(logo_h * (logo.width / logo.height))
             logo.thumbnail((logo_w, logo_h), Image.Resampling.LANCZOS)
