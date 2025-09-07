@@ -93,7 +93,7 @@ class RetailOperationsSuite(QMainWindow):
             "Logitech": {
                 "design": "logitech_modern",
                 "accessory_background_style": "logitech_style",
-                "accessory_logo_path": resource_path("assets/brands/Logi.png")
+                "accessory_logo_path": resource_path("assets/brands/Logitech.png")
             },
             "Logitech G": {
                 "accessory_background_color": "black",

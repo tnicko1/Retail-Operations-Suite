@@ -1247,8 +1247,8 @@ def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height
     # --- Config ---
     margin = 0.05 * width_px
     text_color = theme.get('name_color', 'black')
-    price_color = "#00A99D"  # Greenish Teal
-    header_color = "#00A99D" # Greenish Teal
+    price_color = "#00b3a4"  # Greenish Teal
+    header_color = "#00b3a4"  # Greenish Teal
     logo_path = theme.get('accessory_logo_path')
 
     # --- Scaling ---
@@ -1289,62 +1289,110 @@ def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height
     sku_text = item_data.get('SKU', 'N/A')
     draw.text((width_px - margin, header_height / 2), sku_text, font=sku_font, fill='white', anchor="rm")
 
-    # --- 3. Main Text Block Calculation ---
-    name_text = item_data.get('Name', 'N/A')
-    model_text, desc_text = _split_logitech_name(name_text)
+    # --- DYNAMIC FONT SIZING & LAYOUT ---
+    current_model_font_size = base_model_font_size
+    current_desc_font_size = base_desc_font_size
 
-    text_x = margin
-    text_y_start = header_height + (margin * 1.5)  # Moved down
+    while True:
+        model_font = get_font(PRIMARY_FONT_BOLD_PATH, current_model_font_size * scale_factor, is_bold=True)
+        desc_font = get_font(PRIMARY_FONT_PATH, current_desc_font_size * scale_factor)
 
-    # Calculate dimensions for the tile
-    model_ascent, model_descent = model_font.getmetrics()
-    model_line_height = model_ascent + model_descent
-    wrapped_model_lines = wrap_text(model_text, model_font, width_px - (2 * margin))
+        # --- Calculate Text Dimensions ---
+        name_text = item_data.get('Name', 'N/A')
+        model_text, desc_text = _split_logitech_name(name_text)
+        text_x = margin
+        text_y_start = header_height + (margin * 1.5)
 
-    desc_ascent, desc_descent = desc_font.getmetrics()
-    desc_line_height = desc_ascent + desc_descent
-    wrapped_desc_lines = wrap_text(desc_text, desc_font, width_px - (2 * margin))
+        model_ascent, model_descent = model_font.getmetrics()
+        model_line_height = model_ascent + model_descent
+        wrapped_model_lines = wrap_text(model_text, model_font, width_px - (2 * margin))
 
-    max_line_width = 0
-    for line in wrapped_model_lines:
-        line_width = model_font.getbbox(line)[2]
-        if line_width > max_line_width:
-            max_line_width = line_width
-    for line in wrapped_desc_lines:
-        line_width = desc_font.getbbox(line)[2]
-        if line_width > max_line_width:
-            max_line_width = line_width
+        desc_ascent, desc_descent = desc_font.getmetrics()
+        desc_line_height = desc_ascent + desc_descent
+        wrapped_desc_lines = wrap_text(desc_text, desc_font, width_px - (2 * margin))
 
-    total_text_height = (len(wrapped_model_lines) * model_line_height) + \
-                        (len(wrapped_desc_lines) * desc_line_height)
-    if wrapped_model_lines and wrapped_desc_lines:
-        total_text_height += 5 * scale_factor  # Add spacing if both exist
+        max_line_width = 0
+        for line in wrapped_model_lines:
+            line_width = model_font.getbbox(line)[2]
+            if line_width > max_line_width: max_line_width = line_width
+        for line in wrapped_desc_lines:
+            line_width = desc_font.getbbox(line)[2]
+            if line_width > max_line_width: max_line_width = line_width
 
-    # --- 3a. Draw 3D Tile ---
-    tile_padding_x = margin * 0.5
-    tile_padding_y = margin * 0.4
-    tile_x0 = text_x - tile_padding_x
-    tile_y0 = text_y_start - tile_padding_y
-    tile_x1 = text_x + max_line_width + tile_padding_x
-    tile_y1 = text_y_start + total_text_height + tile_padding_y
+        total_text_height = (len(wrapped_model_lines) * model_line_height) + (len(wrapped_desc_lines) * desc_line_height)
+        if wrapped_model_lines and wrapped_desc_lines:
+            total_text_height += 5 * scale_factor
+
+        # --- Calculate Text Tile BBox ---
+        tile_padding_x = margin * 0.5
+        tile_padding_y = margin * 0.4
+        tile_x0 = text_x - tile_padding_x
+        tile_y0 = text_y_start - tile_padding_y
+        tile_x1 = text_x + max_line_width + tile_padding_x
+        tile_y1 = text_y_start + total_text_height + tile_padding_y
+
+        # --- Calculate Price Area BBox ---
+        price_block_left = width_px
+        price_block_top = height_px
+        sale_price = item_data.get('Sale price', '').strip()
+        regular_price = item_data.get('Regular price', '').strip()
+        is_on_sale = False
+        display_price = ""
+        try:
+            sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+            regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+            is_on_sale = sale_val > 0 and sale_val != regular_val
+            if is_on_sale: display_price = sale_price
+            elif regular_val > 0: display_price = regular_price
+            elif sale_val > 0: display_price = sale_price
+        except (ValueError, TypeError):
+            display_price = regular_price or sale_price
+            is_on_sale = False
+
+        if display_price:
+            price_x = width_px - margin
+            price_y = height_px - margin
+            price_width = price_font.getbbox(str(display_price))[2]
+            gel_width = gel_font.getbbox("₾")[2]
+            spacing = int(5 * scale_factor)
+            main_price_total_width = price_width + gel_width + spacing
+            price_block_width = main_price_total_width
+
+            if is_on_sale and regular_price:
+                old_price_width = strikethrough_font.getbbox(str(regular_price))[2]
+                old_gel_width = gel_font_strikethrough.getbbox("₾")[2]
+                old_price_total_width = old_price_width + old_gel_width + spacing
+                price_block_width = max(main_price_total_width, old_price_total_width)
+                strikethrough_y = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+                price_block_top = strikethrough_y - (strikethrough_font.getmetrics()[0] + strikethrough_font.getmetrics()[1])
+            else:
+                price_block_top = price_y - (price_font.getmetrics()[0] + price_font.getmetrics()[1])
+            price_block_left = price_x - price_block_width
+
+        # --- Check for Overlap ---
+        safety_margin = 15 * scale_factor
+        overlap = (tile_x1 + safety_margin > price_block_left) and (tile_y1 + safety_margin > price_block_top)
+
+        if not overlap:
+            break
+
+        current_model_font_size *= 0.95
+        current_desc_font_size *= 0.95
+
+        if current_model_font_size < 20:  # Prevent infinite loop
+            break
+
+    # --- 3a. Draw 3D Tile (using final calculated dimensions) ---
     radius = 15 * scale_factor
-
-    # Draw drop shadow
     shadow_offset = 8 * scale_factor
-    shadow_color = (0, 0, 0, 80)  # Semi-transparent black
+    shadow_color = (0, 0, 0, 80)
     draw.rounded_rectangle(
         [(tile_x0 + shadow_offset, tile_y0 + shadow_offset), (tile_x1 + shadow_offset, tile_y1 + shadow_offset)],
-        radius=radius,
-        fill=shadow_color
+        radius=radius, fill=shadow_color
     )
-
-    # Draw main tile
     draw.rounded_rectangle(
         [(tile_x0, tile_y0), (tile_x1, tile_y1)],
-        radius=radius,
-        fill='white',
-        outline=(220, 220, 220),
-        width=max(1, int(2 * scale_factor))
+        radius=radius, fill='white', outline=(220, 220, 220), width=max(1, int(2 * scale_factor))
     )
 
     # --- 3b. Draw Text on Tile ---
@@ -1352,10 +1400,8 @@ def _create_logitech_modern_tag(item_data, width_px, height_px, width_cm, height
     for line in wrapped_model_lines:
         draw.text((text_x, y_cursor), line, font=model_font, fill=text_color, anchor="la")
         y_cursor += model_line_height
-
     if wrapped_model_lines and wrapped_desc_lines:
         y_cursor += 5 * scale_factor
-
     for line in wrapped_desc_lines:
         draw.text((text_x, y_cursor), line, font=desc_font, fill=text_color, anchor="la")
         y_cursor += desc_line_height
