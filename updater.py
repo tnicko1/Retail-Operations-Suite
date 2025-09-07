@@ -89,7 +89,12 @@ def download_and_install_update(download_url, parent=None):
     and launches the installer.
     """
     if not download_url:
-        QMessageBox.critical(parent, "Update Error", "Could not get the download link for the update.")
+        msg = QMessageBox(parent)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText("Could not get the download link for the update.")
+        msg.setWindowTitle("Update Error")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
         return
 
     try:
@@ -127,8 +132,12 @@ def download_and_install_update(download_url, parent=None):
         print(f"Downloaded installer to: {installer_path}")
 
         # --- Launch Installer ---
-        QMessageBox.information(parent, "Ready to Update",
-                                "The update has been downloaded. The application will now close to run the installer.")
+        msg = QMessageBox(parent)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText("The update has been downloaded. The application will now close to run the installer.")
+        msg.setWindowTitle("Ready to Update")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
 
         # Use os.startfile to launch the installer. This is the standard way on Windows.
         os.startfile(installer_path)
@@ -137,6 +146,16 @@ def download_and_install_update(download_url, parent=None):
         sys.exit(0)
 
     except requests.exceptions.RequestException as e:
-        QMessageBox.critical(parent, "Download Error", f"Failed to download the update: {e}")
+        msg = QMessageBox(parent)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText(f"Failed to download the update: {e}")
+        msg.setWindowTitle("Download Error")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
     except Exception as e:
-        QMessageBox.critical(parent, "Update Error", f"An error occurred during the update process: {e}")
+        msg = QMessageBox(parent)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText(f"An error occurred during the update process: {e}")
+        msg.setWindowTitle("Update Error")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()

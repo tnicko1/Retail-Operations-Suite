@@ -145,7 +145,12 @@ class AddEditSizeDialog(QDialog):
     def accept(self):
         name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, "Input Error", "Size name cannot be empty.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Size name cannot be empty.")
+            msg.setWindowTitle("Input Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         self.size_data = {
@@ -237,8 +242,15 @@ class CustomSizeManagerDialog(QDialog):
             return
 
         name = current_item.text()
-        reply = QMessageBox.question(self, self.translator.get("remove_size_title"),
-                                     self.translator.get("remove_size_message", name))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(self.translator.get("remove_size_message", name))
+        msg.setWindowTitle(self.translator.get("remove_size_title"))
+        msg.addButton(QMessageBox.StandardButton.Yes)
+        msg.addButton(QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        reply = msg.exec()
+
         if reply == QMessageBox.StandardButton.Yes:
             del self.settings["custom_sizes"][name]
             self.populate_list()
@@ -305,8 +317,12 @@ class QuickStockDialog(QDialog):
 
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
-            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
-                                self.translator.get("sku_not_found_message", identifier))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("sku_not_found_message", identifier))
+            msg.setWindowTitle(self.translator.get("sku_not_found_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         self.setWindowTitle(f"{self.translator.get('stock_checker_title')} - {item_data.get('Name')}")
@@ -347,8 +363,12 @@ class TemplateSelectionDialog(QDialog):
     def accept(self):
         selected_item = self.template_list.currentItem()
         if not selected_item:
-            QMessageBox.warning(self, self.translator.get("template_validation_error_title"),
-                                self.translator.get("template_validation_error_message"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("template_validation_error_message"))
+            msg.setWindowTitle(self.translator.get("template_validation_error_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         selected_name = selected_item.text()
@@ -406,8 +426,12 @@ class NewItemDialog(QDialog):
     def save_item(self):
         name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, self.translator.get("new_item_validation_error"),
-                                self.translator.get("new_item_name_empty_error"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("new_item_name_empty_error"))
+            msg.setWindowTitle(self.translator.get("new_item_validation_error"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         self.new_item_data["Name"] = name
@@ -519,8 +543,12 @@ class PrintQueueDialog(QDialog):
             if sys.platform == "win32":
                 winsound.Beep(440, 100)
                 winsound.Beep(440, 100)
-            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
-                                self.translator.get("sku_not_found_message", identifier))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("sku_not_found_message", identifier))
+            msg.setWindowTitle(self.translator.get("sku_not_found_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         sku_to_add = item_data.get('SKU')
@@ -531,8 +559,12 @@ class PrintQueueDialog(QDialog):
                 if sys.platform == "win32":
                     winsound.Beep(440, 100)
                     winsound.Beep(440, 100)
-                QMessageBox.warning(self, self.translator.get("batch_duplicate_title"),
-                                    self.translator.get("batch_duplicate_message", sku_to_add))
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setText(self.translator.get("batch_duplicate_message", sku_to_add))
+                msg.setWindowTitle(self.translator.get("batch_duplicate_title"))
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
                 return
 
         self.sku_list_widget.addItem(sku_to_add)
@@ -578,7 +610,12 @@ class PrintQueueDialog(QDialog):
     def save_list(self):
         current_queue = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
         if not current_queue:
-            QMessageBox.warning(self, "Empty Queue", "Cannot save an empty queue.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Cannot save an empty queue.")
+            msg.setWindowTitle("Empty Queue")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         list_name, ok = QInputDialog.getText(self, self.translator.get("print_queue_save_prompt"), "List Name:")
@@ -591,7 +628,14 @@ class PrintQueueDialog(QDialog):
         list_name = self.saved_lists_combo.currentText()
         if not list_name: return
 
-        reply = QMessageBox.question(self, "Delete List", self.translator.get("print_queue_delete_confirm", list_name))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(self.translator.get("print_queue_delete_confirm", list_name))
+        msg.setWindowTitle("Delete List")
+        msg.addButton(QMessageBox.StandardButton.Yes)
+        msg.addButton(QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        reply = msg.exec()
         if reply == QMessageBox.StandardButton.Yes:
             firebase_handler.delete_batch_list(self.uid, self.token, list_name)
             self.load_saved_lists()
@@ -747,8 +791,14 @@ class TemplateManagerDialog(QDialog):
         if not key: return
 
         name = self.templates[key]['category_name']
-        reply = QMessageBox.question(self, self.translator.get("template_manager_delete_cat_confirm_title"),
-                                     self.translator.get("template_manager_delete_cat_confirm_msg", name))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(self.translator.get("template_manager_delete_cat_confirm_msg", name))
+        msg.setWindowTitle(self.translator.get("template_manager_delete_cat_confirm_title"))
+        msg.addButton(QMessageBox.StandardButton.Yes)
+        msg.addButton(QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        reply = msg.exec()
         if reply == QMessageBox.StandardButton.Yes:
             del self.templates[key]
             self.populate_categories()
@@ -775,10 +825,19 @@ class TemplateManagerDialog(QDialog):
 
     def save_templates(self):
         if firebase_handler.save_templates_to_firebase(self.templates, self.token):
-            QMessageBox.information(self, self.translator.get("success_title"),
-                                    self.translator.get("templates_saved_success"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(self.translator.get("templates_saved_success"))
+            msg.setWindowTitle(self.translator.get("success_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
         else:
-            QMessageBox.critical(self, "Error", self.translator.get("templates_saved_fail"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(self.translator.get("templates_saved_fail"))
+            msg.setWindowTitle("Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
 
 
 class ActivityLogDialog(QDialog):
@@ -916,8 +975,12 @@ class DisplayManagerDialog(QDialog):
     def find_available_for_display(self):
         category = self.category_combo.currentText()
         if self.category_combo.currentData() == "all":
-            QMessageBox.warning(self, self.translator.get("template_validation_error_title"),
-                                self.translator.get("category_selection_error_message"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("category_selection_error_message"))
+            msg.setWindowTitle(self.translator.get("template_validation_error_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         branch_name = self.parent.branch_combo.currentText()
@@ -943,14 +1006,22 @@ class DisplayManagerDialog(QDialog):
 
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), self.token)
         if not item_data:
-            QMessageBox.warning(self, self.translator.get("sku_not_found_title"),
-                                self.translator.get("sku_not_found_message", identifier))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.translator.get("sku_not_found_message", identifier))
+            msg.setWindowTitle(self.translator.get("sku_not_found_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         sku = item_data.get('SKU')
         firebase_handler.remove_item_from_display(sku, self.branch_db_key, self.token)
-        QMessageBox.information(self, self.translator.get("success_title"),
-                                self.translator.get("item_returned_message", sku))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(self.translator.get("item_returned_message", sku))
+        msg.setWindowTitle(self.translator.get("success_title"))
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
         self.return_input.clear()
 
         category = item_data.get('Categories', 'N/A')
@@ -1101,13 +1172,24 @@ class UserManagementDialog(QDialog):
     def promote_user(self, user_data):
         uid = user_data.get("uid")
         email = user_data.get("email")
-        reply = QMessageBox.question(self, self.translator.get("user_mgmt_confirm_promote_title"),
-                                     self.translator.get("user_mgmt_confirm_promote_message", email))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(self.translator.get("user_mgmt_confirm_promote_message", email))
+        msg.setWindowTitle(self.translator.get("user_mgmt_confirm_promote_title"))
+        msg.addButton(QMessageBox.StandardButton.Yes)
+        msg.addButton(QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        reply = msg.exec()
         if reply == QMessageBox.StandardButton.Yes:
             if firebase_handler.promote_user_to_admin(uid, self.token):
                 self.load_users()
             else:
-                QMessageBox.critical(self, "Error", "Failed to promote user.")
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setText("Failed to promote user.")
+                msg.setWindowTitle("Error")
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
 
 
 class ColumnMappingManagerDialog(QDialog):
@@ -1272,10 +1354,20 @@ class ColumnMappingManagerDialog(QDialog):
             new_mappings['barcodeField'] = barcode_field
 
         if firebase_handler.save_column_mappings(new_mappings, self.token):
-            QMessageBox.information(self, "Success", "Column mappings saved successfully.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText("Column mappings saved successfully.")
+            msg.setWindowTitle("Success")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             if self.parent_window:
                 self.parent_window.column_mappings = new_mappings
                 self.parent_window.update_preview()
             self.accept()
         else:
-            QMessageBox.critical(self, "Error", "Failed to save column mappings.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText("Failed to save column mappings.")
+            msg.setWindowTitle("Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from utils import resource_path
@@ -413,10 +414,14 @@ def _get_items_by_category_server_side(category, token):
         return list(results.values()) if results else []
     except Exception as e:
         print(f"Error querying by category '{category}' (sanitized: '{sanitized_category}'): {e}")
-        QMessageBox.critical(None, "Database Query Error",
-                             f"Could not search for category: {category}\n\n"
-                             "Please ensure your database rules include an index for 'category_sanitized' on the 'items' node. "
-                             "You may also need to re-sync your product list to create the index field.")
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText(f"Could not search for category: {category}\n\n" 
+                    "Please ensure your database rules include an index for 'category_sanitized' on the 'items' node. " 
+                    "You may also need to re-sync your product list to create the index field.")
+        msg.setWindowTitle("Database Query Error")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
         return []
 
 

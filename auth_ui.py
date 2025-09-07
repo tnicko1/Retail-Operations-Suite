@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLineEdit, QPushButton,
                              QMessageBox, QFormLayout, QLabel, QDialogButtonBox, QCheckBox)
 import firebase_handler
@@ -58,13 +59,23 @@ class LoginWindow(QDialog):
         password = self.password_input.text()
 
         if not identifier or not password:
-            QMessageBox.warning(self, "Input Error", "Please enter both identifier and password.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Please enter both identifier and password.")
+            msg.setWindowTitle("Input Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         try:
             self.user, error = firebase_handler.login_user(identifier, password)
             if error:
-                QMessageBox.critical(self, "Login Failed", error)
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setText(error)
+                msg.setWindowTitle("Login Failed")
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
             elif self.user:
                 if self.remember_me_checkbox.isChecked():
                     data_handler.save_refresh_token(self.user['refreshToken'])
@@ -72,7 +83,12 @@ class LoginWindow(QDialog):
                     data_handler.clear_refresh_token()
                 self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"An unexpected error occurred during login: {e}")
+            msg.setWindowTitle("Login Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
 
     def handle_register(self):
         register_dialog = RegisterDialog(self)
@@ -114,15 +130,30 @@ class RegisterDialog(QDialog):
         confirm_password = self.confirm_password_input.text()
 
         if not username or not email or not password:
-            QMessageBox.warning(self, "Input Error", "Username, email and password cannot be empty.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Username, email and password cannot be empty.")
+            msg.setWindowTitle("Input Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         if " " in username:
-            QMessageBox.warning(self, "Input Error", "Username cannot contain spaces.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Username cannot contain spaces.")
+            msg.setWindowTitle("Input Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         if password != confirm_password:
-            QMessageBox.warning(self, "Input Error", "Passwords do not match.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Passwords do not match.")
+            msg.setWindowTitle("Input Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         try:
@@ -130,11 +161,25 @@ class RegisterDialog(QDialog):
             user, error = firebase_handler.register_user(email, password, username, is_first)
             if user:
                 role = "Admin" if is_first else "User"
-                QMessageBox.information(self, "Success",
-                                        f"Account created successfully for {username}. You have been assigned the role: {role}")
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Information)
+                msg.setText(f"Account created successfully for {username}. You have been assigned the role: {role}")
+                msg.setWindowTitle("Success")
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
                 self.accept()
             else:
-                QMessageBox.critical(self, "Registration Failed", f"Could not create account: {error}")
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setText(f"Could not create account: {error}")
+                msg.setWindowTitle("Registration Failed")
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
 
         except Exception as e:
-            QMessageBox.critical(self, "Registration Failed", f"An unexpected error occurred: {e}")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"An unexpected error occurred: {e}")
+            msg.setWindowTitle("Registration Failed")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()

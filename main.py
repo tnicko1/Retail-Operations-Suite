@@ -17,6 +17,7 @@
 
 import sys
 import traceback
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 import firebase_handler
 from auth_ui import LoginWindow
@@ -30,7 +31,12 @@ APP_VERSION = "2.3.2"
 def global_exception_hook(exctype, value, tb):
     traceback_details = "".join(traceback.format_exception(exctype, value, tb))
     error_msg = f"An unexpected application error occurred:\n\n{traceback_details}"
-    QMessageBox.critical(None, "Application Error", error_msg)
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Icon.Critical)
+    msg.setText(error_msg)
+    msg.setWindowTitle("Application Error")
+    msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    msg.exec()
     sys.exit(1)
 
 
@@ -43,12 +49,16 @@ def run_update_check(app_version):
     latest_version, download_url = updater.check_for_updates(app_version)
 
     if latest_version and download_url:
-        reply = QMessageBox.question(None, "Update Available",
-                                     f"A new version ({latest_version}) is available.\n"
-                                     f"You are currently on version {app_version}.\n\n"
-                                     "Would you like to download and install it now?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.Yes)
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(f"A new version ({latest_version}) is available.\n"
+                    f"You are currently on version {app_version}.\n\n"
+                    "Would you like to download and install it now?")
+        msg.setWindowTitle("Update Available")
+        msg.addButton(QMessageBox.StandardButton.Yes)
+        msg.addButton(QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        reply = msg.exec()
         if reply == QMessageBox.StandardButton.Yes:
             updater.download_and_install_update(download_url, parent=None)
             return False
@@ -100,5 +110,10 @@ if __name__ == "__main__":
         pass
     except Exception:
         error_msg = f"A critical error occurred on startup:\n\n{traceback.format_exc()}"
-        QMessageBox.critical(None, "Startup Error", error_msg)
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setText(error_msg)
+        msg.setWindowTitle("Startup Error")
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg.exec()
         sys.exit(1)

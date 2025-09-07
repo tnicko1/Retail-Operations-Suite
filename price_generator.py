@@ -503,7 +503,7 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
     img.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
 
 
-def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme):
+def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=None):
     # --- BRANDING & THEME OVERRIDES ---
     bg_color = theme.get('accessory_background_color', 'white')
     accent_color = theme.get('accessory_accent_color', 'black')
@@ -513,17 +513,39 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     logo_path = theme.get('accessory_logo_path')
 
     # --- BACKGROUND ---
-    if theme.get('background_grid'):
-        img = _create_grid_background(width_px, height_px, color=theme.get('background_color', '#2E7D32'))
+    sku = item_data.get('SKU', 'N/A')
+    if background_cache is not None and sku in background_cache:
+        img = background_cache[sku].copy()
     else:
-        img = Image.new('RGB', (width_px, height_px), bg_color)
+        if theme.get('background_grid'):
+            img = _create_grid_background(width_px, height_px, color=theme.get('background_color', '#2E7D32'))
+        else:
+            img = Image.new('RGB', (width_px, height_px), bg_color)
+
+        # --- ACCENTS ---
+        # Must be drawn after the main background is set
+        if theme.get('accessory_background_style') == 'cosmic_veil':
+            _draw_cosmic_veil_accent(img, width_px, height_px)
+        
+        if background_cache is not None:
+            background_cache[sku] = img.copy()
+
+    draw = ImageDraw.Draw(img, 'RGBA')
 
     # --- ACCENTS ---
     # Must be drawn after the main background is set
     if theme.get('accessory_background_style') == 'cosmic_veil':
         _draw_cosmic_veil_accent(img, width_px, height_px)
-
-    draw = ImageDraw.Draw(img, 'RGBA')
+    elif theme.get('accessory_background_style') == 'logitech_style':
+        header_height = int(0.22 * height_px)
+        start_color = (0, 184, 156)  # #00B89C
+        end_color = (0, 128, 112)    # #008070
+        for y in range(header_height):
+            # Simple linear interpolation
+            r = int(start_color[0] + (end_color[0] - start_color[0]) * (y / header_height))
+            g = int(start_color[1] + (end_color[1] - start_color[1]) * (y / header_height))
+            b = int(start_color[2] + (end_color[2] - start_color[2]) * (y / header_height))
+            draw.line([(0, y), (width_px, y)], fill=(r, g, b))
 
     # --- Special case for default 6x3.5cm tags ---
     is_default_theme = not any(theme.get(key) for key in ['background_grid', 'background_snow', 'draw_school_icons', 'accessory_logo_path'])
@@ -552,17 +574,23 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
     if logo_path:
         try:
             with Image.open(logo_path) as logo:
-                logo_max_h = top_area_height * 0.8
-                logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
-                logo_x = int(margin)
-                logo_y = int((top_area_height - logo.height) / 2)
+                if theme.get('accessory_background_style') == 'logitech_style':
+                    logo_max_h = top_area_height * 0.8
+                    logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
+                    logo_x = int(margin)
+                    logo_y = int((top_area_height - logo.height) / 2)
+                else:
+                    logo_max_h = top_area_height * 0.8
+                    logo.thumbnail((width_px, logo_max_h), Image.Resampling.LANCZOS)
+                    logo_x = int(margin)
+                    logo_y = int((top_area_height - logo.height) / 2)
                 img.paste(logo, (logo_x, logo_y), logo)
         except FileNotFoundError:
             print(f"Warning: Brand logo not found at {logo_path}")
 
 
     # Conditionally draw separators
-    if not theme.get('draw_school_icons'):
+    if not theme.get('draw_school_icons') and theme.get('accessory_background_style') != 'logitech_style':
         line_width = max(1, int(2 * scale_factor))
         if theme.get('accessory_background_style') == 'cosmic_veil':
             line_width = max(2, int(4 * scale_factor))  # Make lines thicker for Logitech G
@@ -625,6 +653,8 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
         img.paste(rotated_rect, (0,0), rotated_rect)
         # For school theme, text is always black on the note
         draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill="black", anchor="mm")
+    elif theme.get('accessory_background_style') == 'logitech_style':
+        draw.text((width_px - margin, sku_y), sku_text, font=sku_font, fill='white', anchor="rm")
     else:
         draw.text((width_px / 2, sku_y), sku_text, font=sku_font, fill=sku_color, anchor="mm")
 
@@ -881,11 +911,49 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
 
         # --- Default Sale & Regular Price Logic ---
         else:
+            price_color_override = None
+            if theme.get('accessory_background_style') == 'logitech_style':
+                price_color_override = 'black'
+
+            final_price_color = price_color_override or price_color
             total_width = gel_width + spacing + price_width
             start_x = (width_px - total_width) / 2
-            draw.text((start_x, price_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
-            draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill=price_color, anchor="lm")
-            
+
+            if theme.get('accessory_background_style') == 'logitech_style':
+                # Create a floating "pill" bubble for the price
+                bbox = price_font.getbbox("Ag")
+                line_height = bbox[3] - bbox[1]
+                padding_x = 25 * scale_factor
+                padding_y = 15 * scale_factor
+                
+                rect_x1 = start_x - padding_x
+                rect_y1 = price_y - (line_height / 2) - padding_y
+                rect_x2 = start_x + total_width + padding_x
+                rect_y2 = price_y + (line_height / 2) + padding_y
+                radius = 20 * scale_factor
+
+                # Draw drop shadow
+                shadow_offset = 6 * scale_factor
+                shadow_color = (0, 0, 0, 80) # Semi-transparent black
+                draw.rounded_rectangle(
+                    [(rect_x1 + shadow_offset, rect_y1 + shadow_offset), (rect_x2 + shadow_offset, rect_y2 + shadow_offset)],
+                    radius=radius,
+                    fill=shadow_color
+                )
+                
+                # Draw white pill
+                draw.rounded_rectangle(
+                    [(rect_x1, rect_y1), (rect_x2, rect_y2)],
+                    radius=radius,
+                    fill='white',
+                    outline=(200, 200, 200),
+                    width=1
+                )
+
+            # Draw the price text over the pill
+            draw.text((start_x, price_y), gel_text, font=gel_font, fill=final_price_color, anchor="lm")
+            draw.text((start_x + gel_width + spacing, price_y), price_text, font=price_font, fill=final_price_color, anchor="lm")
+
             # For default theme, previous price is not shown as per request.
 
     # --- THEME SPECIFIC ELEMENTS ---
@@ -1147,7 +1215,7 @@ def _create_grid_background(width, height, color="#2E7D32", line_color=(255, 255
     return img
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 
@@ -1158,7 +1226,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
-        return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme)
+        return _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=background_cache)
 
     # --- BACKGROUND ---
     if theme.get('background_grid'):

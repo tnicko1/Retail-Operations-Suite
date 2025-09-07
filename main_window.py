@@ -91,11 +91,7 @@ class RetailOperationsSuite(QMainWindow):
         self.brands = {
             "None": {},
             "Logitech": {
-                "accessory_background_color": "white",
-                "accessory_name_color": "black",
-                "accessory_price_color": "black",
-                "accessory_sku_color": "black",
-                "accessory_accent_color": "#00B8FC",
+                "accessory_background_style": "logitech_style",
                 "accessory_logo_path": resource_path("assets/brands/Logi.png")
             },
             "Logitech G": {
@@ -370,10 +366,20 @@ class RetailOperationsSuite(QMainWindow):
             success, val1, val2 = firebase_handler.sync_products_from_file(filepath, token)
             if success:
                 message = self.tr("sync_results_message", val1, val2)
-                QMessageBox.information(self, self.tr("success_title"), message)
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Information)
+                msg.setText(message)
+                msg.setWindowTitle(self.tr("success_title"))
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
                 self.update_dashboard_data()
             else:
-                QMessageBox.critical(self, "Error", val1)
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setText(val1)
+                msg.setWindowTitle("Error")
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
 
     def create_left_panel(self):
         panel = QWidget()
@@ -664,7 +670,12 @@ class RetailOperationsSuite(QMainWindow):
 
     def add_current_to_queue(self):
         if not self.current_item_data:
-            QMessageBox.warning(self, "No Item", "Please find an item to add to the queue.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Please find an item to add to the queue.")
+            msg.setWindowTitle("No Item")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         sku = self.current_item_data.get("SKU")
@@ -674,9 +685,19 @@ class RetailOperationsSuite(QMainWindow):
         if sku not in queue:
             queue.append(sku)
             firebase_handler.save_print_queue(self.uid, token, queue)
-            QMessageBox.information(self, "Success", f"Item {sku} added to the print queue.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(f"Item {sku} added to the print queue.")
+            msg.setWindowTitle("Success")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
         else:
-            QMessageBox.information(self, "Duplicate", f"Item {sku} is already in the print queue.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(f"Item {sku} is already in the print queue.")
+            msg.setWindowTitle("Duplicate")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
 
     def show_price_history(self):
         if not self.current_item_data: return
@@ -793,7 +814,12 @@ class RetailOperationsSuite(QMainWindow):
             self.token = self.user['idToken']
         else:
             # Handle refresh failure: force logout
-            QMessageBox.critical(self, "Authentication Error", "Your session has expired. Please log in again.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText("Your session has expired. Please log in again.")
+            msg.setWindowTitle("Authentication Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             self.close() # Or emit a signal to the login window to handle this
         return self.token
 
@@ -812,10 +838,14 @@ class RetailOperationsSuite(QMainWindow):
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), token)
         if not item_data:
             self.clear_all_fields()
-            reply = QMessageBox.question(self, self.tr("sku_not_found_title"),
-                                         self.tr("sku_not_found_message", identifier) + "\n\n" + self.tr(
-                                             "register_new_item_prompt"),
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Question)
+            msg.setText(self.tr("sku_not_found_message", identifier) + "\n\n" + self.tr("register_new_item_prompt"))
+            msg.setWindowTitle(self.tr("sku_not_found_title"))
+            msg.addButton(QMessageBox.StandardButton.Yes)
+            msg.addButton(QMessageBox.StandardButton.No)
+            msg.setDefaultButton(QMessageBox.StandardButton.No)
+            reply = msg.exec()
             if reply == QMessageBox.StandardButton.Yes:
                 self.register_new_item(identifier)
             return
@@ -837,11 +867,21 @@ class RetailOperationsSuite(QMainWindow):
             token = self.ensure_token_valid()
             if not token: return
             if firebase_handler.add_new_item(new_data, token):
-                QMessageBox.information(self, self.tr("success_title"), self.tr("new_item_save_success", sku))
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Information)
+                msg.setText(self.tr("new_item_save_success", sku))
+                msg.setWindowTitle(self.tr("success_title"))
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
                 self.sku_input.setText(sku)
                 self.find_item()
             else:
-                QMessageBox.critical(self, self.tr("new_item_validation_error"), self.tr("new_item_save_error"))
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setText(self.tr("new_item_save_error"))
+                msg.setWindowTitle(self.tr("new_item_validation_error"))
+                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg.exec()
 
     def populate_ui_with_item_data(self, item_data):
         self.current_item_data = item_data.copy()
@@ -956,7 +996,12 @@ class RetailOperationsSuite(QMainWindow):
 
     def generate_single(self):
         if not self.current_item_data:
-            QMessageBox.warning(self, self.tr("no_item_title"), self.tr("no_item_message"))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.tr("no_item_message"))
+            msg.setWindowTitle(self.tr("no_item_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
         sku = self.current_item_data.get('SKU')
         self.generate_single_by_sku(sku, mark_on_display=True)
@@ -966,7 +1011,12 @@ class RetailOperationsSuite(QMainWindow):
         if not token: return
         item_data = firebase_handler.find_item_by_identifier(sku, token)
         if not item_data:
-            QMessageBox.warning(self, self.tr("sku_not_found_title"), self.tr("sku_not_found_message", sku))
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText(self.tr("sku_not_found_message", sku))
+            msg.setWindowTitle(self.tr("sku_not_found_title"))
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         if self.current_item_data and self.current_item_data.get('SKU') == sku:
@@ -991,11 +1041,13 @@ class RetailOperationsSuite(QMainWindow):
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
         is_special = self.special_tag_checkbox.isChecked()
+        
+        background_cache = {}
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special)
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache)
             
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
             for a4_img in a4_images:
@@ -1003,7 +1055,7 @@ class RetailOperationsSuite(QMainWindow):
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special)
+            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache)
             
             a4_img = a4_layout_generator.create_a4_for_single(img)
             q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
@@ -1035,13 +1087,20 @@ class RetailOperationsSuite(QMainWindow):
 
         tags_per_sheet = layout_info.get('total', 0)
         if tags_per_sheet <= 0:
-            QMessageBox.warning(self, "Layout Error", "The selected paper size cannot fit any tags.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("The selected paper size cannot fit any tags.")
+            msg.setWindowTitle("Layout Error")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         token = self.ensure_token_valid()
         if not token: return
         all_items_data = firebase_handler.get_items_by_sku(skus_to_print, token)
         all_tags_images = []
+        
+        background_cache = {}
 
         for sku in skus_to_print:
             item_data = all_items_data.get(sku)
@@ -1055,18 +1114,23 @@ class RetailOperationsSuite(QMainWindow):
 
             if is_dual:
                 img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='en', is_special=is_special)
+                                                          language='en', is_special=is_special, background_cache=background_cache)
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='ka', is_special=is_special)
+                                                          language='ka', is_special=is_special, background_cache=background_cache)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                       language=lang, is_special=is_special)
+                                                       language=lang, is_special=is_special, background_cache=background_cache)
                 all_tags_images.append(img)
 
         if not all_tags_images:
-            QMessageBox.warning(self, "No Items Found", "None of the SKUs in the queue could be found.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("None of the SKUs in the queue could be found.")
+            msg.setWindowTitle("No Items Found")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         a4_pages = a4_layout_generator.create_a4_layouts(all_tags_images, layout_info)
@@ -1078,7 +1142,12 @@ class RetailOperationsSuite(QMainWindow):
             a4_pixmaps.append(QPixmap.fromImage(q_image))
 
         if not a4_pixmaps:
-            QMessageBox.warning(self, "No Pages", "Could not generate any pages to print.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Could not generate any pages to print.")
+            msg.setWindowTitle("No Pages")
+            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg.exec()
             return
 
         if self.handle_a4_print_with_dialog(a4_pixmaps):
@@ -1175,11 +1244,13 @@ class RetailOperationsSuite(QMainWindow):
         lang = 'en' if is_accessory else self.translator.language
         is_dual = self.dual_lang_checkbox.isChecked() and not is_accessory
         is_special = self.special_tag_checkbox.isChecked()
+        
+        background_cache = {}
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special)
-            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special)
+            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache)
+            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1199,7 +1270,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special)
+            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 
