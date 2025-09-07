@@ -96,7 +96,7 @@ TRANSLATIONS = {
         "login_password_label": "Password:",
         "login_button": "Login",
         "register_button": "Register New Account",
-        "remember_me_label": "Remember Me",
+        
         "register_window_title": "Register New Account",
         "register_username_label": "Username:",
         "register_email_label": "Email:",
@@ -519,7 +519,7 @@ TRANSLATIONS = {
         "login_password_label": "პაროლი:",
         "login_button": "შესვლა",
         "register_button": "ახალი ანგარიშის რეგისტრაცია",
-        "remember_me_label": "დამახსოვრება",
+        
         "register_window_title": "ახალი ანგარიშის რეგისტრაცია",
         "register_username_label": "მომხმარებლის სახელი:",
         "register_email_label": "მეილი:",
@@ -893,4 +893,5 @@ class Translator:
             return label
         except KeyError:
             # If a language or key doesn't exist, return the original label
+            return label
             return label

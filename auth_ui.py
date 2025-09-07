@@ -37,12 +37,10 @@ class LoginWindow(QDialog):
         self.identifier_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.remember_me_checkbox = QCheckBox(self.translator.get("remember_me_label"))
 
         form_layout.addRow(self.translator.get("login_identifier_label"), self.identifier_input)
         form_layout.addRow(self.translator.get("login_password_label"), self.password_input)
         layout.addLayout(form_layout)
-        layout.addWidget(self.remember_me_checkbox)
 
         self.login_button = QPushButton(self.translator.get("login_button"))
         self.register_button = QPushButton(self.translator.get("register_button"))
@@ -77,10 +75,6 @@ class LoginWindow(QDialog):
                 msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 msg.exec()
             elif self.user:
-                if self.remember_me_checkbox.isChecked():
-                    data_handler.save_refresh_token(self.user['refreshToken'])
-                else:
-                    data_handler.clear_refresh_token()
                 self.accept()
         except Exception as e:
             msg = QMessageBox(self)

@@ -77,13 +77,6 @@ def main():
 
     while True:
         user = None
-        refresh_token = data_handler.get_refresh_token()
-
-        if refresh_token:
-            refreshed_user = firebase_handler.refresh_token({'refreshToken': refresh_token})
-            if refreshed_user:
-                user = refreshed_user
-
         if not user:
             login_window = LoginWindow()
             if login_window.exec() == LoginWindow.DialogCode.Accepted:
