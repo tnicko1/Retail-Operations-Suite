@@ -575,16 +575,17 @@ class PrintQueueDialog(QDialog):
 
     def load_queue(self):
         self.sku_list_widget.clear()
-        queue_data = firebase_handler.get_print_queue(self.uid, self.token)
-        self.sku_list_widget.addItems(queue_data)
+        queue_data = firebase_handler.get_print_queue(self.user)
+        if queue_data:
+            self.sku_list_widget.addItems(queue_data)
 
     def save_queue(self):
         queue_items = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
-        firebase_handler.save_print_queue(self.uid, self.token, queue_items)
+        firebase_handler.save_print_queue(self.user, queue_items)
 
     def load_saved_lists(self):
         self.saved_lists_combo.clear()
-        saved_lists = firebase_handler.get_saved_batch_lists(self.uid, self.token)
+        saved_lists = firebase_handler.get_saved_batch_lists(self.user)
         if saved_lists:
             self.saved_lists_combo.addItems(sorted(saved_lists.keys()))
 
@@ -601,7 +602,7 @@ class PrintQueueDialog(QDialog):
         list_name = self.saved_lists_combo.currentText()
         if not list_name: return
 
-        all_lists = firebase_handler.get_saved_batch_lists(self.uid, self.token)
+        all_lists = firebase_handler.get_saved_batch_lists(self.user)
         skus_to_load = all_lists.get(list_name, [])
         self.sku_list_widget.clear()
         self.sku_list_widget.addItems(skus_to_load)
@@ -620,7 +621,7 @@ class PrintQueueDialog(QDialog):
 
         list_name, ok = QInputDialog.getText(self, self.translator.get("print_queue_save_prompt"), "List Name:")
         if ok and list_name:
-            firebase_handler.save_batch_list(self.uid, self.token, list_name, current_queue)
+            firebase_handler.save_batch_list(self.user, list_name, current_queue)
             self.load_saved_lists()
             self.saved_lists_combo.setCurrentText(list_name)
 
@@ -637,7 +638,7 @@ class PrintQueueDialog(QDialog):
         msg.setDefaultButton(QMessageBox.StandardButton.No)
         reply = msg.exec()
         if reply == QMessageBox.StandardButton.Yes:
-            firebase_handler.delete_batch_list(self.uid, self.token, list_name)
+            firebase_handler.delete_batch_list(self.user, list_name)
             self.load_saved_lists()
 
     def get_skus(self):

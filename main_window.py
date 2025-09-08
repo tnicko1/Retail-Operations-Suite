@@ -699,10 +699,10 @@ class RetailOperationsSuite(QMainWindow):
         sku = self.current_item_data.get("SKU")
         token = self.ensure_token_valid()
         if not token: return
-        queue = firebase_handler.get_print_queue(self.uid, token)
+        queue = firebase_handler.get_print_queue(self.user)
         if sku not in queue:
             queue.append(sku)
-            firebase_handler.save_print_queue(self.uid, token, queue)
+            firebase_handler.save_print_queue(self.user, queue)
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setText(f"Item {sku} added to the print queue.")
@@ -1127,6 +1127,11 @@ class RetailOperationsSuite(QMainWindow):
                 continue
 
             data_to_print = self._prepare_data_for_printing(item_data)
+
+            # Check if the brand is Epson and, if so, clear the specs
+            if brand_name == "Epson":
+                data_to_print['all_specs'] = []
+
             is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
             is_special = self.special_tag_checkbox.isChecked()
 

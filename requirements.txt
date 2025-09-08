@@ -6,4 +6,3 @@ requests
 Pillow
 packaging
 PySocks
-CairoSVG

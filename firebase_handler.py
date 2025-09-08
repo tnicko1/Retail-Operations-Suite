@@ -25,6 +25,7 @@ import re
 from datetime import datetime
 import pytz
 from data_handler import extract_part_number, extract_specifications, sanitize_for_indexing
+from requests.exceptions import HTTPError
 
 firebase_app = None
 auth = None
@@ -32,6 +33,36 @@ db = None
 
 # A simple cache for category data to reduce downloads
 category_cache = {}
+
+
+def _db_request(user, operation):
+    """
+    Wrapper for database operations to handle token expiration and retries.
+    - user: The user object from Pyrebase, which will be mutated with new tokens.
+    - operation: A lambda function that takes a token and performs the db action.
+    """
+    if not user or 'idToken' not in user:
+        print("Error: No user or token provided for DB request.")
+        return None
+    try:
+        return operation(user['idToken'])
+    except HTTPError as e:
+        if e.response.status_code == 401:
+            print("Token expired. Attempting to refresh...")
+            try:
+                refreshed_user = auth.refresh(user['refreshToken'])
+                user.update(refreshed_user)  # Update user dict with new tokens
+                print("Token refreshed successfully. Retrying request...")
+                return operation(user['idToken'])
+            except Exception as refresh_error:
+                print(f"Failed to refresh token: {refresh_error}")
+                # Here we could signal for re-authentication
+                return None
+        else:
+            raise  # Re-raise other HTTP errors
+    except Exception as e:
+        print(f"An unexpected error occurred during DB request: {e}")
+        return None
 
 
 def initialize_firebase():
@@ -621,28 +652,53 @@ def get_activity_log(token, limit=100):
 
 
 # --- Print Queue & Recents ---
-def get_print_queue(uid, token):
-    if not uid or not token: return []
-    queue = db.child("user_data").child(uid).child("print_queue").get(token).val()
-    return queue if isinstance(queue, list) else []
+def get_print_queue(user):
+    if not user: return []
+    uid = user['localId']
+
+    def operation(token):
+        queue = db.child("user_data").child(uid).child("print_queue").get(token).val()
+        return queue if isinstance(queue, list) else []
+
+    return _db_request(user, operation) or []
 
 
-def save_print_queue(uid, token, queue_data):
-    if not uid or not token: return
-    db.child("user_data").child(uid).child("print_queue").set(queue_data, token)
+def save_print_queue(user, queue_data):
+    if not user: return
+    uid = user['localId']
+
+    def operation(token):
+        db.child("user_data").child(uid).child("print_queue").set(queue_data, token)
+
+    return _db_request(user, operation) or []
 
 
-def get_saved_batch_lists(uid, token):
-    if not uid or not token: return {}
-    lists = db.child("user_data").child(uid).child("saved_lists").get(token).val()
-    return lists if lists else {}
+def get_saved_batch_lists(user):
+    if not user: return {}
+    uid = user['localId']
+
+    def operation(token):
+        lists = db.child("user_data").child(uid).child("saved_lists").get(token).val()
+        return lists if lists else {}
+
+    _db_request(user, operation)
 
 
-def save_batch_list(uid, token, list_name, skus):
-    if not uid or not token or not list_name: return
-    db.child("user_data").child(uid).child("saved_lists").child(list_name).set(skus, token)
+def save_batch_list(user, list_name, skus):
+    if not user or not list_name: return
+    uid = user['localId']
+
+    def operation(token):
+        db.child("user_data").child(uid).child("saved_lists").child(list_name).set(skus, token)
+
+    return _db_request(user, operation) or {}
 
 
-def delete_batch_list(uid, token, list_name):
-    if not uid or not token or not list_name: return
-    db.child("user_data").child(uid).child("saved_lists").child(list_name).remove(token)
+def delete_batch_list(user, list_name):
+    if not user or not list_name: return
+    uid = user['localId']
+
+    def operation(token):
+        db.child("user_data").child(uid).child("saved_lists").child(list_name).remove(token)
+
+    _db_request(user, operation)
