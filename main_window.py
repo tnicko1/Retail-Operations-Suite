@@ -120,6 +120,10 @@ class RetailOperationsSuite(QMainWindow):
             "Epson": {
                 "design": "epson_modern",
                 "accessory_logo_path": resource_path("assets/brands/Epson.png")
+            },
+            "Baseus": {
+                "design": "baseus_modern",
+                "accessory_logo_path": resource_path("assets/brands/Baseus.png")
             }
         }
 
