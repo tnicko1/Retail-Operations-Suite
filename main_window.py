@@ -124,6 +124,10 @@ class RetailOperationsSuite(QMainWindow):
             "Baseus": {
                 "design": "baseus_modern",
                 "accessory_logo_path": resource_path("assets/brands/Baseus.png")
+            },
+            "Acefast": {
+                "design": "acefast_modern",
+                "accessory_logo_path": resource_path("assets/brands/Acefast.png")
             }
         }
 
