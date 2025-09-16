@@ -2011,6 +2011,130 @@ def _create_acefast_modern_tag(item_data, width_px, height_px, width_cm, height_
     return img
 
 
+def _create_anker_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    """Creates a special price tag for Anker with a modern, 3D design."""
+    # --- Config ---
+    bg_color = "#00A7E1"
+    text_color = "black"
+    logo_path = theme.get('accessory_logo_path')
+
+    # --- Scaling ---
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / BASE_AREA)
+
+    # --- Fonts ---
+    base_name_font_size = 70
+    base_price_font_size = 90
+    base_sku_font_size = 65
+
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, base_name_font_size * scale_factor, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, base_price_font_size * scale_factor, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, base_price_font_size * scale_factor, is_bold=True)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, base_sku_font_size * scale_factor, is_bold=True)
+
+    # --- Background ---
+    img = Image.new('RGB', (width_px, height_px), bg_color)
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- Main Content Tile (3D Effect) ---
+    margin = 0.05 * width_px
+    radius = 25 * scale_factor
+    shadow_offset = 12 * scale_factor
+    shadow_color = (0, 0, 0, 60)
+
+    tile_bbox = (margin, margin, width_px - margin, height_px - margin)
+
+    # Draw shadow first
+    draw.rounded_rectangle(
+        [(tile_bbox[0] + shadow_offset, tile_bbox[1] + shadow_offset),
+         (tile_bbox[2] + shadow_offset, tile_bbox[3] + shadow_offset)],
+        radius=radius, fill=shadow_color
+    )
+    # Draw main tile
+    draw.rounded_rectangle(tile_bbox, radius=radius, fill='white', outline=(230, 230, 230), width=2)
+
+    # --- Content Layout ---
+    content_margin = margin * 1.8
+
+    # --- 1. Logo ---
+    logo_area_height = height_px * 0.25
+    if logo_path:
+        try:
+            with Image.open(logo_path).convert("RGBA") as logo:
+                logo.thumbnail((width_px * 0.6, logo_area_height), Image.Resampling.LANCZOS)
+                logo_x = int((width_px - logo.width) / 2)
+                logo_y = int(content_margin)
+                img.paste(logo, (logo_x, logo_y), logo)
+                y_cursor = logo_y + logo.height
+        except FileNotFoundError:
+            print(f"Warning: Anker logo not found at {logo_path}")
+            y_cursor = content_margin
+    else:
+        y_cursor = content_margin
+
+    # --- 2. Item Name ---
+    name_text_raw = item_data.get('Name', 'N/A')
+    # Filter out the word "Anker"
+    name_text = re.sub(r'\bAnker\b', '', name_text_raw, flags=re.IGNORECASE).strip()
+    name_text = ' '.join(name_text.split())  # Clean up extra spaces
+
+    name_area_width = width_px - (2 * content_margin)
+    wrapped_lines = wrap_text(name_text, name_font, name_area_width)
+
+    ascent, descent = name_font.getmetrics()
+    line_height = ascent + descent
+    total_text_height = len(wrapped_lines) * line_height
+    
+    # Center the name block vertically between logo and footer
+    footer_height = height_px * 0.25
+    available_space = (height_px - footer_height) - y_cursor
+    name_y_start = y_cursor + (available_space - total_text_height) / 2
+
+    for i, line in enumerate(wrapped_lines):
+        y = name_y_start + i * line_height
+        draw.text((width_px / 2, y), line, font=name_font, fill=text_color, anchor="ma", align='center')
+
+    # --- 3. Footer (SKU and Price) ---
+    footer_y_start = height_px - margin - footer_height
+    footer_center_y = footer_y_start + footer_height / 2
+
+    # SKU on the left (bold, no "SKU:" prefix)
+    sku_text = item_data.get('SKU', 'N/A')
+    draw.text((content_margin, footer_center_y), sku_text, font=sku_font, fill=text_color, anchor="lm")
+
+    # Price on the right (simplified logic)
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    display_price = ""
+    
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        
+        if sale_val > 0:
+            display_price = sale_price
+        elif regular_val > 0:
+            display_price = regular_price
+            
+    except (ValueError, TypeError):
+        display_price = sale_price or regular_price
+
+    if display_price:
+        price_x = width_px - content_margin
+        price_text = str(display_price)
+        gel_text = "₾"
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        spacing = int(5 * scale_factor)
+        draw.text((price_x, footer_center_y), price_text, font=price_font, fill=text_color, anchor="rm")
+        draw.text((price_x - price_width - spacing, footer_center_y), gel_text, font=gel_font, fill=text_color, anchor="rm")
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=max(2, int(5 * scale_factor)))
+
+    return img
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -2029,6 +2153,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         return _create_baseus_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'acefast_modern':
         return _create_acefast_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
+    if theme.get('design') == 'anker_modern':
+        return _create_anker_modern_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):

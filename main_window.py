@@ -128,6 +128,10 @@ class RetailOperationsSuite(QMainWindow):
             "Acefast": {
                 "design": "acefast_modern",
                 "accessory_logo_path": resource_path("assets/brands/Acefast.png")
+            },
+            "Anker": {
+                "design": "anker_modern",
+                "accessory_logo_path": resource_path("assets/brands/Anker.png")
             }
         }
 
