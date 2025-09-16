@@ -132,6 +132,10 @@ class RetailOperationsSuite(QMainWindow):
             "Anker": {
                 "design": "anker_modern",
                 "accessory_logo_path": resource_path("assets/brands/Anker.png")
+            },
+            "Kingston": {
+                "design": "kingston_modern",
+                "accessory_logo_path": resource_path("assets/brands/Kingston.png")
             }
         }
 
