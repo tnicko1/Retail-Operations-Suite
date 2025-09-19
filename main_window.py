@@ -117,6 +117,69 @@ class RetailOperationsSuite(QMainWindow):
                 "brand_name": "Kingston",
                 "bg_color": "#ED1C2E",
                 "text_color": "black"
+            },
+            "BOYA": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/BOYA.png"),
+                "brand_name": "BOYA",
+                "bg_color": "#1F86C0",
+                "text_color": "black"
+            },
+            "Gembird": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Gembird.png"),
+                "brand_name": "Gembird",
+                "bg_color": "#DF0024",
+                "text_color": "black"
+            },
+            "Gembird Gray": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Gembird_Gray.png"),
+                "brand_name": "Gembird",
+                "bg_color": "#023D5B",
+                "text_color": "black"
+            },
+            "Vention": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Vention.png"),
+                "brand_name": "Vention",
+                "bg_color": "#00ADEF",
+                "text_color": "black"
+            },
+            "APC": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/APC.png"),
+                "brand_name": "APC",
+                "bg_color": "#CC1E4C",
+                "text_color": "black"
+            },
+            "Defender": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Defender.png"),
+                "brand_name": "Defender",
+                "bg_color": "#0066B3",
+                "text_color": "black"
+            },
+            "Yamatik": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Yamatik.png"),
+                "brand_name": "Yamatik",
+                "bg_color": "#E15517",
+                "text_color": "black"
+            },
+            "SVEN": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/SVEN.png"),
+                "brand_name": "SVEN",
+                "bg_color": "#25478A",
+                "text_color": "black"
+            },
+            "TP-LINK": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/tp-link.png"),
+                "brand_name": "TP-Link",
+                "bg_color": "#4ACBD6",
+                "text_color": "black"
             }
         }
 
