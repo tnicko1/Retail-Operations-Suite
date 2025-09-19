@@ -90,52 +90,33 @@ class RetailOperationsSuite(QMainWindow):
         }
         self.brands = {
             "None": {},
-            "Logitech": {
-                "design": "logitech_modern",
-                "accessory_background_style": "logitech_style",
-                "accessory_logo_path": resource_path("assets/brands/Logitech.png")
-            },
-            "Logitech G": {
-                "accessory_background_color": "black",
-                "accessory_background_style": "cosmic_veil",
-                "accessory_name_color": "#FFFFFF",
-                "accessory_price_color": "#FFFFFF",
-                "accessory_sku_color": "#FFFFFF",
-                "accessory_accent_color": "#FFFFFF",
-                "accessory_logo_path": resource_path("assets/brands/Logitech_G.png")
-            },
-            "Bloody": {
-                "design": "bloody_modern",
-                "accessory_background_style": "bloody_style",
-                "accessory_logo_path": resource_path("assets/brands/Bloody.png")
-            },
-            "Legion": {
-                "accessory_background_style": "legion_hex",
-                "accessory_logo_path": resource_path("assets/brands/Legion.png"),
-                "accessory_name_color": "#FFFFFF",
-                "accessory_price_color": "#00B2FF",
-                "accessory_sku_color": "#FFFFFF",
-                "accessory_accent_color": "#00B2FF"
-            },
-            "Epson": {
-                "design": "epson_modern",
-                "accessory_logo_path": resource_path("assets/brands/Epson.png")
-            },
             "Baseus": {
-                "design": "baseus_modern",
-                "accessory_logo_path": resource_path("assets/brands/Baseus.png")
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Baseus.png"),
+                "brand_name": "Baseus",
+                "bg_color": "#FFF100",
+                "text_color": "black"
             },
             "Acefast": {
-                "design": "acefast_modern",
-                "accessory_logo_path": resource_path("assets/brands/Acefast.png")
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Acefast.png"),
+                "brand_name": "Acefast",
+                "bg_color": "#536C4C",
+                "text_color": "black"
             },
             "Anker": {
-                "design": "anker_modern",
-                "accessory_logo_path": resource_path("assets/brands/Anker.png")
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Anker.png"),
+                "brand_name": "Anker",
+                "bg_color": "#00A7E1",
+                "text_color": "black"
             },
             "Kingston": {
-                "design": "kingston_modern",
-                "accessory_logo_path": resource_path("assets/brands/Kingston.png")
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Kingston.png"),
+                "brand_name": "Kingston",
+                "bg_color": "#ED1C2E",
+                "text_color": "black"
             }
         }
 
