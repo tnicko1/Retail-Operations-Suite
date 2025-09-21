@@ -1261,7 +1261,21 @@ def _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm
     name_text = ' '.join(name_text.split())  # Clean up extra spaces
 
     name_area_width = width_px - (2 * content_margin)
+
+    # --- Font size adjustment loop ---
+    current_name_font_size = base_name_font_size * scale_factor
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, current_name_font_size, is_bold=True)
     wrapped_lines = wrap_text(name_text, name_font, name_area_width)
+
+    while len(wrapped_lines) > 2 and current_name_font_size > 20:  # Set a minimum font size
+        current_name_font_size -= 2  # Decrease font size
+        name_font = get_font(PRIMARY_FONT_BOLD_PATH, current_name_font_size, is_bold=True)
+        wrapped_lines = wrap_text(name_text, name_font, name_area_width)
+
+    # If it's still too long, truncate to 2 lines.
+    if len(wrapped_lines) > 2:
+        wrapped_lines = wrapped_lines[:2]
+
 
     ascent, descent = name_font.getmetrics()
     line_height = ascent + descent

@@ -180,6 +180,90 @@ class RetailOperationsSuite(QMainWindow):
                 "brand_name": "TP-Link",
                 "bg_color": "#4ACBD6",
                 "text_color": "black"
+            },
+            "Logitech": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Logitech.png"),
+                "brand_name": "Logitech",
+                "bg_color": "#28e9cf",
+                "text_color": "black"
+            },
+            "Logitech G": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Logitech-G.png"),
+                "brand_name": "Logitech",
+                "bg_color": "#00A7E0",
+                "text_color": "black"
+            },
+            "Bloody": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Bloody.png"),
+                "brand_name": "Bloody",
+                "bg_color": "#E50012",
+                "text_color": "black"
+            },
+            "HP": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/HP.png"),
+                "brand_name": "HP",
+                "bg_color": "#0096D6",
+                "text_color": "black"
+            },
+            "Legion": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Legion.png"),
+                "brand_name": "Lenovo Legion",
+                "bg_color": "#3e8ddc",
+                "text_color": "black"
+            },
+            "Genius": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Genius.png"),
+                "brand_name": "Genius",
+                "bg_color": "#CC2229",
+                "text_color": "black"
+            },
+            "A4Tech": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/A4tech.png"),
+                "brand_name": "A4Tech",
+                "bg_color": "#F39801",
+                "text_color": "black"
+            },
+            "Razer": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Razer.png"),
+                "brand_name": "Razer",
+                "bg_color": "#00FF00",
+                "text_color": "black"
+            },
+            "Trust": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Trust.png"),
+                "brand_name": "Trust",
+                "bg_color": "#E3252F",
+                "text_color": "black"
+            },
+            "Acer Predator": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Predator.png"),
+                "brand_name": "Acer Predator",
+                "bg_color": "#00FFFF",
+                "text_color": "black"
+            },
+            "Dell": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Dell.png"),
+                "brand_name": "Dell",
+                "bg_color": "#007DB8",
+                "text_color": "black"
+            },
+            "HyperX": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/HyperX.png"),
+                "brand_name": "HyperX",
+                "bg_color": "#E31836",
+                "text_color": "black"
             }
         }
 
