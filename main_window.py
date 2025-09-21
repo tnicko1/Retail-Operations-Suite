@@ -827,8 +827,9 @@ class RetailOperationsSuite(QMainWindow):
         dialog = PrintQueueDialog(self.translator, self.user, self)
         if dialog.exec():
             skus_to_print = dialog.get_skus()
+            use_modern_design = dialog.get_modern_design_state()
             if skus_to_print:
-                self.generate_batch(skus_to_print)
+                self.generate_batch(skus_to_print, use_modern_design)
 
     def add_current_to_queue(self):
         if not self.current_item_data:
@@ -1235,14 +1236,19 @@ class RetailOperationsSuite(QMainWindow):
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
-    def generate_batch(self, skus_to_print):
+    def generate_batch(self, skus_to_print, use_modern_design=False):
         size_name, theme_name, brand_name = self.paper_size_combo.currentText(), self.theme_combo.currentText(), self.brand_combo.currentText()
-        if not size_name or not theme_name or not brand_name: return
+        if not size_name or not theme_name: return
 
-        size_config, theme_config, brand_config = self.paper_sizes[size_name], self.themes[theme_name], self.brands[brand_name]
-        final_theme_config = copy.deepcopy(theme_config)
-        final_theme_config.update(brand_config)
+        size_config = self.paper_sizes[size_name]
         
+        # Base theme config
+        base_theme_config = self.themes[theme_name]
+        if not use_modern_design:
+            # If not using modern design, apply the globally selected brand theme
+            brand_config = self.brands.get(brand_name, {})
+            base_theme_config.update(brand_config)
+
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
         
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
@@ -1270,10 +1276,21 @@ class RetailOperationsSuite(QMainWindow):
                 print(f"Warning: SKU {sku} not found for batch print.")
                 continue
 
+            final_theme_config = copy.deepcopy(base_theme_config)
+
+            if use_modern_design:
+                item_name = item_data.get("Name", "").lower()
+                # Iterate through brands to find a match in the item name
+                for b_name, b_config in self.brands.items():
+                    # Ensure b_name is not "None" and the design is "modern_brand"
+                    if b_name != "None" and b_name.lower() in item_name and b_config.get("design") == "modern_brand":
+                        final_theme_config.update(b_config)
+                        break  # Use the first brand that matches
+
             data_to_print = self._prepare_data_for_printing(item_data)
 
             # Check if the brand is Epson and, if so, clear the specs
-            if brand_name == "Epson":
+            if brand_name == "Epson" and not use_modern_design:
                 data_to_print['all_specs'] = []
 
             is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)

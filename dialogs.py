@@ -514,6 +514,9 @@ class PrintQueueDialog(QDialog):
         saved_group.setLayout(saved_layout)
         main_layout.addWidget(saved_group)
 
+        self.modern_design_checkbox = QCheckBox("Use Modern Design for all applicable brands")
+        main_layout.addWidget(self.modern_design_checkbox)
+
         self.generate_button = QPushButton(self.translator.get("print_queue_generate_button"))
         self.generate_button.setFixedHeight(40)
         self.generate_button.clicked.connect(self.accept)
@@ -643,6 +646,9 @@ class PrintQueueDialog(QDialog):
 
     def get_skus(self):
         return [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+
+    def get_modern_design_state(self):
+        return self.modern_design_checkbox.isChecked()
 
 
 class PriceHistoryDialog(QDialog):
