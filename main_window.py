@@ -20,7 +20,7 @@ import price_generator
 from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerDialog, QuickStockDialog,
                      TemplateSelectionDialog, NewItemDialog, PrintQueueDialog, PriceHistoryDialog,
                      TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
-                     ColumnMappingManagerDialog)
+                     ColumnMappingManagerDialog, BrandSelectionDialog)
 from translations import Translator
 from utils import format_timedelta, resource_path
 
@@ -264,11 +264,54 @@ class RetailOperationsSuite(QMainWindow):
                 "brand_name": "HyperX",
                 "bg_color": "#E31836",
                 "text_color": "black"
+            },
+            "Rivacase": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Rivacase.png"),
+                "brand_name": "RIVACASE",
+                "bg_color": "#0F2C3E",
+                "text_color": "black"
+            },
+            "SteelSeries": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/SteelSeries.png"),
+                "brand_name": "SteelSeries",
+                "bg_color": "#EC3E09",
+                "text_color": "black"
+            },
+            "Panasonic": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Panasonic.png"),
+                "brand_name": "Panasonic",
+                "bg_color": "#0056A8",
+                "text_color": "black"
+            },
+            "Sony": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Sony.png"),
+                "brand_name": "Sony",
+                "bg_color": "#003366",
+                "text_color": "black"
+            },
+            "SoundCore": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/SoundCore.png"),
+                "brand_name": "SoundCore",
+                "bg_color": "#00A9E2",
+                "text_color": "black"
             }
         }
 
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
+
+        self.brands_by_name = {}
+        for key, config in self.brands.items():
+            brand_name = config.get("brand_name")
+            if brand_name:
+                if brand_name not in self.brands_by_name:
+                    self.brands_by_name[brand_name] = []
+                self.brands_by_name[brand_name].append(key)
 
         self.generator_tab = QWidget()
         self.dashboard_tab = QWidget()
@@ -1241,16 +1284,14 @@ class RetailOperationsSuite(QMainWindow):
         if not size_name or not theme_name: return
 
         size_config = self.paper_sizes[size_name]
-        
-        # Base theme config
+
         base_theme_config = self.themes[theme_name]
         if not use_modern_design:
-            # If not using modern design, apply the globally selected brand theme
             brand_config = self.brands.get(brand_name, {})
             base_theme_config.update(brand_config)
 
         layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
-        
+
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 
         tags_per_sheet = layout_info.get('total', 0)
@@ -1267,8 +1308,9 @@ class RetailOperationsSuite(QMainWindow):
         if not token: return
         all_items_data = firebase_handler.get_items_by_sku(skus_to_print, token)
         all_tags_images = []
-        
+
         background_cache = {}
+        brand_design_choices = {}
 
         for sku in skus_to_print:
             item_data = all_items_data.get(sku)
@@ -1280,16 +1322,37 @@ class RetailOperationsSuite(QMainWindow):
 
             if use_modern_design:
                 item_name = item_data.get("Name", "").lower()
-                # Iterate through brands to find a match in the item name
-                for b_name, b_config in self.brands.items():
-                    # Ensure b_name is not "None" and the design is "modern_brand"
-                    if b_name != "None" and b_name.lower() in item_name and b_config.get("design") == "modern_brand":
-                        final_theme_config.update(b_config)
-                        break  # Use the first brand that matches
+                detected_brand_name = None
+
+                for b_name in self.brands_by_name.keys():
+                    if b_name.lower() in item_name:
+                        detected_brand_name = b_name
+                        break
+
+                if detected_brand_name:
+                    chosen_brand_config = None
+                    if detected_brand_name in brand_design_choices:
+                        chosen_brand_key = brand_design_choices[detected_brand_name]
+                        chosen_brand_config = self.brands[chosen_brand_key]
+                    else:
+                        brand_keys = self.brands_by_name[detected_brand_name]
+                        if len(brand_keys) > 1:
+                            brand_options = {key: self.brands[key] for key in brand_keys}
+                            dialog = BrandSelectionDialog(self.translator, detected_brand_name, brand_options, item_data, self)
+                            if dialog.exec():
+                                chosen_brand_key = dialog.get_selected_brand_key()
+                                if chosen_brand_key:
+                                    chosen_brand_config = self.brands[chosen_brand_key]
+                                    if dialog.is_choice_for_all():
+                                        brand_design_choices[detected_brand_name] = chosen_brand_key
+                        elif len(brand_keys) == 1:
+                            chosen_brand_config = self.brands[brand_keys[0]]
+
+                    if chosen_brand_config:
+                        final_theme_config.update(chosen_brand_config)
 
             data_to_print = self._prepare_data_for_printing(item_data)
 
-            # Check if the brand is Epson and, if so, clear the specs
             if brand_name == "Epson" and not use_modern_design:
                 data_to_print['all_specs'] = []
 
@@ -1337,7 +1400,6 @@ class RetailOperationsSuite(QMainWindow):
         if self.handle_a4_print_with_dialog(a4_pixmaps):
             branch_db_key = self.get_current_branch_db_key()
             for sku in skus_to_print:
-                # Only update the status if it's not already set to "On Display"
                 if not firebase_handler.get_item_display_timestamp(sku, branch_db_key, token):
                     firebase_handler.add_item_to_display(sku, branch_db_key, token)
 

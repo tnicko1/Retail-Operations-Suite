@@ -3,12 +3,16 @@ from datetime import datetime
 import sys
 import winsound
 
+import price_generator
+
 import pytz
+import price_generator
+from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
-                             QGroupBox, QAbstractItemView, QTextEdit, QWidget)
+                             QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup)
 
 import data_handler
 import firebase_handler
@@ -649,6 +653,101 @@ class PrintQueueDialog(QDialog):
 
     def get_modern_design_state(self):
         return self.modern_design_checkbox.isChecked()
+
+
+class BrandSelectionDialog(QDialog):
+    def __init__(self, translator, brand_name, brand_options, item_data, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.brand_name = brand_name
+        self.brand_options = brand_options  # This is a dict {key: config}
+        self.item_data = item_data
+        self.parent_window = parent
+        self.selected_key = None
+
+        self.setWindowTitle(translator.get("brand_selection_title", brand_name=brand_name))
+        self.setMinimumWidth(800)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(QLabel(translator.get("brand_selection_prompt", brand_name=brand_name)))
+
+        previews_layout = QHBoxLayout()
+        self.button_group = QButtonGroup(self)
+
+        # Get common data for preview generation from parent
+        size_name = self.parent_window.paper_size_combo.currentText()
+        size_config = self.parent_window.paper_sizes[size_name]
+        layout_settings = self.parent_window.settings.get("layout_settings", data_handler.get_default_layout_settings())
+        data_to_print = self.parent_window._prepare_data_for_printing(self.item_data)
+        is_special = self.parent_window.special_tag_checkbox.isChecked()
+
+        # A separate background cache for this dialog's previews
+        background_cache = {}
+
+        first_button = None
+        for key, config in self.brand_options.items():
+            preview_group = QGroupBox(key)
+            preview_group_layout = QVBoxLayout()
+
+            # Radio button for selection
+            radio_button = QRadioButton(key)
+            self.button_group.addButton(radio_button)
+
+            # Store the key in the button itself
+            radio_button.key = key
+
+            # Generate preview
+            preview_label = QLabel()
+            preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            preview_label.setMinimumSize(300, 400)  # Adjust size as needed
+            preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
+
+            theme_config = copy.deepcopy(self.parent_window.themes["Default"])
+            theme_config.update(config)
+
+            # Simplified preview generation
+            lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
+            img = price_generator.create_price_tag(data_to_print, size_config, theme_config, layout_settings,
+                                                   language=lang, is_special=is_special,
+                                                   background_cache=background_cache)
+            q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
+            pixmap = QPixmap.fromImage(q_image)
+            preview_label.setPixmap(
+                pixmap.scaled(preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                              Qt.TransformationMode.SmoothTransformation))
+
+            preview_group_layout.addWidget(radio_button)
+            preview_group_layout.addWidget(preview_label)
+            preview_group.setLayout(preview_group_layout)
+            previews_layout.addWidget(preview_group)
+
+            if not first_button:
+                first_button = radio_button
+
+        main_layout.addLayout(previews_layout)
+
+        self.choose_for_all_checkbox = QCheckBox(translator.get("brand_selection_choose_all", brand_name=self.brand_name))
+        main_layout.addWidget(self.choose_for_all_checkbox)
+
+        if first_button:
+            first_button.setChecked(True)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+
+    def accept(self):
+        checked_button = self.button_group.checkedButton()
+        if checked_button:
+            self.selected_key = checked_button.key
+        super().accept()
+
+    def get_selected_brand_key(self):
+        return self.selected_key
+
+    def is_choice_for_all(self):
+        return self.choose_for_all_checkbox.isChecked()
 
 
 class PriceHistoryDialog(QDialog):

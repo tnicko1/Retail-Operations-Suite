@@ -260,6 +260,11 @@ TRANSLATIONS = {
         "print_queue_save_prompt": "Enter a name for this batch list:",
         "print_queue_delete_confirm": "Are you sure you want to delete the saved list '{}'?",
 
+        # Brand Selection Dialog
+        "brand_selection_title": "Choose Design for {brand_name}",
+        "brand_selection_prompt": "Multiple designs are available for {brand_name}. Please select one.",
+        "brand_selection_choose_all": "Use this design for all subsequent '{brand_name}' items in this batch",
+
         # Spec Labels
         "spec_labels": {
             # --- General Identifiers ---
@@ -670,6 +675,11 @@ TRANSLATIONS = {
         "print_queue_load_prompt_label": "აირჩიეთ სია:",
         "print_queue_save_prompt": "შეიყვანეთ სახელი ამ სიისთვის:",
         "print_queue_delete_confirm": "დარწმუნებული ხართ რომ გსურთ წაშალოთ შენახული სია '{}'?",
+
+        # Brand Selection Dialog
+        "brand_selection_title": "აირჩიეთ დიზაინი ბრენდისთვის: {brand_name}",
+        "brand_selection_prompt": "ბრენდისთვის '{brand_name}' ხელმისაწვდომია რამდენიმე დიზაინი. გთხოვთ, აირჩიოთ ერთი.",
+        "brand_selection_choose_all": "ამ დიზაინის გამოყენება ამ ბრენდის ყველა შემდგომი პროდუქტისთვის",
 
         # Spec Labels
         "spec_labels": {
