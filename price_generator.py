@@ -1331,6 +1331,298 @@ def _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm
     return img
 
 
+def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False):
+    """Creates a completely redesigned, modern, and visually pleasing price tag."""
+    translator = Translator()
+    # --- 1. Config, Scaling, and Fonts ---
+    theme_bg_color = theme.get('bg_color')
+    bg_color = theme_bg_color if theme_bg_color else '#F1F3F5'  # Use theme BG, fallback to light gray
+    card_color = '#FFFFFF'
+    text_color = '#212529'
+    spec_text_color = '#495057'
+    strikethrough_color = '#6C757D'
+    price_color = theme.get('bg_color', '#D90429')  # Use theme BG color for price, fallback to Red
+    brand_color = theme.get('accessory_accent_color', '#007BFF')
+    line_color = theme.get('bg_color', brand_color)
+
+    # Scaling based on area
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / (10 * 7))  # Base on a 10x7cm tag
+
+    # Apply scaling from layout settings, with defaults
+    name_font_size = 55 * scale_factor * layout_settings.get('title_scale', 1.0)
+    spec_font_size = 24 * scale_factor * layout_settings.get('spec_scale', 1.0) # Significantly smaller
+    price_font_size = 70 * scale_factor * layout_settings.get('price_scale', 1.0)
+    strikethrough_price_font_size = 45 * scale_factor * layout_settings.get('price_scale', 1.0)
+    footer_font_size = 26 * scale_factor * layout_settings.get('sku_scale', 1.0)
+
+    name_font = get_font(PRIMARY_FONT_BOLD_PATH, name_font_size, is_bold=True)
+    spec_font_regular = get_font(PRIMARY_FONT_PATH, spec_font_size)
+    spec_font_bold = get_font(PRIMARY_FONT_BOLD_PATH, spec_font_size, is_bold=True)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, is_bold=True)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_price_font_size)
+    gel_font = get_font(GEL_FONT_PATH, price_font_size, is_bold=True)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_price_font_size)
+    footer_font = get_font(PRIMARY_FONT_PATH, footer_font_size)
+
+    # --- 2. Initial Setup ---
+    img = Image.new('RGB', (width_px, height_px), bg_color)
+    img = img.convert('RGBA')
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- 3. Main Content Card (with shadow) ---
+    card_margin = int(width_px * 0.02) # Reduced margin
+    card_radius = 20 * scale_factor
+    shadow_offset = int(10 * scale_factor)
+    shadow_color = (0, 0, 0, 50)
+
+    card_box = (card_margin, card_margin, width_px - card_margin, height_px - card_margin)
+
+    # Draw shadow
+    shadow_box = (card_box[0] + shadow_offset, card_box[1] + shadow_offset, card_box[2] + shadow_offset, card_box[3] + shadow_offset)
+    draw.rounded_rectangle(shadow_box, radius=card_radius, fill=shadow_color)
+
+    # Draw main card
+    draw.rounded_rectangle(card_box, radius=card_radius, fill=card_color)
+
+    # --- 4. Header, Logo, and Accent Line ---
+    content_padding = card_margin * 2
+    header_height = height_px * 0.15
+
+    # Draw Brand Logo (from theme) on the left
+    brand_logo_path = theme.get('accessory_logo_path')
+    if brand_logo_path:
+        try:
+            with Image.open(brand_logo_path).convert("RGBA") as logo:
+                logo_h = header_height * 0.6
+                logo.thumbnail((width_px * 0.4, logo_h), Image.Resampling.LANCZOS)
+                logo_x = int(content_padding)
+                logo_y = int(card_margin + (header_height - logo.height) / 2)
+                
+                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                tmp.paste(logo, (logo_x, logo_y))
+                img = Image.alpha_composite(img, tmp)
+                draw = ImageDraw.Draw(img, 'RGBA') # Recreate draw object
+        except FileNotFoundError:
+            print(f"Warning: Brand logo not found at {brand_logo_path}")
+
+    # Draw Company Logo (general) on the right
+    logo_to_use = resource_path("assets/logo-geo.png") if language == 'ka' else resource_path("assets/logo.png")
+    try:
+        with Image.open(logo_to_use).convert("RGBA") as logo:
+            logo_h = header_height * 0.7
+            logo.thumbnail((width_px * 0.5, logo_h), Image.Resampling.LANCZOS)
+            logo_x = int((width_px - card_margin) - logo.width - (card_margin * 0.2))
+            logo_y = int(card_margin + (header_height - logo.height) / 2)
+            
+            tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            tmp.paste(logo, (logo_x, logo_y))
+            img = Image.alpha_composite(img, tmp)
+            draw = ImageDraw.Draw(img, 'RGBA') # Recreate draw object
+    except FileNotFoundError:
+        print(f"Warning: Main logo not found at {logo_to_use}")
+
+    y_cursor = card_margin + header_height
+    accent_line_y = y_cursor
+    draw.line([(card_margin, accent_line_y), (width_px - card_margin, accent_line_y)], fill=line_color, width=int(4 * scale_factor))
+    y_cursor += int(4 * scale_factor) + content_padding * 0.2 # Reduced space
+
+    # --- 5. Product Name ---
+    name_text_raw = item_data.get('Name', 'N/A')
+    brand_name = theme.get('brand_name', '')
+    if brand_name and name_text_raw.lower().startswith(brand_name.lower()):
+        name_text = name_text_raw[len(brand_name):].strip()
+    else:
+        name_text = re.sub(fr'\b{brand_name}\b', '', name_text_raw, flags=re.IGNORECASE).strip()
+    name_text = ' '.join(name_text.split())
+
+    name_area_width = width_px - (2 * content_padding)
+    wrapped_lines = wrap_text(name_text, name_font, name_area_width)
+    ascent, descent = name_font.getmetrics()
+    line_height = ascent + descent
+    for line in wrapped_lines:
+        draw.text((content_padding, y_cursor), line, font=name_font, fill=text_color, anchor="la")
+        y_cursor += line_height
+    y_cursor += content_padding * 0.2 # Reduced space
+
+    # --- 6. Specifications ---
+    spec_ascent, spec_descent = spec_font_regular.getmetrics()
+    spec_line_height = spec_ascent + spec_descent
+    spec_line_spacing = int(6 * scale_factor)
+    icon_size = int(spec_font_size * 1.1)
+    icon_padding = int(10 * scale_factor)
+    
+    all_specs = item_data.get('all_specs', [])
+    warranty_spec = None
+    other_specs = [spec for spec in all_specs if 'warranty' not in spec.lower()]
+    for spec in all_specs:
+        if 'warranty' in spec.lower():
+            warranty_spec = spec
+            break
+    if warranty_spec:
+        other_specs.append(warranty_spec)
+
+    footer_height = height_px * 0.18
+    max_y_for_specs = (height_px - card_margin) - footer_height
+    
+    for spec in other_specs:
+        if y_cursor + spec_line_height > max_y_for_specs:
+            break
+
+        icon_x = int(content_padding)
+        icon_y = int(y_cursor + (spec_line_height - icon_size) / 2)
+        icon_path = get_icon_path_for_spec(spec)
+        
+        try:
+            with Image.open(icon_path) as icon_img:
+                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+                rgba_icon = icon_img.convert('RGBA')
+                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                tmp.paste(rgba_icon, (icon_x, icon_y))
+                img = Image.alpha_composite(img, tmp)
+                draw = ImageDraw.Draw(img, 'RGBA')
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Could not process icon {icon_path}: {e}")
+
+        label_x = icon_x + icon_size + icon_padding
+        if ':' in spec:
+            label, value = spec.split(':', 1)
+            value = value.strip()
+            translated_label = translator.get_spec_label(label.strip(), language)
+            label_text = translated_label + ': '
+            
+            label_font = spec_font_bold
+            if contains_georgian(translated_label):
+                label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, spec_font_size, is_bold=True)
+            
+            draw.text((label_x, y_cursor + spec_ascent), label_text, font=label_font, fill=spec_text_color, anchor='ls')
+            value_x = label_x + label_font.getbbox(label_text)[2]
+            
+            remaining_width = (width_px - card_margin) - value_x - (content_padding - card_margin)
+            wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
+            for i, line in enumerate(wrapped_values):
+                draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
+                if i < len(wrapped_values) - 1:
+                    y_cursor += spec_line_height + spec_line_spacing
+        else:
+            spec_font = spec_font_regular
+            if contains_georgian(spec):
+                spec_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, spec_font_size)
+            draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font, fill=text_color, anchor='ls')
+            
+        y_cursor += spec_line_height + spec_line_spacing
+
+    # --- 7. Footer ---
+    footer_y_start = (height_px - card_margin) - footer_height
+    footer_center_y = footer_y_start + footer_height / 2
+    draw.line([(card_margin, footer_y_start), (width_px - card_margin, footer_y_start)], fill='#DEE2E6', width=3)
+
+    # Price handling
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    is_on_sale = False
+    if sale_price and regular_price:
+        try:
+            sale_val = float(sale_price.replace(',', '.'))
+            regular_val = float(regular_price.replace(',', '.'))
+            if sale_val > 0 and sale_val < regular_val:
+                is_on_sale = True
+        except ValueError:
+            is_on_sale = False
+
+    price_x = content_padding
+    if is_on_sale:
+        # Draw sale price (large, red)
+        sale_price_text = str(sale_price)
+        gel_text = "₾"
+        gel_width = gel_font.getbbox(gel_text)[2]
+        spacing = int(8 * scale_factor)
+        draw.text((price_x, footer_center_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
+        draw.text((price_x + gel_width + spacing, footer_center_y), sale_price_text, font=price_font, fill=price_color, anchor="lm")
+        sale_price_width = price_font.getbbox(sale_price_text)[2]
+        
+        # Draw old price (smaller, gray, strikethrough)
+        old_price_x = price_x + gel_width + spacing + sale_price_width + (15 * scale_factor)
+        old_price_text = str(regular_price)
+        old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
+        draw.text((old_price_x, footer_center_y), gel_text, font=gel_font_strikethrough, fill=strikethrough_color, anchor="lm")
+        draw.text((old_price_x + old_gel_width + spacing, footer_center_y), old_price_text, font=strikethrough_font, fill=strikethrough_color, anchor="lm")
+        
+        # Strikethrough line
+        line_start_x = old_price_x
+        line_end_x = old_price_x + old_gel_width + spacing + strikethrough_font.getbbox(old_price_text)[2]
+        draw.line([(line_start_x, footer_center_y), (line_end_x, footer_center_y)], fill=strikethrough_color, width=int(3 * scale_factor))
+
+    else:
+        # Default price drawing
+        display_price = sale_price or regular_price
+        if display_price:
+            price_text = str(display_price)
+            gel_text = "₾"
+            gel_width = gel_font.getbbox(gel_text)[2]
+            spacing = int(8 * scale_factor)
+            draw.text((price_x, footer_center_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
+            draw.text((price_x + gel_width + spacing, footer_center_y), price_text, font=price_font, fill=price_color, anchor="lm")
+
+    # SKU and P/N on the right
+    sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
+    part_number = item_data.get('part_number', '')
+    pn_text = f"P/N: {part_number}" if part_number else ""
+    
+    if pn_text:
+        pn_y = footer_center_y - (footer_font_size * 0.6)
+        sku_y = footer_center_y + (footer_font_size * 0.6)
+        draw.text((width_px - content_padding, pn_y), pn_text, font=footer_font, fill=spec_text_color, anchor="rs")
+        draw.text((width_px - content_padding, sku_y), sku_text, font=footer_font, fill=spec_text_color, anchor="rs")
+        y_pos_for_turnaround = sku_y + footer_font_size # Increased vertical spacing
+    else:
+        sku_y = footer_center_y
+        draw.text((width_px - content_padding, sku_y), sku_text, font=footer_font, fill=spec_text_color, anchor="rm")
+        y_pos_for_turnaround = sku_y + footer_font_size # Increased vertical spacing
+
+    # Add turnaround text and arrow
+    turnaround_font_size = footer_font_size * 0.8
+    if language == 'en':
+        turnaround_text = "იხილეთ ქართული ვერსია"
+        turnaround_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, turnaround_font_size)
+    else: # language == 'ka'
+        turnaround_text = "See English Version"
+        turnaround_font = get_font(PRIMARY_FONT_PATH, turnaround_font_size)
+
+    try:
+        arrow_icon_path = resource_path("assets/arrow.png")
+        with Image.open(arrow_icon_path) as arrow_icon:
+            text_height = turnaround_font.getbbox(turnaround_text)[3] - turnaround_font.getbbox(turnaround_text)[1]
+            arrow_size = int(text_height * 1.5)
+            arrow_icon.thumbnail((arrow_size, arrow_size), Image.Resampling.LANCZOS)
+            rgba_arrow = arrow_icon.convert('RGBA')
+
+            # Position and draw arrow first, on the far right
+            right_edge = width_px - content_padding
+            padding = int(8 * scale_factor)
+            arrow_x = right_edge - rgba_arrow.width
+            arrow_y = int(y_pos_for_turnaround - (rgba_arrow.height / 2))
+
+            tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            tmp.paste(rgba_arrow, (arrow_x, arrow_y))
+            img = Image.alpha_composite(img, tmp)
+            draw = ImageDraw.Draw(img, 'RGBA')
+
+            # Then, draw text to the left of the arrow
+            text_x = arrow_x - padding
+            draw.text((text_x, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
+
+    except FileNotFoundError:
+        # Fallback if arrow not found: draw text only
+        print("Warning: assets/arrow.png not found.")
+        draw.text((width_px - content_padding, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
+
+    # --- 8. Final Border (90-degree corners) ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='#ADB5BD', width=max(1, int(2 * scale_factor)))
+
+    return img.convert('RGB')
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -1340,7 +1632,10 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
     if theme.get('design') == 'modern_brand':
-        return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
+        if width_cm == 6 and height_cm == 3.5:
+            return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
+        else:
+            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):

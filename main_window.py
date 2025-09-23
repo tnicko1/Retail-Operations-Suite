@@ -299,6 +299,34 @@ class RetailOperationsSuite(QMainWindow):
                 "brand_name": "SoundCore",
                 "bg_color": "#00A9E2",
                 "text_color": "black"
+            },
+            "Lenovo": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Lenovo.png"),
+                "brand_name": "Lenovo",
+                "bg_color": "#E42022",
+                "text_color": "black"
+            },
+            "MSI": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/MSI.png"),
+                "brand_name": "MSI",
+                "bg_color": "#FF171F",
+                "text_color": "black"
+            },
+            "Asus": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Asus.png"),
+                "brand_name": "ASUS",
+                "bg_color": "#00529F",
+                "text_color": "black"
+            },
+            "Acer": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Acer.png"),
+                "brand_name": "Acer",
+                "bg_color": "#83B81A",
+                "text_color": "black"
             }
         }
 
