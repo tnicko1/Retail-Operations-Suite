@@ -327,6 +327,139 @@ class RetailOperationsSuite(QMainWindow):
                 "brand_name": "Acer",
                 "bg_color": "#83B81A",
                 "text_color": "black"
+            },
+            "Thermaltake": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Thermaltake.png"),
+                "brand_name": "Thermaltake",
+                "bg_color": "#000000",
+                "text_color": "black"
+            },
+            "Camelion": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Camelion.png"),
+                "brand_name": "Camelion",
+                "bg_color": "#E41E12",
+                "text_color": "black"
+            },
+            "Epson": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Epson.png"),
+                "brand_name": "Epson",
+                "bg_color": "#0064A8",
+                "text_color": "black"
+            },
+            "Seagate": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Seagate.png"),
+                "brand_name": "Seagate",
+                "bg_color": "#70BF4E",
+                "text_color": "black"
+            },
+            "Crucial": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Crucial.png"),
+                "brand_name": "Crucial",
+                "bg_color": "#0092C8",
+                "text_color": "black"
+            },
+            "Samsung": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Samsung.png"),
+                "brand_name": "Samsung",
+                "bg_color": "#034EA2",
+                "text_color": "black"
+            },
+            "Toshiba": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Toshiba.png"),
+                "brand_name": "Toshiba",
+                "bg_color": "#E61E1E",
+                "text_color": "black"
+            },
+            "Western Digital": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Western-Digital.png"),
+                "brand_name": "WD",
+                "bg_color": "#00E5D1",
+                "text_color": "black"
+            },
+            "Xiaomi": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Xiaomi.png"),
+                "brand_name": "Xiaomi",
+                "bg_color": "#FF6200",
+                "text_color": "black"
+            },
+            "GP Batteries": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/GP-Batteries.png"),
+                "brand_name": "GP",
+                "bg_color": "#00A650",
+                "text_color": "black"
+            },
+            "Energizer": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Energizer.png"),
+                "brand_name": "Energizer",
+                "bg_color": "#FFFF00",
+                "text_color": "black"
+            },
+            "Eveready Batteries": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Eveready-Batteries.png"),
+                "brand_name": "Eveready",
+                "bg_color": "#ED1C24",
+                "text_color": "black"
+            },
+            "VCOM": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/VCOM.png"),
+                "brand_name": "VCOM",
+                "bg_color": "#E50323",
+                "text_color": "black"
+            },
+            "Wanbo": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Wanbo.png"),
+                "brand_name": "Wanbo",
+                "bg_color": "#5960F6",
+                "text_color": "black"
+            },
+            "Zalman": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Zalman.png"),
+                "brand_name": "Zalman",
+                "bg_color": "#273D6C",
+                "text_color": "black"
+            },
+            "FSP": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/FSP.png"),
+                "brand_name": "FSP",
+                "bg_color": "#142D8A",
+                "text_color": "black"
+            },
+            "Spire": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Spire.png"),
+                "brand_name": "Spire",
+                "bg_color": "#d8041c",
+                "text_color": "black"
+            },
+            "Arctic": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Arctic.png"),
+                "brand_name": "Arctic",
+                "bg_color": "#003560",
+                "text_color": "black"
+            },
+            "PCSHOP": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/logo.png"),
+                "brand_name": "PCSHOP",
+                "bg_color": "#ED1C42",
+                "text_color": "black"
             }
         }
 
