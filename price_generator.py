@@ -22,8 +22,17 @@ import os
 import random
 import math
 import re
+import xml.etree.ElementTree as ET
 from translations import Translator
 from data_handler import get_default_layout_settings
+try:
+    import cairosvg
+    from io import BytesIO
+except ImportError:
+    cairosvg = None
+    BytesIO = None
+    print("Warning: cairosvg library not found. SVG support will be disabled.")
+
 try:
     from assets.school_icons import create_laptop_icon, create_book_icon, create_ruler_icon
 except ImportError:
@@ -31,258 +40,126 @@ except ImportError:
     create_laptop_icon = create_book_icon = create_ruler_icon = None
 
 
+def load_image_path(path, color=None):
+    """
+    Loads an image from a path. If the path is for an SVG, it can optionally
+    recolor it before converting it to a Pillow Image object.
+    """
+    if not path:
+        return None
+
+    if path.lower().endswith('.svg'):
+        if not (cairosvg and BytesIO):
+            return None
+
+        try:
+            if not color:
+                # No color change, convert directly for performance
+                png_bytes = cairosvg.svg2png(url=path)
+            else:
+                # Read SVG content
+                with open(path, 'r', encoding='utf-8') as f:
+                    svg_content = f.read()
+
+                # Parse the SVG XML
+                root = ET.fromstring(svg_content.encode('utf-8'))
+
+                # Register the SVG namespace to correctly find elements
+                ET.register_namespace('', "http://www.w3.org/2000/svg")
+
+                # Find all elements and change the fill color
+                for element in root.iter():
+                    if 'fill' in element.attrib and element.attrib['fill'] != 'none':
+                        element.set('fill', color)
+
+                modified_svg_bytes = ET.tostring(root, encoding='utf-8')
+                png_bytes = cairosvg.svg2png(bytestring=modified_svg_bytes)
+
+            return Image.open(BytesIO(png_bytes))
+        except Exception as e:
+            print(f"Error processing SVG {path}: {e}")
+            return None
+    else:
+        # Handle raster images
+        try:
+            return Image.open(path)
+        except FileNotFoundError:
+            return None
+
+
+
+# A mapping of keywords to icon filenames.
+# The order is important: more specific keywords should come before more general ones.
+SPEC_ICON_MAP = {
+    'furniture.svg': ['chair frame', 'materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight'],
+    'print_speed.svg': ['print speed (iso)', 'print speed'],
+    'print_technology.svg': ['print technology'],
+    'print_resolution.svg': ['print resolution'],
+    'scan_type.svg': ['scan type'],
+    'mobile_printing.svg': ['mobile printing', 'mobileprinting'],
+    'monthly_duty_cycle.svg': ['monthly duty cycle'],
+    'topology.svg': ['topology'],
+    'waveform_type.svg': ['waveform type'],
+    'voltage_zap.svg': ['output voltage', 'inputvoltage', 'outputvoltage'],
+    'frequency.svg': ['output frequency', 'input frequency'],
+    'usb.svg': ['output connection count', 'hdmi', 'usb', 'audio jack', 'ports'],
+    'connection_type.svg': ['output connection type', 'input connection type'],
+    'voltage.svg': ['input voltage range'],
+    'number_of_batteries.svg': ['number of batteries'],
+    'warranty.svg': ['warranty'],
+    'cpu.svg': ['cpu', 'processor', 'chipset', 'cores'],
+    'motherboard.svg': ['motherboard', 'socket', 'threads', 'cpucooler'],
+    'drive_bay.svg': ['drive bays'],
+    'cooler.svg': ['cooler support'],
+    'case_fan.svg': ['installed coolers', 'fan support'],
+    'accessories.svg': ['fans included', 'includedaccessories', 'portability', 'portable design'],
+    'ram.svg': ['ram', 'memory'],
+    'storage.svg': ['ssd', 'hdd', 'storage'],
+    'dimensions.svg': ['dimensions', 'size'],
+    'display_details.svg': ['panel type', 'refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut'],
+    'resolution.svg': ['resolution'],
+    'refresh_rate.svg': ['refresh rate'],
+    'response_time.svg': ['response time'],
+    'contrast.svg': ['contrast'],
+    'tearing_prevention.svg': ['tearing prevention', 'gsync', 'freesync', 'vsync'],
+    'backlight.svg': ['backlight'],
+    'screen.svg': ['screen', 'display', 'matrix', 'screen size'],
+    'graphics.svg': ['graphics', 'gpu', 'vram'],
+    'battery.svg': ['battery', 'power', 'wattage', 'mah'],
+    'camera.svg': ['camera', 'webcam'],
+    'keyboard.svg': ['keyboard', 'mouse'],
+    'connectivity.svg': ['wifi', 'bluetooth', 'nfc'],
+    'design.svg': ['design'],
+    'weight.svg': ['max weight', 'weight'],
+    'armrest.svg': ['armrest', 'armrests'],
+    'materials.svg': ['material', 'material(s)'],
+    'wheel.svg': ['number of wheels'],
+    'color.svg': ['color'],
+    'os.svg': ['os', 'operating system'],
+    'printer.svg': ['print', 'scan', 'copy'],
+    'general.svg': ['brand', 'model', 'barcode', 'partnumber'],
+    'memory_details.svg': ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive'],
+    'brightness.svg': ['brightness'],
+    'viewing_angle.svg': ['viewing angle'],
+    'network.svg': ['interface', 'ethernet', 'network'],
+    'build.svg': ['formfactor', 'case', 'buildmaterial', 'ip_rating'],
+    'power_supply.svg': ['powersupply', 'efficiency', 'modular', 'capacity', 'psu included'],
+    'audio.svg': ['audio', 'speakers', 'microphone'],
+    'security.svg': ['fingerprintsensor', 'facerecognition'],
+    'features.svg': ['supportedos', 'sim_support', 'smartfeatures', 'tuner'],
+    'printer_details.svg': ['functions', 'papersize', 'connector'],
+    'projector.svg': ['optical zoom', 'lamp life', 'power consumption', 'mounting'],
+}
+
 def get_icon_path_for_spec(spec_text):
     """Returns an icon path based on keywords in the specification text."""
     spec_lower = spec_text.lower()
     icon_dir = resource_path("assets/spec_icons")
 
-    # Prioritize specific and important specs first
-    if 'chair frame' in spec_lower:
-        return os.path.join(icon_dir, 'furniture.png')
-    if 'print speed (iso)' in spec_lower:
-        return os.path.join(icon_dir, 'print_speed_iso.png')
-    if 'print speed' in spec_lower:
-        return os.path.join(icon_dir, 'print_speed.png')
-    if 'print technology' in spec_lower:
-        return os.path.join(icon_dir, 'print_technology.png')
-    if 'print resolution' in spec_lower:
-        return os.path.join(icon_dir, 'print_resolution.png')
-    if 'scan type' in spec_lower:
-        return os.path.join(icon_dir, 'scan_type.png')
-    if 'mobile printing' in spec_lower:
-        return os.path.join(icon_dir, 'mobile_printing.png')
-    if 'monthly duty cycle' in spec_lower:
-        return os.path.join(icon_dir, 'monthly_duty_cycle.png')
-    if 'topology' in spec_lower:
-        return os.path.join(icon_dir, 'topology.png')
-    if 'waveform type' in spec_lower:
-        return os.path.join(icon_dir, 'waveform_type.png')
-    if 'output voltage' in spec_lower:
-        return os.path.join(icon_dir, 'output_voltage.png')
-    if 'output frequency' in spec_lower:
-        return os.path.join(icon_dir, 'output_frequency.png')
-    if 'output connection count' in spec_lower:
-        return os.path.join(icon_dir, 'output_connection_count.png')
-    if any(k in spec_lower for k in ['output connection type', 'input connection type']):
-        return os.path.join(icon_dir, 'connection_type.png')
-    if 'input voltage range' in spec_lower:
-        return os.path.join(icon_dir, 'input_voltage_range.png')
-    if 'input frequency' in spec_lower:
-        return os.path.join(icon_dir, 'input_frequency.png')
-    if 'number of batteries' in spec_lower:
-        return os.path.join(icon_dir, 'number_of_batteries.png')
-    if any(k in spec_lower for k in ['warranty']):
-        return os.path.join(icon_dir, 'warranty.png')
-    if any(k in spec_lower for k in ['cpu', 'processor', 'chipset', 'cores']):
-        return os.path.join(icon_dir, 'cpu.png')
-    if any(k in spec_lower for k in ['motherboard', 'socket', 'threads', 'cpucooler']):
-        return os.path.join(icon_dir, 'motherboard.png')
-    if 'drive bays' in spec_lower:
-        return os.path.join(icon_dir, 'drive_bay.png')
-    if 'cooler support' in spec_lower:
-        return os.path.join(icon_dir, 'cooler.png')
-    if 'installed coolers' in spec_lower:
-        return os.path.join(icon_dir, 'case_fan.png')
-    if 'psu included' in spec_lower:
-        return os.path.join(icon_dir, 'psu.png')
-    if 'fan support' in spec_lower:
-        return os.path.join(icon_dir, 'fan_support.png')
-    if 'fans included' in spec_lower:
-        return os.path.join(icon_dir, 'accessories.png')
-    if 'ports' in spec_lower:
-        return os.path.join(icon_dir, 'ports_laptop.png')
-    if any(k in spec_lower for k in ['hdmi', 'usb', 'audio jack']):
-        return os.path.join(icon_dir, 'ports.png')
-    if any(k in spec_lower for k in ['ram', 'memory']):
-        return os.path.join(icon_dir, 'ram.png')
-    if any(k in spec_lower for k in ['ssd', 'hdd', 'storage']):
-        return os.path.join(icon_dir, 'storage.png')
-    if any(k in spec_lower for k in ['screen size']):
-        return os.path.join(icon_dir, 'dimensions.png')
-    if any(k in spec_lower for k in ['panel type']):
-        return os.path.join(icon_dir, 'display_details.png')
-    if any(k in spec_lower for k in ['resolution']):
-        return os.path.join(icon_dir, 'resolution.png')
-    if any(k in spec_lower for k in ['refresh rate']):
-        return os.path.join(icon_dir, 'refresh_rate.png')
-    if any(k in spec_lower for k in ['response time']):
-        return os.path.join(icon_dir, 'response_time.png')
-    if any(k in spec_lower for k in ['contrast']):
-        return os.path.join(icon_dir, 'contrast.png')
-    if any(k in spec_lower for k in ['tearing prevention', 'gsync', 'freesync', 'vsync']):
-        return os.path.join(icon_dir, 'tearing_prevention.png')
-    if any(k in spec_lower for k in ['backlight']):
-        return os.path.join(icon_dir, 'backlight.png')
-    if any(k in spec_lower for k in ['screen', 'display', 'matrix']):
-        return os.path.join(icon_dir, 'screen.png')
-    if any(k in spec_lower for k in ['graphics', 'gpu', 'vram']):
-        return os.path.join(icon_dir, 'graphics.png')
-    if any(k in spec_lower for k in ['battery', 'power', 'wattage', 'mah']):
-        return os.path.join(icon_dir, 'battery.png')
-    if any(k in spec_lower for k in ['camera', 'webcam']):
-        return os.path.join(icon_dir, 'camera.png')
-    if any(k in spec_lower for k in ['keyboard', 'mouse']):
-        return os.path.join(icon_dir, 'keyboard.png')
-    if any(k in spec_lower for k in ['wifi', 'bluetooth', 'nfc']):
-        return os.path.join(icon_dir, 'connectivity.png')
-    if 'design' in spec_lower:
-        return os.path.join(icon_dir, 'design.png')
-    if any(k in spec_lower for k in ['max weight', 'weight']):
-        return os.path.join(icon_dir, 'weight.png')
-    if any(k in spec_lower for k in ['armrest', 'armrests']):
-        return os.path.join(icon_dir, 'armrest.png')
-    if any(k in spec_lower for k in ['material', 'material(s)']):
-        return os.path.join(icon_dir, 'materials.png')
-    if 'number of wheels' in spec_lower:
-        return os.path.join(icon_dir, 'wheel.png')
-    if any(k in spec_lower for k in ['dimensions', 'size']):
-        return os.path.join(icon_dir, 'dimensions.png')
-    if 'color' in spec_lower:
-        return os.path.join(icon_dir, 'color.png')
-    if any(k in spec_lower for k in ['os', 'operating system']):
-        return os.path.join(icon_dir, 'os.png')
-    if any(k in spec_lower for k in ['print', 'scan', 'copy']):
-        return os.path.join(icon_dir, 'printer.png')
-    if any(k in spec_lower for k in ['brand', 'model', 'barcode', 'partnumber']):
-        return os.path.join(icon_dir, 'general.png')
-    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
-        return os.path.join(icon_dir, 'memory_details.png')
-    if any(k in spec_lower for k in ['brightness']):
-        return os.path.join(icon_dir, 'brightness.png')
-    if any(k in spec_lower for k in ['viewing angle']):
-        return os.path.join(icon_dir, 'viewing_angle.png')
-    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
-        return os.path.join(icon_dir, 'display_details.png')
-    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
-        return os.path.join(icon_dir, 'network.png')
-    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
-        return os.path.join(icon_dir, 'build.png')
-    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
-        return os.path.join(icon_dir, 'power_supply.png')
-    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
-        return os.path.join(icon_dir, 'audio.png')
-    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
-        return os.path.join(icon_dir, 'security.png')
-    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
-        return os.path.join(icon_dir, 'features.png')
-    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
-        return os.path.join(icon_dir, 'printer_details.png')
-    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
-        return os.path.join(icon_dir, 'projector.png')
-    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
-        return os.path.join(icon_dir, 'furniture.png')
-    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
-        return os.path.join(icon_dir, 'accessories.png')
-    if any(k in spec_lower for k in ['cpu', 'processor', 'chipset', 'cores']):
-        return os.path.join(icon_dir, 'cpu.png')
-    if any(k in spec_lower for k in ['ram', 'memory']):
-        return os.path.join(icon_dir, 'ram.png')
-    if any(k in spec_lower for k in ['ssd', 'hdd', 'storage']):
-        return os.path.join(icon_dir, 'storage.png')
-    if any(k in spec_lower for k in ['screen size']):
-        return os.path.join(icon_dir, 'dimensions.png')
-    if any(k in spec_lower for k in ['panel type']):
-        return os.path.join(icon_dir, 'display_details.png')
-    if any(k in spec_lower for k in ['resolution']):
-        return os.path.join(icon_dir, 'resolution.png')
-    if any(k in spec_lower for k in ['refresh rate']):
-        return os.path.join(icon_dir, 'refresh_rate.png')
-    if any(k in spec_lower for k in ['response time']):
-        return os.path.join(icon_dir, 'response_time.png')
-    if any(k in spec_lower for k in ['contrast']):
-        return os.path.join(icon_dir, 'contrast.png')
-    if any(k in spec_lower for k in ['tearing prevention', 'gsync', 'freesync', 'vsync']):
-        return os.path.join(icon_dir, 'tearing_prevention.png')
-    if any(k in spec_lower for k in ['backlight']):
-        return os.path.join(icon_dir, 'backlight.png')
-    if any(k in spec_lower for k in ['screen', 'display', 'matrix']):
-        return os.path.join(icon_dir, 'screen.png')
-    if any(k in spec_lower for k in ['graphics', 'gpu', 'vram']):
-        return os.path.join(icon_dir, 'graphics.png')
-    if any(k in spec_lower for k in ['battery', 'power', 'wattage', 'mah']):
-        return os.path.join(icon_dir, 'battery.png')
-    if any(k in spec_lower for k in ['camera', 'webcam']):
-        return os.path.join(icon_dir, 'camera.png')
-    if any(k in spec_lower for k in ['keyboard', 'mouse']):
-        return os.path.join(icon_dir, 'keyboard.png')
-    if any(k in spec_lower for k in ['wifi', 'bluetooth', 'nfc']):
-        return os.path.join(icon_dir, 'connectivity.png')
-    if 'design' in spec_lower:
-        return os.path.join(icon_dir, 'design.png')
-    if any(k in spec_lower for k in ['max weight', 'weight']):
-        return os.path.join(icon_dir, 'weight.png')
-    if any(k in spec_lower for k in ['armrest', 'armrests']):
-        return os.path.join(icon_dir, 'armrest.png')
-    if any(k in spec_lower for k in ['material', 'material(s)']):
-        return os.path.join(icon_dir, 'materials.png')
-    if 'number of wheels' in spec_lower:
-        return os.path.join(icon_dir, 'wheel.png')
-    if any(k in spec_lower for k in ['dimensions', 'size']):
-        return os.path.join(icon_dir, 'dimensions.png')
-    if 'color' in spec_lower:
-        return os.path.join(icon_dir, 'color.png')
-    if any(k in spec_lower for k in ['os', 'operating system']):
-        return os.path.join(icon_dir, 'os.png')
-    if any(k in spec_lower for k in ['print', 'scan', 'copy']):
-        return os.path.join(icon_dir, 'printer.png')
-    if any(k in spec_lower for k in ['brand', 'model', 'barcode', 'partnumber']):
-        return os.path.join(icon_dir, 'general.png')
-    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
-        return os.path.join(icon_dir, 'memory_details.png')
-    if any(k in spec_lower for k in ['brightness']):
-        return os.path.join(icon_dir, 'brightness.png')
-    if any(k in spec_lower for k in ['viewing angle']):
-        return os.path.join(icon_dir, 'viewing_angle.png')
-    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
-        return os.path.join(icon_dir, 'display_details.png')
-    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
-        return os.path.join(icon_dir, 'network.png')
-    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
-        return os.path.join(icon_dir, 'build.png')
-    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
-        return os.path.join(icon_dir, 'power_supply.png')
-    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
-        return os.path.join(icon_dir, 'audio.png')
-    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
-        return os.path.join(icon_dir, 'security.png')
-    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
-        return os.path.join(icon_dir, 'features.png')
-    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
-        return os.path.join(icon_dir, 'printer_details.png')
-    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
-        return os.path.join(icon_dir, 'projector.png')
-    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
-        return os.path.join(icon_dir, 'furniture.png')
-    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
-        return os.path.join(icon_dir, 'accessories.png')
-    if any(k in spec_lower for k in ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive']):
-        return os.path.join(icon_dir, 'memory_details.png')
-    if any(k in spec_lower for k in ['brightness']):
-        return os.path.join(icon_dir, 'brightness.png')
-    if any(k in spec_lower for k in ['viewing angle']):
-        return os.path.join(icon_dir, 'viewing_angle.png')
-    if any(k in spec_lower for k in ['refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut']):
-        return os.path.join(icon_dir, 'display_details.png')
-    if any(k in spec_lower for k in ['interface', 'ethernet', 'network']):
-        return os.path.join(icon_dir, 'network.png')
-    if any(k in spec_lower for k in ['formfactor', 'case', 'buildmaterial', 'ip_rating']):
-        return os.path.join(icon_dir, 'build.png')
-    if any(k in spec_lower for k in ['powersupply', 'efficiency', 'modular', 'capacity', 'inputvoltage', 'outputvoltage']):
-        return os.path.join(icon_dir, 'power_supply.png')
-    if any(k in spec_lower for k in ['audio', 'speakers', 'microphone']):
-        return os.path.join(icon_dir, 'audio.png')
-    if any(k in spec_lower for k in ['fingerprintsensor', 'facerecognition']):
-        return os.path.join(icon_dir, 'security.png')
-    if any(k in spec_lower for k in ['supportedos', 'sim_support', 'smartfeatures', 'tuner']):
-        return os.path.join(icon_dir, 'features.png')
-    if any(k in spec_lower for k in ['functions', 'mobileprinting', 'papersize', 'connector']):
-        return os.path.join(icon_dir, 'printer_details.png')
-    if any(k in spec_lower for k in ['optical zoom', 'lamp life', 'power consumption', 'mounting']):
-        return os.path.join(icon_dir, 'projector.png')
-    if any(k in spec_lower for k in ['materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight']):
-        return os.path.join(icon_dir, 'furniture.png')
-    if any(k in spec_lower for k in ['includedaccessories', 'portability', 'portable design']):
-        return os.path.join(icon_dir, 'accessories.png')
+    for icon, keywords in SPEC_ICON_MAP.items():
+        if any(keyword in spec_lower for keyword in keywords):
+            return os.path.join(icon_dir, icon)
+
     # Default icon if no specific match
     return os.path.join(icon_dir, 'default.png')
 
@@ -1472,17 +1349,20 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
         icon_x = int(content_padding)
         icon_y = int(y_cursor + (spec_line_height - icon_size) / 2)
         icon_path = get_icon_path_for_spec(spec)
-        
-        try:
-            with Image.open(icon_path) as icon_img:
+        icon_img = load_image_path(icon_path, color=line_color)
+
+        if icon_img:
+            try:
                 icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
                 rgba_icon = icon_img.convert('RGBA')
                 tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
                 tmp.paste(rgba_icon, (icon_x, icon_y))
                 img = Image.alpha_composite(img, tmp)
-                draw = ImageDraw.Draw(img, 'RGBA')
-        except (FileNotFoundError, ValueError) as e:
-            print(f"Could not process icon {icon_path}: {e}")
+                draw = ImageDraw.Draw(img, 'RGBA')  # Recreate draw object
+            except Exception as e:
+                print(f"Could not process icon {icon_path}: {e}")
+        else:
+            print(f"Warning: Icon not found or could not be loaded at {icon_path}")
 
         label_x = icon_x + icon_size + icon_padding
         if ':' in spec:
@@ -1789,13 +1669,13 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         icon_y = int(y_cursor + (spec_line_height - icon_size) / 2)
 
         icon_path = get_icon_path_for_spec(spec)
-        try:
-            with Image.open(icon_path) as icon_img:
-                icon_img = icon_img.convert("RGBA")
-                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
-                img.paste(icon_img, (icon_x, icon_y), icon_img)
-        except FileNotFoundError:
-            print(f"Warning: Icon not found at {icon_path}")
+        icon_img = load_image_path(icon_path)
+        if icon_img:
+            icon_img = icon_img.convert("RGBA")
+            icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+            img.paste(icon_img, (icon_x, icon_y), icon_img)
+        else:
+            print(f"Warning: Icon not found or could not be loaded at {icon_path}")
 
         # Use a fixed-width for the icon area based on font size for consistency
         label_x = icon_x + icon_size + int(10 * scale_factor)
