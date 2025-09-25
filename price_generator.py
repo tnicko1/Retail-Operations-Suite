@@ -27,6 +27,7 @@ from translations import Translator
 from data_handler import get_default_layout_settings
 import qrcode
 import io
+import urllib.request
 try:
     import cairosvg
     from io import BytesIO
@@ -279,25 +280,70 @@ def _create_dynamic_background(width, height):
     return img
 
 
-def _draw_qr_code(img, item_name, position, size):
+def _draw_qr_code(img, item_data, position, size):
     """
-    Generates and draws a QR code on the image.
+    Generates and draws a QR code by finding the correct URL.
+    It fetches URL variations and compares SKUs to ensure accuracy.
     """
-    item_name_formatted = item_name.lower().replace(' ', '-')
-    qr_url = f"https://pcshop.ge/shop/{item_name_formatted}/"
+    item_name = item_data.get('Name')
+    sku = item_data.get('SKU')
 
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=2,
-    )
-    qr.add_data(qr_url)
-    qr.make(fit=True)
+    if not item_name or not sku:
+        print("WARNING: Item name or SKU is missing. Cannot generate QR code.")
+        return
 
-    qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+    base_slug = item_name.lower().replace(' ', '-')
+    correct_url = None
 
-    img.paste(qr_img, position)
+    # Try up to 10 variations of the URL (e.g., my-product, my-product-2, etc.)
+    for i in range(1, 11):
+        if i == 1:
+            slug_variant = base_slug
+        else:
+            slug_variant = f"{base_slug}-{i}"
+
+        url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
+
+        try:
+            # Fetch the content of the web page
+            with urllib.request.urlopen(url_to_check, timeout=5) as response:
+                # Read and decode the content, ignoring potential decoding errors
+                page_content = response.read().decode('utf-8', errors='ignore')
+
+            # Use regex to find the SKU on the page. This looks for "SKU:" followed by the actual SKU.
+            # The pattern is flexible to handle whitespace or other characters between "SKU:" and the number.
+            if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
+                correct_url = url_to_check
+                print(f"SUCCESS: Found matching SKU for '{item_name}' at {correct_url}")
+                break  # Exit loop once the correct URL is found
+            else:
+                print(f"INFO: SKU mismatch for '{item_name}' at {url_to_check}. Trying next...")
+
+        except urllib.error.HTTPError as e:
+            # If we get a 404 Not Found, that page doesn't exist, so we can stop.
+            if e.code == 404:
+                print(f"INFO: URL {url_to_check} not found. Stopping search for this item.")
+                break
+            else:
+                print(f"WARNING: HTTP Error {e.code} for {url_to_check}.")
+        except Exception as e:
+            print(f"ERROR: An unexpected error occurred while checking {url_to_check}: {e}")
+            break # Stop on other unexpected errors
+
+    if correct_url:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(correct_url)
+        qr.make(fit=True)
+
+        qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+        img.paste(qr_img, position)
+    else:
+        print(f"WARNING: Could not find a matching URL for '{item_name}' (SKU: {sku}). QR code will not be generated.")
 
 
 
@@ -1541,7 +1587,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     qr_size = int(footer_height * 0.9)
     qr_x = int((width_px - qr_size) / 2)
     qr_y = int(footer_y_start + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data.get('Name', ''), (qr_x, qr_y), qr_size)
+    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size)
 
     # SKU and P/N on the right
     sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
@@ -1817,7 +1863,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     qr_size = int(footer_height * 0.9)
     qr_x = int((width_px - qr_size) / 2)
     qr_y = int(footer_area_top + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data.get('Name', ''), (qr_x, qr_y), qr_size)
+    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size)
 
     sku_label_text = translator.get_spec_label("SKU", language) + ": "
     sku_value_text = item_data.get('SKU', 'N/A')
