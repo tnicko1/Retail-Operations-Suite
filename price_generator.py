@@ -28,6 +28,7 @@ from data_handler import get_default_layout_settings
 import qrcode
 import io
 import urllib.request
+from PyQt6.QtWidgets import QApplication
 try:
     import cairosvg
     from io import BytesIO
@@ -280,7 +281,8 @@ def _create_dynamic_background(width, height):
     return img
 
 
-def _draw_qr_code(img, item_data, position, size):
+def _draw_qr_code(img, item_data, position, size, qr_cache=None):
+    from dialogs import QRCodeURLDialog
     """
     Generates and draws a QR code by finding the correct URL.
     It fetches URL variations and compares SKUs to ensure accuracy.
@@ -292,43 +294,50 @@ def _draw_qr_code(img, item_data, position, size):
         print("WARNING: Item name or SKU is missing. Cannot generate QR code.")
         return
 
-    base_slug = item_name.lower().replace(' ', '-')
     correct_url = None
-
-    # Try up to 10 variations of the URL (e.g., my-product, my-product-2, etc.)
-    for i in range(1, 11):
-        if i == 1:
-            slug_variant = base_slug
-        else:
-            slug_variant = f"{base_slug}-{i}"
-
-        url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
-
-        try:
-            # Fetch the content of the web page
-            with urllib.request.urlopen(url_to_check, timeout=5) as response:
-                # Read and decode the content, ignoring potential decoding errors
-                page_content = response.read().decode('utf-8', errors='ignore')
-
-            # Use regex to find the SKU on the page. This looks for "SKU:" followed by the actual SKU.
-            # The pattern is flexible to handle whitespace or other characters between "SKU:" and the number.
-            if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
-                correct_url = url_to_check
-                print(f"SUCCESS: Found matching SKU for '{item_name}' at {correct_url}")
-                break  # Exit loop once the correct URL is found
+    if qr_cache is not None and sku in qr_cache:
+        correct_url = qr_cache[sku]
+        if correct_url:
+            print(f"INFO: Using cached QR code URL for '{item_name}' (SKU: {sku})")
+    else:
+        base_slug = item_name.lower().replace(' ', '-')
+        for i in range(1, 11):
+            if i == 1:
+                slug_variant = base_slug
             else:
-                print(f"INFO: SKU mismatch for '{item_name}' at {url_to_check}. Trying next...")
+                slug_variant = f"{base_slug}-{i}"
 
-        except urllib.error.HTTPError as e:
-            # If we get a 404 Not Found, that page doesn't exist, so we can stop.
-            if e.code == 404:
-                print(f"INFO: URL {url_to_check} not found. Stopping search for this item.")
+            url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
+
+            try:
+                with urllib.request.urlopen(url_to_check, timeout=5) as response:
+                    page_content = response.read().decode('utf-8', errors='ignore')
+                if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
+                    correct_url = url_to_check
+                    print(f"SUCCESS: Found matching SKU for '{item_name}' at {correct_url}")
+                    break
+                else:
+                    print(f"INFO: SKU mismatch for '{item_name}' at {url_to_check}. Trying next...")
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    print(f"INFO: URL {url_to_check} not found. Stopping search for this item.")
+                    break
+                else:
+                    print(f"WARNING: HTTP Error {e.code} for {url_to_check}.")
+            except Exception as e:
+                print(f"ERROR: An unexpected error occurred while checking {url_to_check}: {e}")
                 break
-            else:
-                print(f"WARNING: HTTP Error {e.code} for {url_to_check}.")
-        except Exception as e:
-            print(f"ERROR: An unexpected error occurred while checking {url_to_check}: {e}")
-            break # Stop on other unexpected errors
+
+        if not correct_url:
+            print(f"WARNING: Could not find a matching URL for '{item_name}' (SKU: {sku}). Prompting user.")
+            if QApplication.instance():
+                translator = Translator()
+                dialog = QRCodeURLDialog(translator, item_name, sku)
+                if dialog.exec():
+                    correct_url = dialog.get_url()
+        
+        if qr_cache is not None:
+            qr_cache[sku] = correct_url
 
     if correct_url:
         qr = qrcode.QRCode(
@@ -343,7 +352,7 @@ def _draw_qr_code(img, item_data, position, size):
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
         img.paste(qr_img, position)
     else:
-        print(f"WARNING: Could not find a matching URL for '{item_name}' (SKU: {sku}). QR code will not be generated.")
+        print(f"INFO: No URL provided for '{item_name}' (SKU: {sku}). QR code will not be generated.")
 
 
 
@@ -1279,7 +1288,7 @@ def _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm
     return img
 
 
-def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False):
+def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False, qr_cache=None):
     """Creates a completely redesigned, modern, and visually pleasing price tag."""
     translator = Translator()
     # --- 1. Config, Scaling, and Fonts ---
@@ -1393,7 +1402,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
         y_cursor += line_height
     y_cursor += content_padding * 0.2 # Reduced space
 
-    # --- 6. Specifications ---
+    # --- 6. Specifications (Two-Column Layout) ---
     spec_ascent, spec_descent = spec_font_regular.getmetrics()
     spec_line_height = spec_ascent + spec_descent
     spec_line_spacing = int(6 * scale_factor)
@@ -1403,64 +1412,152 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     all_specs = item_data.get('all_specs', [])
     warranty_spec = None
     other_specs = list(all_specs)
-    for spec in other_specs:
+    # Separate warranty spec
+    for spec in all_specs:
         if 'warranty' in spec.lower():
             warranty_spec = spec
-            other_specs.remove(spec)
+            if spec in other_specs:
+                other_specs.remove(spec)
             break
+
+    final_material_spec = None
+    # Special handling for 14.8x8cm tag size to ensure 'Material Details' is the last spec
+    if width_cm == 14.8 and height_cm == 8:
+        material_spec_value = "See Description"  # Default value
+        spec_to_remove = None
+
+        # Find if a material-related spec already exists to preserve its value
+        for spec in other_specs:
+            if 'material' in spec.lower().split(':')[0]:
+                if ':' in spec:
+                    material_spec_value = spec.split(':', 1)[1].strip()
+                spec_to_remove = spec
+                break
+
+        if spec_to_remove:
+            other_specs.remove(spec_to_remove)
+
+        final_material_spec = f"Material Details: {material_spec_value}"
 
     footer_height = height_px * 0.18
     max_y_for_specs = (height_px - card_margin) - footer_height
     
-    for spec in other_specs:
-        if y_cursor + spec_line_height > max_y_for_specs:
-            break
+    # --- Column Layout Calculations ---
+    mid_x = width_px / 2
+    col_width = mid_x - content_padding - (card_margin / 2)
 
-        icon_x = int(content_padding)
-        icon_y = int(y_cursor + (spec_line_height - icon_size) / 2)
-        icon_path = get_icon_path_for_spec(spec)
-        icon_img = load_image_path(icon_path, color=line_color)
-
-        if icon_img:
-            try:
-                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
-                rgba_icon = icon_img.convert('RGBA')
-                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
-                tmp.paste(rgba_icon, (icon_x, icon_y))
-                img = Image.alpha_composite(img, tmp)
-                draw = ImageDraw.Draw(img, 'RGBA')  # Recreate draw object
-            except Exception as e:
-                print(f"Could not process icon {icon_path}: {e}")
-        else:
-            print(f"Warning: Icon not found or could not be loaded at {icon_path}")
-
-        label_x = icon_x + icon_size + icon_padding
-        if ':' in spec:
-            label, value = spec.split(':', 1)
-            value = value.strip()
+    # Helper to calculate spec height
+    def get_real_spec_height(spec_text, column_width):
+        icon_area_width = icon_size + icon_padding
+        if ':' in spec_text:
+            label, value = spec_text.split(':', 1)
             translated_label = translator.get_spec_label(label.strip(), language)
             label_text = translated_label + ': '
-            
             label_font = spec_font_bold
             if contains_georgian(translated_label):
                 label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, spec_font_size, is_bold=True)
-            
-            draw.text((label_x, y_cursor + spec_ascent), label_text, font=label_font, fill=spec_text_color, anchor='ls')
-            value_x = label_x + label_font.getbbox(label_text)[2]
-            
-            remaining_width = (width_px - card_margin) - value_x - (content_padding - card_margin)
-            wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
-            for i, line in enumerate(wrapped_values):
-                draw.text((value_x, y_cursor + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
-                if i < len(wrapped_values) - 1:
-                    y_cursor += spec_line_height + spec_line_spacing
+            label_width = label_font.getbbox(label_text)[2]
+            remaining_width = column_width - icon_area_width - label_width
+            wrapped_values = wrap_text(value.strip(), spec_font_regular, remaining_width)
+            num_lines = max(1, len(wrapped_values))
+            return num_lines * (spec_line_height + spec_line_spacing) - spec_line_spacing
         else:
-            spec_font = spec_font_regular
-            if contains_georgian(spec):
-                spec_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, spec_font_size)
-            draw.text((label_x, y_cursor + spec_ascent), spec, font=spec_font, fill=text_color, anchor='ls')
-            
-        y_cursor += spec_line_height + spec_line_spacing
+            return spec_line_height
+
+    # Reserve space for Material Details spec if applicable
+    if final_material_spec:
+        material_spec_height = get_real_spec_height(final_material_spec, col_width)
+        max_y_for_specs -= material_spec_height
+
+    # Distribute specs into two columns sequentially
+    col1_specs, col2_specs = [], []
+    col1_height, col2_height = 0, 0
+    
+    temp_specs = other_specs
+    remaining_specs = []
+
+    # Fill column 1 first
+    for spec in temp_specs:
+        h = get_real_spec_height(spec, col_width) + spec_line_spacing
+        if y_cursor + col1_height + h < max_y_for_specs:
+            col1_specs.append(spec)
+            col1_height += h
+        else:
+            remaining_specs.append(spec)
+
+    # Fill column 2 with the rest
+    for spec in remaining_specs:
+        h = get_real_spec_height(spec, col_width) + spec_line_spacing
+        if y_cursor + col2_height + h < max_y_for_specs:
+            col2_specs.append(spec)
+            col2_height += h
+
+    # Add the Material Details spec at the very end for the specific tag size
+    if final_material_spec:
+        col2_specs.append(final_material_spec)
+
+    # --- Draw Specs in Two Columns ---
+    spec_start_y = y_cursor
+
+    def draw_spec_column(specs, start_x, column_width):
+        nonlocal img, draw
+        y_pos = spec_start_y
+        for spec in specs:
+            icon_x = int(start_x)
+            icon_y = int(y_pos + (spec_line_height - icon_size) / 2)
+            icon_path = get_icon_path_for_spec(spec)
+            icon_img = load_image_path(icon_path, color=line_color)
+
+            if icon_img:
+                try:
+                    icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+                    rgba_icon = icon_img.convert('RGBA')
+                    tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                    tmp.paste(rgba_icon, (icon_x, icon_y))
+                    img = Image.alpha_composite(img, tmp)
+                    draw = ImageDraw.Draw(img, 'RGBA')
+                except Exception as e:
+                    print(f"Could not process icon {icon_path}: {e}")
+
+            label_x = icon_x + icon_size + icon_padding
+            if ':' in spec:
+                label, value = spec.split(':', 1)
+                value = value.strip()
+                translated_label = translator.get_spec_label(label.strip(), language)
+                label_text = translated_label + ': '
+                
+                label_font = spec_font_bold
+                if contains_georgian(translated_label):
+                    label_font = get_font(FALLBACK_FONT_GEORGIAN_BOLD, spec_font_size, is_bold=True)
+                
+                draw.text((label_x, y_pos + spec_ascent), label_text, font=label_font, fill=spec_text_color, anchor='ls')
+                value_x = label_x + label_font.getbbox(label_text)[2]
+                
+                remaining_width = (start_x + column_width) - value_x
+                wrapped_values = wrap_text(value, spec_font_regular, remaining_width)
+                
+                current_line_y = y_pos
+                for i, line in enumerate(wrapped_values):
+                    draw.text((value_x, current_line_y + spec_ascent), line, font=spec_font_regular, fill=text_color, anchor='ls')
+                    if i < len(wrapped_values) - 1:
+                        current_line_y += spec_line_height + spec_line_spacing
+                y_pos = current_line_y + spec_line_height + spec_line_spacing
+            else:
+                spec_font = spec_font_regular
+                if contains_georgian(spec):
+                    spec_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, spec_font_size)
+                draw.text((label_x, y_pos + spec_ascent), spec, font=spec_font, fill=text_color, anchor='ls')
+                y_pos += spec_line_height + spec_line_spacing
+        return y_pos
+
+    y1 = draw_spec_column(col1_specs, content_padding, col_width)
+    y2 = draw_spec_column(col2_specs, mid_x, col_width)
+
+    # Draw vertical separator if both columns have content
+    if col1_specs and col2_specs:
+        separator_x = mid_x - (card_margin / 2)
+        max_y = max(y1, y2) - spec_line_spacing
+        draw.line([(separator_x, spec_start_y), (separator_x, max_y)], fill='#DEE2E6', width=3)
 
     # --- 7. Footer ---
     footer_y_start = (height_px - card_margin) - footer_height
@@ -1587,7 +1684,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     qr_size = int(footer_height * 0.9)
     qr_x = int((width_px - qr_size) / 2)
     qr_y = int(footer_y_start + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size)
+    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size, qr_cache=qr_cache)
 
     # SKU and P/N on the right
     sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
@@ -1648,7 +1745,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     return img.convert('RGB')
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, qr_cache=None):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 
@@ -1660,7 +1757,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if width_cm == 6 and height_cm == 3.5:
             return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
         else:
-            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special)
+            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special, qr_cache=qr_cache)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
@@ -1863,7 +1960,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     qr_size = int(footer_height * 0.9)
     qr_x = int((width_px - qr_size) / 2)
     qr_y = int(footer_area_top + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size)
+    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size, qr_cache=qr_cache)
 
     sku_label_text = translator.get_spec_label("SKU", language) + ": "
     sku_value_text = item_data.get('SKU', 'N/A')

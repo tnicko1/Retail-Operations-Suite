@@ -443,6 +443,8 @@ TRANSLATIONS = {
             "SPECIAL": "SPECIAL",
             "Year": "Year",
             "Years": "Years",
+            "Material Details": "Material Details",
+            "MaterialDetails": "Material Details",
         }
     },
     "ka": {
@@ -861,6 +863,8 @@ TRANSLATIONS = {
             "SPECIAL": "სპეც",
             "Year": "წელი",
             "Years": "წლები",
+            "Material Details": "მასალის დეტალები",
+            "MaterialDetails": "მასალის დეტალები",
         }
     }
 }

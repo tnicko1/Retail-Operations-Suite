@@ -1410,11 +1410,12 @@ class RetailOperationsSuite(QMainWindow):
         is_special = self.special_tag_checkbox.isChecked()
         
         background_cache = {}
+        qr_cache = {}
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache)
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
             
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
             for a4_img in a4_images:
@@ -1422,7 +1423,7 @@ class RetailOperationsSuite(QMainWindow):
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache)
+            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
             
             a4_img = a4_layout_generator.create_a4_for_single(img)
             q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
@@ -1471,6 +1472,7 @@ class RetailOperationsSuite(QMainWindow):
         all_tags_images = []
 
         background_cache = {}
+        qr_cache = {}
         brand_design_choices = {}
 
         for sku in skus_to_print:
@@ -1522,14 +1524,14 @@ class RetailOperationsSuite(QMainWindow):
 
             if is_dual:
                 img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='en', is_special=is_special, background_cache=background_cache)
+                                                          language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='ka', is_special=is_special, background_cache=background_cache)
+                                                          language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                       language=lang, is_special=is_special, background_cache=background_cache)
+                                                       language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
                 all_tags_images.append(img)
 
         if not all_tags_images:
@@ -1653,11 +1655,12 @@ class RetailOperationsSuite(QMainWindow):
         is_special = self.special_tag_checkbox.isChecked()
         
         background_cache = {}
+        qr_cache = {}
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache)
-            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache)
+            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1677,7 +1680,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache)
+            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 
@@ -1746,7 +1749,8 @@ class RetailOperationsSuite(QMainWindow):
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
 
                 # Special handling for Warranty: always check it if present
-                if 'warranty' in spec.lower():
+                spec_lower = spec.lower()
+                if 'warranty' in spec_lower or 'material details' in spec_lower:
                     item.setCheckState(Qt.CheckState.Checked)
                 # For keyboards, check all specs. Otherwise, respect the limit.
                 elif is_keyboard_layout:

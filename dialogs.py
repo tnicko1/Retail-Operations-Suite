@@ -9,7 +9,7 @@ import pytz
 import price_generator
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
+from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
                              QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup)
@@ -1477,3 +1477,55 @@ class ColumnMappingManagerDialog(QDialog):
             msg.setWindowTitle("Error")
             msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             msg.exec()
+
+class QRCodeURLDialog(QDialog):
+    def __init__(self, translator, item_name, sku, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.sku = sku
+        # Using hardcoded strings as I cannot modify the translations dictionary.
+        self.setWindowTitle("QR Code URL")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+        
+        message = QLabel(f"Could not automatically find a URL for the item: <b>{item_name}</b> (SKU: {sku}).<br><br>Please provide a URL for the QR code, or press Skip to not include a QR code for this item.")
+        message.setWordWrap(True)
+        layout.addWidget(message)
+
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("https://example.com/product/...")
+        layout.addWidget(self.url_input)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("OK")
+        self.button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Skip")
+        
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        copy_sku_button = QPushButton("Copy SKU")
+        copy_sku_button.clicked.connect(self.copy_sku)
+        button_layout.addWidget(copy_sku_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.button_box)
+
+        layout.addLayout(button_layout)
+
+        self.url = None
+
+    def copy_sku(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.sku)
+
+    def accept(self):
+        self.url = self.url_input.text().strip()
+        if not self.url:
+            # Maybe show a warning, but for now, just treat as accept with no URL
+             super().accept()
+             return
+        super().accept()
+
+    def get_url(self):
+        return self.url
