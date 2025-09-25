@@ -441,6 +441,8 @@ TRANSLATIONS = {
             "Portability": "Portability",
             "SALE": "SALE",
             "SPECIAL": "SPECIAL",
+            "Year": "Year",
+            "Years": "Years",
         }
     },
     "ka": {
@@ -857,6 +859,8 @@ TRANSLATIONS = {
             "Portability": "პორტატულობა",
             "SALE": "აქცია",
             "SPECIAL": "სპეც",
+            "Year": "წელი",
+            "Years": "წლები",
         }
     }
 }

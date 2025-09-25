@@ -25,6 +25,8 @@ import re
 import xml.etree.ElementTree as ET
 from translations import Translator
 from data_handler import get_default_layout_settings
+import qrcode
+import io
 try:
     import cairosvg
     from io import BytesIO
@@ -115,6 +117,7 @@ SPEC_ICON_MAP = {
     'accessories.svg': ['fans included', 'includedaccessories', 'portability', 'portable design'],
     'ram.svg': ['ram', 'memory'],
     'storage.svg': ['ssd', 'hdd', 'storage'],
+    'screen.svg': ['screen', 'display', 'matrix', 'screen size'],
     'dimensions.svg': ['dimensions', 'size'],
     'display_details.svg': ['panel type', 'refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut'],
     'resolution.svg': ['resolution'],
@@ -123,7 +126,6 @@ SPEC_ICON_MAP = {
     'contrast.svg': ['contrast'],
     'tearing_prevention.svg': ['tearing prevention', 'gsync', 'freesync', 'vsync'],
     'backlight.svg': ['backlight'],
-    'screen.svg': ['screen', 'display', 'matrix', 'screen size'],
     'graphics.svg': ['graphics', 'gpu', 'vram'],
     'battery.svg': ['battery', 'power', 'wattage', 'mah'],
     'camera.svg': ['camera', 'webcam'],
@@ -275,6 +277,29 @@ def _create_dynamic_background(width, height):
         draw.line([(start_x, start_y), (end_x, end_y)], fill=color, width=line_width)
 
     return img
+
+
+def _draw_qr_code(img, item_name, position, size):
+    """
+    Generates and draws a QR code on the image.
+    """
+    item_name_formatted = item_name.lower().replace(' ', '-')
+    qr_url = f"https://pcshop.ge/shop/{item_name_formatted}/"
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+
+    qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+
+    img.paste(qr_img, position)
+
+
 
 
 def _draw_bezier_curve(draw, start_point, end_point, control_point, fill, width):
@@ -1331,13 +1356,12 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     
     all_specs = item_data.get('all_specs', [])
     warranty_spec = None
-    other_specs = [spec for spec in all_specs if 'warranty' not in spec.lower()]
-    for spec in all_specs:
+    other_specs = list(all_specs)
+    for spec in other_specs:
         if 'warranty' in spec.lower():
             warranty_spec = spec
+            other_specs.remove(spec)
             break
-    if warranty_spec:
-        other_specs.append(warranty_spec)
 
     footer_height = height_px * 0.18
     max_y_for_specs = (height_px - card_margin) - footer_height
@@ -1395,6 +1419,8 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     # --- 7. Footer ---
     footer_y_start = (height_px - card_margin) - footer_height
     footer_center_y = footer_y_start + footer_height / 2
+    price_y_offset = -int(10 * scale_factor)
+    price_y = footer_center_y + price_y_offset
     draw.line([(card_margin, footer_y_start), (width_px - card_margin, footer_y_start)], fill='#DEE2E6', width=3)
 
     # Price handling
@@ -1417,21 +1443,21 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
         gel_text = "₾"
         gel_width = gel_font.getbbox(gel_text)[2]
         spacing = int(8 * scale_factor)
-        draw.text((price_x, footer_center_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
-        draw.text((price_x + gel_width + spacing, footer_center_y), sale_price_text, font=price_font, fill=price_color, anchor="lm")
+        draw.text((price_x, price_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
+        draw.text((price_x + gel_width + spacing, price_y), sale_price_text, font=price_font, fill=price_color, anchor="lm")
         sale_price_width = price_font.getbbox(sale_price_text)[2]
         
         # Draw old price (smaller, gray, strikethrough)
         old_price_x = price_x + gel_width + spacing + sale_price_width + (15 * scale_factor)
         old_price_text = str(regular_price)
         old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
-        draw.text((old_price_x, footer_center_y), gel_text, font=gel_font_strikethrough, fill=strikethrough_color, anchor="lm")
-        draw.text((old_price_x + old_gel_width + spacing, footer_center_y), old_price_text, font=strikethrough_font, fill=strikethrough_color, anchor="lm")
+        draw.text((old_price_x, price_y), gel_text, font=gel_font_strikethrough, fill=strikethrough_color, anchor="lm")
+        draw.text((old_price_x + old_gel_width + spacing, price_y), old_price_text, font=strikethrough_font, fill=strikethrough_color, anchor="lm")
         
         # Strikethrough line
         line_start_x = old_price_x
         line_end_x = old_price_x + old_gel_width + spacing + strikethrough_font.getbbox(old_price_text)[2]
-        draw.line([(line_start_x, footer_center_y), (line_end_x, footer_center_y)], fill=strikethrough_color, width=int(3 * scale_factor))
+        draw.line([(line_start_x, price_y), (line_end_x, price_y)], fill=strikethrough_color, width=int(3 * scale_factor))
 
     else:
         # Default price drawing
@@ -1441,8 +1467,81 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
             gel_text = "₾"
             gel_width = gel_font.getbbox(gel_text)[2]
             spacing = int(8 * scale_factor)
-            draw.text((price_x, footer_center_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
-            draw.text((price_x + gel_width + spacing, footer_center_y), price_text, font=price_font, fill=price_color, anchor="lm")
+            draw.text((price_x, price_y), gel_text, font=gel_font, fill=price_color, anchor="lm")
+            draw.text((price_x + gel_width + spacing, price_y), price_text, font=price_font, fill=price_color, anchor="lm")
+
+    # --- Warranty ---
+    if warranty_spec:
+        icon_size = int(footer_font_size * 1)
+        icon_padding = int(10 * scale_factor)
+        icon_path = get_icon_path_for_spec('warranty') # Directly use 'warranty' to get the path
+        icon_img = load_image_path(icon_path, color=line_color)
+
+        warranty_font_size = footer_font_size * 0.75
+        warranty_font = get_font(PRIMARY_FONT_PATH, warranty_font_size)
+
+        warranty_y = price_y + (price_font_size * 0.8)
+
+        icon_x = int(price_x)
+        ascent, descent = warranty_font.getmetrics()
+        line_height = ascent + descent
+        icon_y = int(warranty_y - (line_height/2) + (line_height - icon_size) / 2)
+
+        if icon_img:
+            try:
+                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+                rgba_icon = icon_img.convert('RGBA')
+                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                tmp.paste(rgba_icon, (icon_x, icon_y))
+                img = Image.alpha_composite(img, tmp)
+                draw = ImageDraw.Draw(img, 'RGBA')  # Recreate draw object
+            except Exception as e:
+                print(f"Could not process icon {icon_path}: {e}")
+
+        label_x = icon_x + icon_size + icon_padding
+
+        if ':' in warranty_spec:
+            label, value = warranty_spec.split(':', 1)
+            value = value.strip()
+
+            parts = value.split()
+            number = ""
+            unit = ""
+            if len(parts) >= 2:
+                number = parts[0]
+                unit = parts[1]
+
+            warranty_text = ""
+            if unit.lower().startswith('year'):
+                if language == 'ka':
+                    translated_warranty = translator.get_spec_label('Warranty', language)
+                    warranty_text = f"{number} წლიანი {translated_warranty}"
+                else:
+                    if number == '1':
+                        translated_unit = translator.get_spec_label("Year", language)
+                    else:
+                        translated_unit = translator.get_spec_label("Years", language)
+                    
+                    translated_warranty = translator.get_spec_label('Warranty', language)
+                    warranty_text = f"{number} {translated_unit} {translated_warranty}"
+            else:
+                # Fallback for other units like "Month" or if parsing fails
+                translated_warranty = translator.get_spec_label('Warranty', language)
+                warranty_text = f"{value} {translated_warranty}"
+
+            if contains_georgian(warranty_text):
+                warranty_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, warranty_font_size)
+
+            draw.text((label_x, warranty_y), warranty_text, font=warranty_font, fill=text_color, anchor='lm')
+        else:
+            # Fallback for just text
+            draw.text((label_x, warranty_y), warranty_spec, font=warranty_font, fill=text_color, anchor='lm')
+
+    # --- QR Code ---
+    qr_size = int(footer_height * 0.9)
+    qr_x = int((width_px - qr_size) / 2)
+    qr_y = int(footer_y_start + (footer_height - qr_size) / 2)
+    _draw_qr_code(img, item_data.get('Name', ''), (qr_x, qr_y), qr_size)
 
     # SKU and P/N on the right
     sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
@@ -1713,6 +1812,12 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     footer_area_top = height_px - footer_height - border_width
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
     footer_center_y = footer_area_top + (height_px - footer_area_top - border_width) / 2
+
+    # --- QR Code ---
+    qr_size = int(footer_height * 0.9)
+    qr_x = int((width_px - qr_size) / 2)
+    qr_y = int(footer_area_top + (footer_height - qr_size) / 2)
+    _draw_qr_code(img, item_data.get('Name', ''), (qr_x, qr_y), qr_size)
 
     sku_label_text = translator.get_spec_label("SKU", language) + ": "
     sku_value_text = item_data.get('SKU', 'N/A')

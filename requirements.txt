@@ -6,3 +6,6 @@ requests
 Pillow
 packaging
 PySocks
+qrcode
+cairosvg
+lxml
