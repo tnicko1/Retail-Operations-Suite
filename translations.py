@@ -347,6 +347,12 @@ TRANSLATIONS = {
             "BuildMaterial": "Build Material",
             "IP_Rating": "IP Rating",
 
+            # --- Laptop Misc ---
+            "Keyboard Backlight": "Keyboard Backlight",
+            "Keyboard Layout": "Keyboard Layout",
+            "Material(s)": "Material(s)",
+            "Material": "Material",
+
             # --- Power ---
             "PowerSupply": "Power Supply",
             "Wattage": "Wattage",
@@ -411,6 +417,35 @@ TRANSLATIONS = {
             "PaperSize": "Paper Size",
             "Connector": "Connector",
             "Copy Speed": "Copy Speed",
+            "Duplex Printing": "Duplex Printing",
+            "Duplex Printing Speed": "Duplex Printing Speed",
+            "Duplex Scanning": "Duplex Scanning",
+            "Duplex Scanning Speed": "Duplex Scanning Speed",
+            "Duplex": "Duplex",
+            "Duplex Print Speed": "Duplex Print Speed",
+            "Duplex Print": "Duplex Print",
+            "Duplex Scan": "Duplex Scan",
+            "Duplex Scan Speed": "Duplex Scan Speed",
+
+            # --- Monitor Specific ---
+            "Ports & Connectors": "Ports & Connectors",
+            "Backlight Type": "Backlight Type",
+            "VESA Mount Compatibility": "VESA Mount Compatibility",
+            "VESA Mount Type": "VESA Mount Type",
+            "VESA Mount Support": "VESA Mount Support",
+            "Flicker-Free Technology": "Flicker-Free Technique",
+            "Flicker-Free": "Flicker-Free",
+            "Ultra-Narrow Bezels": "Ultra-Narrow Bezels",
+            "Tearing Prevention": "Tearing Prevention",
+            "Screen Resolution": "Screen Resolution",
+
+            # --- TV Specific ---
+            "HDR Compatibility": "HDR Compatibility",
+            "HDR": "HDR",
+            "Smart TV": "Smart TV",
+            "Wireless": "Wireless",
+            "Game Mode": "Game Mode",
+            "APP Support": "APP Support",
 
             # --- Projectors ---
             "Optical Zoom": "Optical Zoom",
@@ -419,6 +454,8 @@ TRANSLATIONS = {
             "Technology": "Technology",
             "Power Consumption": "Power Consumption",
             "Mounting": "Mounting",
+            "Aspect Ratio": "Aspect Ratio",
+            "Form Factor": "Form Factor",
 
             # --- Chairs & Desks ---
             "MaximumWeight": "Maximum Weight",
@@ -747,9 +784,9 @@ TRANSLATIONS = {
             "HDMI_Ports": "HDMI პორტები",
             "DisplayPort": "DisplayPort",
             "AudioJack": "აუდიო ჯეკი",
-            "WiFi": "Wi-Fi",
-            "Bluetooth": "Bluetooth",
-            "Ethernet": "Ethernet",
+            "WiFi": "WiFi",
+            "Bluetooth": "ბლუთუზი",
+            "Ethernet": "ინტერნეტი",
             "NFC": "NFC",
 
             # --- Physical Attributes ---
@@ -776,6 +813,12 @@ TRANSLATIONS = {
             "Capacity": "ტევადობა",
             "InputVoltage": "შემავალი ძაბვა",
             "OutputVoltage": "გამომავალი ძაბვა",
+
+            # --- Laptop Misc ---
+            "Keyboard Backlight": "Keyboard Backlight",
+            "Keyboard Layout": "Keyboard Layout",
+            "Material(s)": "Material(s)",
+            "Material": "Material",
 
             # --- UPS Specific ---
             "Topology": "ტოპოლოგია",
@@ -831,6 +874,35 @@ TRANSLATIONS = {
             "PaperSize": "ქაღალდის ზომა",
             "Connector": "კონექტორი",
             "Copy Speed": "კოპირების სიჩქარე",
+            "Duplex Printing": "Duplex Printing",
+            "Duplex Printing Speed": "Duplex Printing Speed",
+            "Duplex Scanning": "Duplex Scanning",
+            "Duplex Scanning Speed": "Duplex Scanning Speed",
+            "Duplex": "Duplex",
+            "Duplex Print Speed": "Duplex Print Speed",
+            "Duplex Print": "Duplex Print",
+            "Duplex Scan": "Duplex Scan",
+            "Duplex Scan Speed": "Duplex Scan Speed",
+
+            # --- Monitor Specific ---
+            "Ports & Connectors": "Ports & Connectors",
+            "Backlight Type": "Backlight Type",
+            "VESA Mount Compatibility": "VESA Mount Compatibility",
+            "VESA Mount Type": "VESA Mount Type",
+            "VESA Mount Support": "VESA Mount Support",
+            "Flicker-Free Technology": "Flicker-Free Technique",
+            "Flicker-Free": "Flicker-Free",
+            "Ultra-Narrow Bezels": "Ultra-Narrow Bezels",
+            "Tearing Prevention": "Tearing Prevention",
+            "Screen Resolution": "Screen Resolution",
+
+            # --- TV Specific ---
+            "HDR Compatibility": "HDR Compatibility",
+            "HDR": "HDR",
+            "Smart TV": "Smart TV",
+            "Wireless": "Wireless",
+            "Game Mode": "Game Mode",
+            "APP Support": "APP Support",
 
             # --- Projectors ---
             "Optical Zoom": "ოპტიკური ზუმი",
@@ -839,6 +911,8 @@ TRANSLATIONS = {
             "Technology": "ტექნოლოგია",
             "Power Consumption": "ენერგიის მოხმარება",
             "Mounting": "მონტაჟი",
+            "Aspect Ratio": "Aspect Ratio",
+            "Form Factor": "Form Factor",
 
             # --- Chairs & Desks ---
             "MaximumWeight": "მაქსიმუმი წონა",
