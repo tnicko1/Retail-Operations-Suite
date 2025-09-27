@@ -454,6 +454,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#003560",
                 "text_color": "black"
             },
+            "LG": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/LG.png"),
+                "brand_name": "LG",
+                "bg_color": "#A50034",
+                "text_color": "black"
+            },
             "PCSHOP": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/logo.png"),
@@ -1414,8 +1421,8 @@ class RetailOperationsSuite(QMainWindow):
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
             
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
             for a4_img in a4_images:
@@ -1423,7 +1430,7 @@ class RetailOperationsSuite(QMainWindow):
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
             
             a4_img = a4_layout_generator.create_a4_for_single(img)
             q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
@@ -1524,14 +1531,14 @@ class RetailOperationsSuite(QMainWindow):
 
             if is_dual:
                 img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+                                                          language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+                                                          language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                       language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+                                                       language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
                 all_tags_images.append(img)
 
         if not all_tags_images:
@@ -1659,8 +1666,8 @@ class RetailOperationsSuite(QMainWindow):
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
-            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
+            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1680,7 +1687,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache)
+            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=qr_cache, is_dual=is_dual)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 

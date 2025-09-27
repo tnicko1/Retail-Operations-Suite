@@ -95,64 +95,66 @@ def load_image_path(path, color=None):
 # A mapping of keywords to icon filenames.
 # The order is important: more specific keywords should come before more general ones.
 SPEC_ICON_MAP = {
-    'furniture.svg': ['chair frame', 'materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight'],
-    'print_speed.svg': ['print speed (iso)', 'print speed'],
-    'print_technology.svg': ['print technology'],
-    'print_resolution.svg': ['print resolution'],
-    'scan_type.svg': ['scan type'],
-    'mobile_printing.svg': ['mobile printing', 'mobileprinting'],
-    'monthly_duty_cycle.svg': ['monthly duty cycle'],
-    'topology.svg': ['topology'],
-    'waveform_type.svg': ['waveform type'],
-    'voltage_zap.svg': ['output voltage', 'inputvoltage', 'outputvoltage'],
-    'frequency.svg': ['output frequency', 'input frequency'],
+    'armchair.svg': ['chair frame', 'materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight'],
+    'gauge.svg': ['print speed (iso)', 'print speed'],
+    'printer-check.svg': ['print technology'],
+    'ratio.svg': ['print resolution', 'resolution'],
+    'scan-text.svg': ['scan type'],
+    'smartphone-nfc.svg': ['mobile printing', 'mobileprinting'],
+    'recycle.svg': ['monthly duty cycle'],
+    'chart-network.svg': ['topology'],
+    'audio-waveform.svg': ['waveform type'],
+    'zap.svg': ['output voltage', 'inputvoltage', 'outputvoltage'],
+    'timer-reset.svg': ['output frequency', 'input frequency'],
     'usb.svg': ['output connection count', 'hdmi', 'usb', 'audio jack', 'ports'],
-    'connection_type.svg': ['output connection type', 'input connection type'],
-    'voltage.svg': ['input voltage range'],
-    'number_of_batteries.svg': ['number of batteries'],
-    'warranty.svg': ['warranty'],
+    'cable.svg': ['output connection type', 'input connection type'],
+    'plug-zap.svg': ['input voltage range'],
+    'battery-plus.svg': ['number of batteries'],
+    'shield-user.svg': ['warranty'],
     'cpu.svg': ['cpu', 'processor', 'chipset', 'cores'],
-    'motherboard.svg': ['motherboard', 'socket', 'threads', 'cpucooler'],
-    'drive_bay.svg': ['drive bays'],
-    'cooler.svg': ['cooler support'],
-    'case_fan.svg': ['installed coolers', 'fan support'],
-    'accessories.svg': ['fans included', 'includedaccessories', 'portability', 'portable design'],
-    'ram.svg': ['ram', 'memory'],
-    'storage.svg': ['ssd', 'hdd', 'storage'],
-    'screen.svg': ['screen', 'display', 'matrix', 'screen size'],
-    'dimensions.svg': ['dimensions', 'size'],
-    'display_details.svg': ['panel type', 'refreshrate', 'aspectratio', 'responsetime', 'contrastratio', 'colorgamut'],
-    'resolution.svg': ['resolution'],
-    'refresh_rate.svg': ['refresh rate'],
-    'response_time.svg': ['response time'],
+    'circuit-board.svg': ['motherboard', 'socket', 'threads', 'cpucooler'],
+    'hard-drive.svg': ['drive bays', 'ssd', 'hdd', 'storage'],
+    'fan.svg': ['cooler support', 'installed coolers', 'fan support'],
+    'package-open.svg': ['fans included', 'includedaccessories', 'portability', 'portable design'],
+    'memory-stick.svg': ['ram', 'memory'],
+    'monitor.svg': ['screen', 'display', 'matrix', 'screen size'],
+    'ruler-dimension-line.svg': ['dimensions', 'size'],
+    'ruler-dimension-line-height.svg': ['height'],
+    'monitor-cog.svg': ['panel type', 'aspect ratio', 'response time', 'contrast ratio', 'color gamut', 'vesa mount compatibility', 'os', 'operating system'],
+    'monitor-check.svg': ['flicker-free technology'],
+    'refresh-ccw.svg': ['refresh rate'],
+    'clock-arrow-down.svg': ['response time'],
     'contrast.svg': ['contrast'],
-    'tearing_prevention.svg': ['tearing prevention', 'gsync', 'freesync', 'vsync'],
-    'backlight.svg': ['backlight'],
-    'graphics.svg': ['graphics', 'gpu', 'vram'],
-    'battery.svg': ['battery', 'power', 'wattage', 'mah'],
-    'camera.svg': ['camera', 'webcam'],
+    'shredder.svg': ['tearing prevention', 'gsync', 'freesync', 'vsync'],
+    'sunset.svg': ['backlight'],
+    'gpu.svg': ['graphics', 'gpu', 'vram'],
+    'battery-charging.svg': ['battery', 'power', 'wattage', 'mah'],
+    'webcam.svg': ['camera', 'webcam'],
     'keyboard.svg': ['keyboard', 'mouse'],
-    'connectivity.svg': ['wifi', 'bluetooth', 'nfc'],
-    'design.svg': ['design'],
+    'wifi.svg': ['wifi', 'nfc'],
+    'origami.svg': ['design'],
     'weight.svg': ['max weight', 'weight'],
-    'armrest.svg': ['armrest', 'armrests'],
-    'materials.svg': ['material', 'material(s)'],
+    'biceps-flexed.svg': ['armrest', 'armrests'],
+    'anvil.svg': ['material', 'material(s)'],
     'wheel.svg': ['number of wheels'],
-    'color.svg': ['color'],
-    'os.svg': ['os', 'operating system'],
+    'paint-bucket.svg': ['color'],
     'printer.svg': ['print', 'scan', 'copy'],
-    'general.svg': ['brand', 'model', 'barcode', 'partnumber'],
-    'memory_details.svg': ['memorytype', 'memoryspeed', 'maxmemory', 'memorycardsupport', 'opticaldrive'],
-    'brightness.svg': ['brightness'],
-    'viewing_angle.svg': ['viewing angle'],
+    'info.svg': ['brand', 'model', 'barcode', 'part number'],
+    'card-sd.svg': ['memory type', 'memory speed', 'max memory', 'memory card support', 'optical drive'],
+    'sun.svg': ['brightness'],
+    'eye-off.svg': ['viewing angle'],
     'network.svg': ['interface', 'ethernet', 'network'],
-    'build.svg': ['formfactor', 'case', 'buildmaterial', 'ip_rating'],
-    'power_supply.svg': ['powersupply', 'efficiency', 'modular', 'capacity', 'psu included'],
-    'audio.svg': ['audio', 'speakers', 'microphone'],
-    'security.svg': ['fingerprintsensor', 'facerecognition'],
-    'features.svg': ['supportedos', 'sim_support', 'smartfeatures', 'tuner'],
-    'printer_details.svg': ['functions', 'papersize', 'connector'],
+    'pc-case.svg': ['formfactor', 'case', 'build material', 'ip_rating'],
+    'square-power.svg': ['power supply', 'efficiency', 'modular', 'capacity', 'psu included'],
+    'volume-2.svg': ['audio', 'speakers', 'microphone'],
+    'lock.svg': ['fingerprint sensor', 'face recognition'],
+    'cog.svg': ['supported os', 'sim_support', 'smart features', 'tuner'],
+    'file-cog.svg': ['functions', 'papersize', 'connector'],
     'projector.svg': ['optical zoom', 'lamp life', 'power consumption', 'mounting'],
+    'shrink.svg': ['ultra-narrow bezels', 'form factor'],
+    'gamepad-2.svg': ['game mode'],
+    'app-window.svg': ['app support'],
+    'bluetooth-connected.svg': ['bluetooth'],
 }
 
 def get_icon_path_for_spec(spec_text):
@@ -355,48 +357,6 @@ def _draw_qr_code(img, item_data, position, size, qr_cache=None):
         print(f"INFO: No URL provided for '{item_name}' (SKU: {sku}). QR code will not be generated.")
 
 
-
-
-def _draw_bezier_curve(draw, start_point, end_point, control_point, fill, width):
-    """Draws a quadratic Bezier curve."""
-    points = []
-    for t in range(101):
-        t /= 100.0
-        x = (1 - t)**2 * start_point[0] + 2 * (1 - t) * t * control_point[0] + t**2 * end_point[0]
-        y = (1 - t)**2 * start_point[1] + 2 * (1 - t) * t * control_point[1] + t**2 * end_point[1]
-        points.append((x, y))
-    draw.line(points, fill=fill, width=width)
-
-
-def _draw_cosmic_veil_accent(img, width, height):
-    """Draws a subtle, semi-transparent nebula effect on a dark background."""
-    # Colors with low alpha for subtlety
-    c1 = (46, 2, 109, 210)     # Deep Violet
-    c2 = (0, 184, 252, 220)    # Electric Blue
-    c3 = (255, 0, 122, 205)    # Neon Pink
-    colors = [c1, c2, c3]
-
-    for _ in range(4):  # Draw 4 soft glows
-        color = random.choice(colors)
-        
-        # Create a temporary image for the radial gradient
-        radius = random.randint(int(width * 0.5), int(width * 0.9))
-        glow_img = Image.new('RGBA', (radius * 2, radius * 2), (0, 0, 0, 0))
-        glow_draw = ImageDraw.Draw(glow_img)
-
-        # Draw concentric circles with decreasing alpha to create a soft glow
-        for i in range(radius, 0, -2):
-            alpha = int(color[3] * (1 - (i / radius)))
-            fill_color = (color[0], color[1], color[2], alpha)
-            glow_draw.ellipse([(radius - i, radius - i), (radius + i, radius + i)], fill=fill_color)
-
-        # Paste the glow onto the main draw object at a random position
-        paste_x = random.randint(-int(width * 0.6), int(width * 0.3))
-        paste_y = random.randint(-int(height * 0.6), int(height * 0.3))
-        
-        img.paste(glow_img, (paste_x, paste_y), glow_img)
-
-
 def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None, is_special=False):
     """
     Draws a 'SALE' starburst overlay with rotated text.
@@ -460,34 +420,6 @@ def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, lang
     img.paste(rotated_text_img, (paste_x, paste_y), rotated_text_img)
 
 
-def _draw_blood_splatter(draw, width, height):
-    """Draws a blood splatter effect in the bottom-left corner."""
-    blood_color = (180, 0, 0, 200)
-    darker_blood_color = (130, 0, 0, 220)
-
-    # Main splat
-    for _ in range(random.randint(15, 25)):
-        x = random.gauss(width * 0.1, width * 0.15)
-        y = random.gauss(height * 0.9, height * 0.1)
-        radius = random.uniform(2, 20)
-        draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=blood_color)
-
-    # Smaller droplets
-    for _ in range(random.randint(30, 50)):
-        x = random.uniform(0, width * 0.5)
-        y = random.uniform(height * 0.6, height)
-        radius = random.uniform(1, 4)
-        if (x - width*0.1)**2 + (y - height*0.9)**2 < (width*0.2)**2: # concentrate near main splat
-             draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=darker_blood_color)
-
-    # Drips
-    for _ in range(random.randint(3, 5)):
-        start_x = random.randint(0, int(width * 0.3))
-        start_y = random.randint(int(height * 0.8), height)
-        end_y = start_y + random.randint(10, 50)
-        end_x = start_x + random.randint(-5, 5)
-        draw.line([(start_x, start_y), (end_x, end_y)], fill=darker_blood_color, width=random.randint(2, 4))
-
 
 def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, theme, background_cache=None):
     # --- BRANDING & THEME OVERRIDES ---
@@ -509,10 +441,6 @@ def _create_accessory_tag(item_data, width_px, height_px, width_cm, height_cm, t
             img = Image.new('RGB', (width_px, height_px), bg_color)
 
         # --- ACCENTS ---
-        # Must be drawn after the main background is set
-        if theme.get('accessory_background_style') == 'cosmic_veil':
-            _draw_cosmic_veil_accent(img, width_px, height_px)
-        
         if background_cache is not None:
             background_cache[sku] = img.copy()
 
@@ -1288,7 +1216,7 @@ def _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm
     return img
 
 
-def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False, qr_cache=None):
+def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False, qr_cache=None, is_dual=False):
     """Creates a completely redesigned, modern, and visually pleasing price tag."""
     translator = Translator()
     # --- 1. Config, Scaling, and Fonts ---
@@ -1411,14 +1339,16 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     
     all_specs = item_data.get('all_specs', [])
     warranty_spec = None
-    other_specs = list(all_specs)
-    # Separate warranty spec
+    other_specs = []
+    temp_warranty_specs = []
     for spec in all_specs:
         if 'warranty' in spec.lower():
-            warranty_spec = spec
-            if spec in other_specs:
-                other_specs.remove(spec)
-            break
+            temp_warranty_specs.append(spec)
+        else:
+            other_specs.append(spec)
+    
+    if temp_warranty_specs:
+        warranty_spec = temp_warranty_specs[0] # Use the first for the footer
 
     final_material_spec = None
     # Special handling for 14.8x8cm tag size to ensure 'Material Details' is the last spec
@@ -1703,41 +1633,42 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
         y_pos_for_turnaround = sku_y + footer_font_size # Increased vertical spacing
 
     # Add turnaround text and arrow
-    turnaround_font_size = footer_font_size * 0.8
-    if language == 'en':
-        turnaround_text = "იხილეთ ქართული ვერსია"
-        turnaround_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, turnaround_font_size)
-    else: # language == 'ka'
-        turnaround_text = "See English Version"
-        turnaround_font = get_font(PRIMARY_FONT_PATH, turnaround_font_size)
+    if is_dual:
+        turnaround_font_size = footer_font_size * 0.8
+        if language == 'en':
+            turnaround_text = "იხილეთ ქართული ვერსია"
+            turnaround_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, turnaround_font_size)
+        else: # language == 'ka'
+            turnaround_text = "See English Version"
+            turnaround_font = get_font(PRIMARY_FONT_PATH, turnaround_font_size)
 
-    try:
-        arrow_icon_path = resource_path("assets/arrow.png")
-        with Image.open(arrow_icon_path) as arrow_icon:
-            text_height = turnaround_font.getbbox(turnaround_text)[3] - turnaround_font.getbbox(turnaround_text)[1]
-            arrow_size = int(text_height * 1.5)
-            arrow_icon.thumbnail((arrow_size, arrow_size), Image.Resampling.LANCZOS)
-            rgba_arrow = arrow_icon.convert('RGBA')
+        try:
+            arrow_icon_path = resource_path("assets/arrow.png")
+            with Image.open(arrow_icon_path) as arrow_icon:
+                text_height = turnaround_font.getbbox(turnaround_text)[3] - turnaround_font.getbbox(turnaround_text)[1]
+                arrow_size = int(text_height * 1.5)
+                arrow_icon.thumbnail((arrow_size, arrow_size), Image.Resampling.LANCZOS)
+                rgba_arrow = arrow_icon.convert('RGBA')
 
-            # Position and draw arrow first, on the far right
-            right_edge = width_px - content_padding
-            padding = int(8 * scale_factor)
-            arrow_x = right_edge - rgba_arrow.width
-            arrow_y = int(y_pos_for_turnaround - (rgba_arrow.height / 2))
+                # Position and draw arrow first, on the far right
+                right_edge = width_px - content_padding
+                padding = int(8 * scale_factor)
+                arrow_x = right_edge - rgba_arrow.width
+                arrow_y = int(y_pos_for_turnaround - (rgba_arrow.height / 2))
 
-            tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
-            tmp.paste(rgba_arrow, (arrow_x, arrow_y))
-            img = Image.alpha_composite(img, tmp)
-            draw = ImageDraw.Draw(img, 'RGBA')
+                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                tmp.paste(rgba_arrow, (arrow_x, arrow_y))
+                img = Image.alpha_composite(img, tmp)
+                draw = ImageDraw.Draw(img, 'RGBA')
 
-            # Then, draw text to the left of the arrow
-            text_x = arrow_x - padding
-            draw.text((text_x, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
+                # Then, draw text to the left of the arrow
+                text_x = arrow_x - padding
+                draw.text((text_x, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
 
-    except FileNotFoundError:
-        # Fallback if arrow not found: draw text only
-        print("Warning: assets/arrow.png not found.")
-        draw.text((width_px - content_padding, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
+        except FileNotFoundError:
+            # Fallback if arrow not found: draw text only
+            print("Warning: assets/arrow.png not found.")
+            draw.text((width_px - content_padding, y_pos_for_turnaround), turnaround_text, font=turnaround_font, fill=spec_text_color, anchor="rm")
 
     # --- 8. Final Border (90-degree corners) ---
     draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='#ADB5BD', width=max(1, int(2 * scale_factor)))
@@ -1745,7 +1676,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     return img.convert('RGB')
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, qr_cache=None):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, qr_cache=None, is_dual=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 
@@ -1757,7 +1688,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if width_cm == 6 and height_cm == 3.5:
             return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
         else:
-            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special, qr_cache=qr_cache)
+            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special, qr_cache=qr_cache, is_dual=is_dual)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
@@ -1955,12 +1886,6 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
     footer_area_top = height_px - footer_height - border_width
     draw.line([(margin, footer_area_top), (width_px - margin, footer_area_top)], fill=text_color, width=line_width)
     footer_center_y = footer_area_top + (height_px - footer_area_top - border_width) / 2
-
-    # --- QR Code ---
-    qr_size = int(footer_height * 0.9)
-    qr_x = int((width_px - qr_size) / 2)
-    qr_y = int(footer_area_top + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size, qr_cache=qr_cache)
 
     sku_label_text = translator.get_spec_label("SKU", language) + ": "
     sku_value_text = item_data.get('SKU', 'N/A')
