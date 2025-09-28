@@ -426,6 +426,13 @@ TRANSLATIONS = {
             "Duplex Print": "Duplex Print",
             "Duplex Scan": "Duplex Scan",
             "Duplex Scan Speed": "Duplex Scan Speed",
+            "ADF": "ADF",
+            "ADF Capacity": "ADF Capacity",
+            "Ink Type": "Ink Type",
+            "Cartridge": "Cartridge",
+            "Toner": "Toner",
+            "Toner Type": "Toner Type",
+            "Bit Depth": "Bit Depth",
 
             # --- Monitor Specific ---
             "Ports & Connectors": "Ports & Connectors",
@@ -883,6 +890,13 @@ TRANSLATIONS = {
             "Duplex Print": "ორმხრივი ბეჭდვა",
             "Duplex Scan": "ორმხრივი სკანირება",
             "Duplex Scan Speed": "ორმხრივი სკანირების სიჩქარე",
+            "ADF": "ADF",
+            "ADF Capacity": "ADF-ის ტევადობა",
+            "Ink Type": "მელნის ტიპი",
+            "Cartridge": "კარტრიჯი",
+            "Toner": "ტონერი",
+            "Toner Type": "ტონერის ტიპი",
+            "Bit Depth": "ბიტების სიღრმე",
 
             # --- Monitor Specific ---
             "Ports & Connectors": "პორტები და კონექტორები",

@@ -95,16 +95,17 @@ def load_image_path(path, color=None):
 # A mapping of keywords to icon filenames.
 # The order is important: more specific keywords should come before more general ones.
 SPEC_ICON_MAP = {
-    'armchair.svg': ['chair frame', 'materials', 'number of wheels', 'armrests', 'maximum weight', 'max weight'],
+    'armchair.svg': ['materials', 'armrests'],
+    'max-weight.svg': ['maximum weight', 'max weight'],
     'gauge.svg': ['print speed (iso)', 'print speed'],
     'printer-check.svg': ['print technology'],
     'ratio.svg': ['print resolution', 'resolution'],
     'scan-text.svg': ['scan type'],
-    'smartphone-nfc.svg': ['mobile printing', 'mobileprinting'],
+    'smartphone-nfc.svg': ['mobile printing', 'mobile printing'],
     'recycle.svg': ['monthly duty cycle'],
     'chart-network.svg': ['topology'],
     'audio-waveform.svg': ['waveform type'],
-    'zap.svg': ['output voltage', 'inputvoltage', 'outputvoltage'],
+    'zap.svg': ['output voltage', 'input voltage', 'output voltage'],
     'timer-reset.svg': ['output frequency', 'input frequency'],
     'usb.svg': ['output connection count', 'hdmi', 'usb', 'audio jack', 'ports'],
     'cable.svg': ['output connection type', 'input connection type'],
@@ -112,10 +113,10 @@ SPEC_ICON_MAP = {
     'battery-plus.svg': ['number of batteries'],
     'shield-user.svg': ['warranty'],
     'cpu.svg': ['cpu', 'processor', 'chipset', 'cores'],
-    'circuit-board.svg': ['motherboard', 'socket', 'threads', 'cpucooler'],
+    'circuit-board.svg': ['motherboard', 'socket', 'threads', 'cpu cooler'],
     'hard-drive.svg': ['drive bays', 'ssd', 'hdd', 'storage'],
     'fan.svg': ['cooler support', 'installed coolers', 'fan support'],
-    'package-open.svg': ['fans included', 'includedaccessories', 'portability', 'portable design'],
+    'package-open.svg': ['fans included', 'included accessories', 'portability', 'portable design'],
     'memory-stick.svg': ['ram', 'memory'],
     'monitor.svg': ['screen', 'display', 'matrix', 'screen size'],
     'ruler-dimension-line.svg': ['dimensions', 'size'],
@@ -135,7 +136,7 @@ SPEC_ICON_MAP = {
     'origami.svg': ['design'],
     'weight.svg': ['max weight', 'weight'],
     'biceps-flexed.svg': ['armrest', 'armrests'],
-    'anvil.svg': ['material', 'material(s)'],
+    'anvil.svg': ['chair frame', 'frame material', 'material', 'material(s)'],
     'wheel.svg': ['number of wheels'],
     'paint-bucket.svg': ['color'],
     'printer.svg': ['print', 'scan', 'copy'],
@@ -145,6 +146,7 @@ SPEC_ICON_MAP = {
     'eye-off.svg': ['viewing angle'],
     'network.svg': ['interface', 'ethernet', 'network'],
     'pc-case.svg': ['formfactor', 'case', 'build material', 'ip_rating'],
+    'archive-restore.svg': ['adf capacity'],
     'square-power.svg': ['power supply', 'efficiency', 'modular', 'capacity', 'psu included'],
     'volume-2.svg': ['audio', 'speakers', 'microphone'],
     'lock.svg': ['fingerprint sensor', 'face recognition'],
@@ -155,6 +157,9 @@ SPEC_ICON_MAP = {
     'gamepad-2.svg': ['game mode'],
     'app-window.svg': ['app support'],
     'bluetooth-connected.svg': ['bluetooth'],
+    'settings-2.svg': ['mechanism'],
+    'columns-3-cog.svg': ['backrest adjustment', 'adjustable arm rests', 'seat adjustment', 'height adjustment', 'tilt mechanism'],
+    'swatch-book.svg': ['color depth', 'color support', 'bit depth'],
 }
 
 def get_icon_path_for_spec(spec_text):
@@ -163,11 +168,11 @@ def get_icon_path_for_spec(spec_text):
     icon_dir = resource_path("assets/spec_icons")
 
     for icon, keywords in SPEC_ICON_MAP.items():
-        if any(keyword in spec_lower for keyword in keywords):
+        if any(re.search(r'\b' + re.escape(keyword) + r'\b', spec_lower) for keyword in keywords):
             return os.path.join(icon_dir, icon)
 
     # Default icon if no specific match
-    return os.path.join(icon_dir, 'default.png')
+    return os.path.join(icon_dir, 'info.svg')
 
 
 def contains_georgian(text):
@@ -302,8 +307,8 @@ def _draw_qr_code(img, item_data, position, size, qr_cache=None):
         if correct_url:
             print(f"INFO: Using cached QR code URL for '{item_name}' (SKU: {sku})")
     else:
-        base_slug = item_name.lower().replace(' ', '-')
-        for i in range(1, 11):
+        base_slug = item_name.lower().replace(' ', '-').replace('/', '-')
+        for i in range(1, 3):
             if i == 1:
                 slug_variant = base_slug
             else:
@@ -1436,7 +1441,10 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
             icon_x = int(start_x)
             icon_y = int(y_pos + (spec_line_height - icon_size) / 2)
             icon_path = get_icon_path_for_spec(spec)
-            icon_img = load_image_path(icon_path, color=line_color)
+            if any(icon_name in icon_path for icon_name in ['max-weight.svg', 'ruler-dimension-line-height.svg']):
+                icon_img = load_image_path(icon_path)
+            else:
+                icon_img = load_image_path(icon_path, color=line_color)
 
             if icon_img:
                 try:
@@ -1545,70 +1553,79 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
 
     # --- Warranty ---
     if warranty_spec:
-        icon_size = int(footer_font_size * 1)
-        icon_padding = int(10 * scale_factor)
-        icon_path = get_icon_path_for_spec('warranty') # Directly use 'warranty' to get the path
-        icon_img = load_image_path(icon_path, color=line_color)
-
-        warranty_font_size = footer_font_size * 0.75
-        warranty_font = get_font(PRIMARY_FONT_PATH, warranty_font_size)
-
-        warranty_y = price_y + (price_font_size * 0.8)
-
-        icon_x = int(price_x)
-        ascent, descent = warranty_font.getmetrics()
-        line_height = ascent + descent
-        icon_y = int(warranty_y - (line_height/2) + (line_height - icon_size) / 2)
-
-        if icon_img:
-            try:
-                icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
-                rgba_icon = icon_img.convert('RGBA')
-                tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
-                tmp.paste(rgba_icon, (icon_x, icon_y))
-                img = Image.alpha_composite(img, tmp)
-                draw = ImageDraw.Draw(img, 'RGBA')  # Recreate draw object
-            except Exception as e:
-                print(f"Could not process icon {icon_path}: {e}")
-
-        label_x = icon_x + icon_size + icon_padding
-
+        value_part = ""
         if ':' in warranty_spec:
-            label, value = warranty_spec.split(':', 1)
-            value = value.strip()
-
-            parts = value.split()
-            number = ""
-            unit = ""
-            if len(parts) >= 2:
-                number = parts[0]
-                unit = parts[1]
-
-            warranty_text = ""
-            if unit.lower().startswith('year'):
-                if language == 'ka':
-                    translated_warranty = translator.get_spec_label('Warranty', language)
-                    warranty_text = f"{number} წლიანი {translated_warranty}"
-                else:
-                    if number == '1':
-                        translated_unit = translator.get_spec_label("Year", language)
-                    else:
-                        translated_unit = translator.get_spec_label("Years", language)
-                    
-                    translated_warranty = translator.get_spec_label('Warranty', language)
-                    warranty_text = f"{number} {translated_unit} {translated_warranty}"
-            else:
-                # Fallback for other units like "Month" or if parsing fails
-                translated_warranty = translator.get_spec_label('Warranty', language)
-                warranty_text = f"{value} {translated_warranty}"
-
-            if contains_georgian(warranty_text):
-                warranty_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, warranty_font_size)
-
-            draw.text((label_x, warranty_y), warranty_text, font=warranty_font, fill=text_color, anchor='lm')
+            _, value_part = warranty_spec.split(':', 1)
+            value_part = value_part.strip()
         else:
-            # Fallback for just text
-            draw.text((label_x, warranty_y), warranty_spec, font=warranty_font, fill=text_color, anchor='lm')
+            value_part = warranty_spec.strip()
+
+        # Only draw the warranty if the value part contains a digit (e.g., "1 Year", "12 Months")
+        if any(char.isdigit() for char in value_part):
+            icon_size = int(footer_font_size * 1)
+            icon_padding = int(10 * scale_factor)
+            icon_path = get_icon_path_for_spec('warranty') # Directly use 'warranty' to get the path
+            icon_img = load_image_path(icon_path, color=line_color)
+
+            warranty_font_size = footer_font_size * 0.75
+            warranty_font = get_font(PRIMARY_FONT_PATH, warranty_font_size)
+
+            warranty_y = price_y + (price_font_size * 0.8)
+
+            icon_x = int(price_x)
+            ascent, descent = warranty_font.getmetrics()
+            line_height = ascent + descent
+            icon_y = int(warranty_y - (line_height/2) + (line_height - icon_size) / 2)
+
+            if icon_img:
+                try:
+                    icon_img.thumbnail((icon_size, icon_size), Image.Resampling.LANCZOS)
+                    rgba_icon = icon_img.convert('RGBA')
+                    tmp = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                    tmp.paste(rgba_icon, (icon_x, icon_y))
+                    img = Image.alpha_composite(img, tmp)
+                    draw = ImageDraw.Draw(img, 'RGBA')  # Recreate draw object
+                except Exception as e:
+                    print(f"Could not process icon {icon_path}: {e}")
+
+            label_x = icon_x + icon_size + icon_padding
+
+            if ':' in warranty_spec:
+                label, value = warranty_spec.split(':', 1)
+                value = value.strip()
+
+                parts = value.split()
+                number = ""
+                unit = ""
+                if len(parts) >= 2:
+                    number = parts[0]
+                    unit = parts[1]
+
+                warranty_text = ""
+                if unit.lower().startswith('year'):
+                    if language == 'ka':
+                        translated_warranty = translator.get_spec_label('Warranty', language)
+                        warranty_text = f"{number} წლიანი {translated_warranty}"
+                    else:
+                        if number == '1':
+                            translated_unit = translator.get_spec_label("Year", language)
+                        else:
+                            translated_unit = translator.get_spec_label("Years", language)
+                        
+                        translated_warranty = translator.get_spec_label('Warranty', language)
+                        warranty_text = f"{number} {translated_unit} {translated_warranty}"
+                else:
+                    # Fallback for other units like "Month" or if parsing fails
+                    translated_warranty = translator.get_spec_label('Warranty', language)
+                    warranty_text = f"{value} {translated_warranty}"
+
+                if contains_georgian(warranty_text):
+                    warranty_font = get_font(FALLBACK_FONT_GEORGIAN_REGULAR, warranty_font_size)
+
+                draw.text((label_x, warranty_y), warranty_text, font=warranty_font, fill=text_color, anchor='lm')
+            else:
+                # Fallback for just text
+                draw.text((label_x, warranty_y), warranty_spec, font=warranty_font, fill=text_color, anchor='lm')
 
     # --- QR Code ---
     qr_size = int(footer_height * 0.9)
