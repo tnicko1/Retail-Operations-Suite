@@ -116,16 +116,16 @@ SPEC_ICON_MAP = {
     'circuit-board.svg': ['motherboard', 'socket', 'threads', 'cpu cooler'],
     'hard-drive.svg': ['drive bays', 'ssd', 'hdd', 'storage'],
     'fan.svg': ['cooler support', 'installed coolers', 'fan support'],
-    'package-open.svg': ['fans included', 'included accessories', 'portability', 'portable design'],
+    'package-open.svg': ['fans included', 'included accessories', 'portability', 'portable design', 'what\'s in the box'],
     'memory-stick.svg': ['ram', 'memory'],
     'monitor.svg': ['screen', 'display', 'matrix', 'screen size'],
     'ruler-dimension-line.svg': ['dimensions', 'size'],
     'ruler-dimension-line-height.svg': ['height'],
-    'monitor-cog.svg': ['panel type', 'aspect ratio', 'response time', 'contrast ratio', 'color gamut', 'vesa mount compatibility', 'os', 'operating system'],
+    'monitor-cog.svg': ['panel type', 'aspect ratio', 'vesa mount compatibility', 'os', 'operating system', 'vesa'],
     'monitor-check.svg': ['flicker-free technology'],
     'refresh-ccw.svg': ['refresh rate'],
     'clock-arrow-down.svg': ['response time'],
-    'contrast.svg': ['contrast'],
+    'contrast.svg': ['contrast', 'contrast ratio',],
     'shredder.svg': ['tearing prevention', 'gsync', 'freesync', 'vsync'],
     'sunset.svg': ['backlight'],
     'gpu.svg': ['graphics', 'gpu', 'vram'],
@@ -143,12 +143,13 @@ SPEC_ICON_MAP = {
     'info.svg': ['brand', 'model', 'barcode', 'part number'],
     'card-sd.svg': ['memory type', 'memory speed', 'max memory', 'memory card support', 'optical drive'],
     'sun.svg': ['brightness'],
-    'eye-off.svg': ['viewing angle'],
+    'eye-off.svg': ['viewing angle', "viewing angles"],
     'network.svg': ['interface', 'ethernet', 'network'],
     'pc-case.svg': ['formfactor', 'case', 'build material', 'ip_rating'],
     'archive-restore.svg': ['adf capacity'],
     'square-power.svg': ['power supply', 'efficiency', 'modular', 'capacity', 'psu included'],
-    'volume-2.svg': ['audio', 'speakers', 'microphone'],
+    'volume-2.svg': ['audio', 'microphone'],
+    'speaker.svg': ['audio output', 'audio input', 'speakers', 'speaker', 'speaker(s)'],
     'lock.svg': ['fingerprint sensor', 'face recognition'],
     'cog.svg': ['supported os', 'sim_support', 'smart features', 'tuner'],
     'file-cog.svg': ['functions', 'papersize', 'connector'],
@@ -159,16 +160,38 @@ SPEC_ICON_MAP = {
     'bluetooth-connected.svg': ['bluetooth'],
     'settings-2.svg': ['mechanism'],
     'columns-3-cog.svg': ['backrest adjustment', 'adjustable arm rests', 'seat adjustment', 'height adjustment', 'tilt mechanism'],
-    'swatch-book.svg': ['color depth', 'color support', 'bit depth'],
+    'swatch-book.svg': ['color depth', 'color support', 'bit depth', 'color gamut'],
 }
+
+# A pre-sorted list of all keywords for efficient matching.
+SORTED_SPEC_KEYWORDS = None
+
+def _get_sorted_spec_keywords():
+    """
+    Prepares and sorts all keywords from SPEC_ICON_MAP by length, descending.
+    This ensures that more specific keywords are checked before less specific ones.
+    The result is cached in a global variable for performance.
+    """
+    global SORTED_SPEC_KEYWORDS
+    if SORTED_SPEC_KEYWORDS is None:
+        all_keywords = []
+        for icon, keywords in SPEC_ICON_MAP.items():
+            for keyword in keywords:
+                all_keywords.append((keyword, icon))
+        # Sort by keyword length, descending
+        all_keywords.sort(key=lambda x: len(x[0]), reverse=True)
+        SORTED_SPEC_KEYWORDS = all_keywords
+    return SORTED_SPEC_KEYWORDS
 
 def get_icon_path_for_spec(spec_text):
     """Returns an icon path based on keywords in the specification text."""
     spec_lower = spec_text.lower()
     icon_dir = resource_path("assets/spec_icons")
 
-    for icon, keywords in SPEC_ICON_MAP.items():
-        if any(re.search(r'\b' + re.escape(keyword) + r'\b', spec_lower) for keyword in keywords):
+    sorted_keywords = _get_sorted_spec_keywords()
+
+    for keyword, icon in sorted_keywords:
+        if re.search(r'\b' + re.escape(keyword) + r'\b', spec_lower):
             return os.path.join(icon_dir, icon)
 
     # Default icon if no specific match
@@ -288,78 +311,24 @@ def _create_dynamic_background(width, height):
     return img
 
 
-def _draw_qr_code(img, item_data, position, size, qr_cache=None):
-    from dialogs import QRCodeURLDialog
+def _draw_qr_code(img, url, position, size):
     """
-    Generates and draws a QR code by finding the correct URL.
-    It fetches URL variations and compares SKUs to ensure accuracy.
+    Generates and draws a QR code from a given URL.
     """
-    item_name = item_data.get('Name')
-    sku = item_data.get('SKU')
-
-    if not item_name or not sku:
-        print("WARNING: Item name or SKU is missing. Cannot generate QR code.")
+    if not url:
         return
 
-    correct_url = None
-    if qr_cache is not None and sku in qr_cache:
-        correct_url = qr_cache[sku]
-        if correct_url:
-            print(f"INFO: Using cached QR code URL for '{item_name}' (SKU: {sku})")
-    else:
-        base_slug = item_name.lower().replace(' ', '-').replace('/', '-')
-        for i in range(1, 3):
-            if i == 1:
-                slug_variant = base_slug
-            else:
-                slug_variant = f"{base_slug}-{i}"
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
 
-            url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
-
-            try:
-                with urllib.request.urlopen(url_to_check, timeout=5) as response:
-                    page_content = response.read().decode('utf-8', errors='ignore')
-                if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
-                    correct_url = url_to_check
-                    print(f"SUCCESS: Found matching SKU for '{item_name}' at {correct_url}")
-                    break
-                else:
-                    print(f"INFO: SKU mismatch for '{item_name}' at {url_to_check}. Trying next...")
-            except urllib.error.HTTPError as e:
-                if e.code == 404:
-                    print(f"INFO: URL {url_to_check} not found. Stopping search for this item.")
-                    break
-                else:
-                    print(f"WARNING: HTTP Error {e.code} for {url_to_check}.")
-            except Exception as e:
-                print(f"ERROR: An unexpected error occurred while checking {url_to_check}: {e}")
-                break
-
-        if not correct_url:
-            print(f"WARNING: Could not find a matching URL for '{item_name}' (SKU: {sku}). Prompting user.")
-            if QApplication.instance():
-                translator = Translator()
-                dialog = QRCodeURLDialog(translator, item_name, sku)
-                if dialog.exec():
-                    correct_url = dialog.get_url()
-        
-        if qr_cache is not None:
-            qr_cache[sku] = correct_url
-
-    if correct_url:
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=2,
-        )
-        qr.add_data(correct_url)
-        qr.make(fit=True)
-
-        qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
-        img.paste(qr_img, position)
-    else:
-        print(f"INFO: No URL provided for '{item_name}' (SKU: {sku}). QR code will not be generated.")
+    qr_img = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+    img.paste(qr_img, position)
 
 
 def _draw_sale_overlay(img, draw, width_px, height_px, scale_factor, theme, language='en', center_x=None, center_y=None, outer_radius=None, is_special=False):
@@ -1221,7 +1190,7 @@ def _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm
     return img
 
 
-def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False, qr_cache=None, is_dual=False):
+def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special=False, is_dual=False):
     """Creates a completely redesigned, modern, and visually pleasing price tag."""
     translator = Translator()
     # --- 1. Config, Scaling, and Fonts ---
@@ -1350,7 +1319,9 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
         if 'warranty' in spec.lower():
             temp_warranty_specs.append(spec)
         else:
-            other_specs.append(spec)
+            icon_path = get_icon_path_for_spec(spec)
+            if 'info.svg' not in icon_path:
+                other_specs.append(spec)
     
     if temp_warranty_specs:
         warranty_spec = temp_warranty_specs[0] # Use the first for the footer
@@ -1628,10 +1599,12 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
                 draw.text((label_x, warranty_y), warranty_spec, font=warranty_font, fill=text_color, anchor='lm')
 
     # --- QR Code ---
-    qr_size = int(footer_height * 0.9)
-    qr_x = int((width_px - qr_size) / 2)
-    qr_y = int(footer_y_start + (footer_height - qr_size) / 2)
-    _draw_qr_code(img, item_data, (qr_x, qr_y), qr_size, qr_cache=qr_cache)
+    qr_url = item_data.get('qr_url')
+    if qr_url:
+        qr_size = int(footer_height * 0.9)
+        qr_x = int((width_px - qr_size) / 2)
+        qr_y = int(footer_y_start + (footer_height - qr_size) / 2)
+        _draw_qr_code(img, qr_url, (qr_x, qr_y), qr_size)
 
     # SKU and P/N on the right
     sku_text = f"SKU: {item_data.get('SKU', 'N/A')}"
@@ -1693,7 +1666,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     return img.convert('RGB')
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, qr_cache=None, is_dual=False):
+def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, is_dual=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 
@@ -1705,7 +1678,7 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if width_cm == 6 and height_cm == 3.5:
             return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
         else:
-            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special, qr_cache=qr_cache, is_dual=is_dual)
+            return _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, height_cm, theme, language, layout_settings, is_special, is_dual=is_dual)
     if size_config.get('design') == 'keyboard':
         return _create_keyboard_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=is_special)
     if size_config.get('is_accessory_style', False):
@@ -1808,7 +1781,9 @@ def create_price_tag(item_data, size_config, theme, layout_settings=None, langua
         if 'warranty' in spec.lower() and warranty_spec is None:
             warranty_spec = spec
         else:
-            other_specs.append(spec)
+            icon_path = get_icon_path_for_spec(spec)
+            if 'info.svg' not in icon_path:
+                other_specs.append(spec)
 
     spec_ascent, spec_descent = spec_font_regular.getmetrics()
     spec_line_height = spec_ascent + spec_descent

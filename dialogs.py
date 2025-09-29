@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
-                             QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup)
+                             QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar)
 
 import data_handler
 import firebase_handler
@@ -1529,3 +1529,79 @@ class QRCodeURLDialog(QDialog):
 
     def get_url(self):
         return self.url
+
+class QRGenerationProgressDialog(QDialog):
+    def __init__(self, translator, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.setWindowTitle("Generating QR Codes...")
+        self.setMinimumWidth(500)
+        self.setModal(True) # Block interaction with the main window
+
+        layout = QVBoxLayout(self)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(True)
+        layout.addWidget(self.progress_bar)
+
+        self.log_widget = QListWidget()
+        layout.addWidget(self.log_widget)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        self.item_count = 0
+        self.processed_count = 0
+        self.user_cancelled = False
+
+    def set_total_items(self, count):
+        self.item_count = count
+        self.progress_bar.setRange(0, count)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat(f"%v / %m Items ({0:.0f}%)")
+
+    def update_progress(self, item_name, status, url=None):
+        if self.user_cancelled:
+            return
+
+        if status == 'searching':
+            self.log_widget.addItem(f"Searching for '{item_name}'...")
+        elif status == 'success':
+            self.log_widget.addItem(f"  ✓ Found: {url}")
+            self.processed_count += 1
+        elif status == 'fail':
+            self.log_widget.addItem(f"  ✗ Failed to find URL for '{item_name}'.")
+            self.processed_count += 1 # Still counts as processed
+        elif status == 'cached':
+             self.log_widget.addItem(f"  ✓ Using cached URL for '{item_name}'.")
+             self.processed_count += 1
+
+        self.progress_bar.setValue(self.processed_count)
+        percentage = (self.processed_count / self.item_count * 100) if self.item_count > 0 else 0
+        self.progress_bar.setFormat(f"%v / %m Items ({percentage:.0f}%)")
+        QApplication.processEvents() # Keep UI responsive
+
+    def prompt_for_url(self, item_name, sku):
+        if self.user_cancelled:
+            return None
+        self.log_widget.addItem(f"  Action Required: Please provide a URL for '{item_name}'.")
+        dialog = QRCodeURLDialog(self.translator, item_name, sku, self)
+        if dialog.exec():
+            url = dialog.get_url()
+            if url:
+                self.log_widget.addItem(f"  ✓ User provided URL: {url}")
+            else:
+                self.log_widget.addItem("  ✗ User skipped providing a URL.")
+            return url
+        else: # User clicked Skip in the URL dialog
+            self.log_widget.addItem("  ✗ User skipped providing a URL.")
+            return None
+
+    def reject(self):
+        self.user_cancelled = True
+        self.log_widget.addItem("Operation cancelled by user.")
+        super().reject()
+
+    def was_cancelled(self):
+        return self.user_cancelled

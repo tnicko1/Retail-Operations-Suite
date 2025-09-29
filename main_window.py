@@ -16,11 +16,13 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 import a4_layout_generator
 import data_handler
 import firebase_handler
+import re
+import urllib.request
 import price_generator
 from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerDialog, QuickStockDialog,
                      TemplateSelectionDialog, NewItemDialog, PrintQueueDialog, PriceHistoryDialog,
                      TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
-                     ColumnMappingManagerDialog, BrandSelectionDialog)
+                     ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog)
 from translations import Translator
 from utils import format_timedelta, resource_path
 
@@ -210,6 +212,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#0096D6",
                 "text_color": "black"
             },
+            "HP OMEN": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/OMEN.png"),
+                "brand_name": "HP OMEN",
+                "bg_color": "#FF0000",
+                "text_color": "black"
+            },
             "Legion": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Legion.png"),
@@ -264,6 +273,27 @@ class RetailOperationsSuite(QMainWindow):
                 "accessory_logo_path": resource_path("assets/brands/Dell.png"),
                 "brand_name": "Dell",
                 "bg_color": "#007DB8",
+                "text_color": "black"
+            },
+            "Dell Alienware": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Alienware.png"),
+                "brand_name": "DELL Alienware",
+                "bg_color": "#00F0F0",
+                "text_color": "black"
+            },
+            "AOC": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/AOC.png"),
+                "brand_name": "AOC",
+                "bg_color": "#00537D",
+                "text_color": "black"
+            },
+            "AGON by AOC": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/AGON.png"),
+                "brand_name": "AOC",
+                "bg_color": "#8240d2",
                 "text_color": "black"
             },
             "HyperX": {
@@ -354,7 +384,7 @@ class RetailOperationsSuite(QMainWindow):
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Epson.png"),
                 "brand_name": "Epson",
-                "bg_color": "#0064A8",
+                "bg_color": "#2F489A",
                 "text_color": "black"
             },
             "Canon": {
@@ -512,6 +542,70 @@ class RetailOperationsSuite(QMainWindow):
         self.create_menu()
         self.retranslate_ui()
         self.clear_all_fields()
+
+    def prepare_qr_urls(self, skus_to_process, all_items_data):
+        """
+        Iteratively finds QR code URLs for a list of SKUs, showing a progress dialog.
+        Returns False if the user cancels the operation, otherwise True.
+        """
+        if not skus_to_process:
+            return True  # Nothing to do
+
+        progress_dialog = QRGenerationProgressDialog(self.translator, self)
+        progress_dialog.set_total_items(len(skus_to_process))
+        progress_dialog.show()
+
+        for sku in skus_to_process:
+            if progress_dialog.was_cancelled():
+                return False
+
+            item_data = all_items_data.get(sku)
+            if not item_data:
+                continue
+
+            item_name = item_data.get('Name', '')
+
+            if sku in self.qr_cache and self.qr_cache[sku]:
+                progress_dialog.update_progress(item_name, 'cached')
+                continue
+
+            progress_dialog.update_progress(item_name, 'searching')
+
+            correct_url = None
+            base_slug = item_name.lower().replace(' ', '-').replace('/', '-').replace('"', '').replace('.', '-')
+            for i in range(1, 3):
+                if i == 1:
+                    slug_variant = base_slug
+                else:
+                    slug_variant = f"{base_slug}-{i}"
+
+                url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
+
+                try:
+                    with urllib.request.urlopen(url_to_check, timeout=3) as response:
+                        page_content = response.read().decode('utf-8', errors='ignore')
+                    if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
+                        correct_url = url_to_check
+                        progress_dialog.update_progress(item_name, 'success', url=correct_url)
+                        break
+                except urllib.error.HTTPError as e:
+                    if e.code == 404:
+                        break
+                except Exception:
+                    break
+
+            if not correct_url:
+                correct_url = progress_dialog.prompt_for_url(item_name, sku)
+                if progress_dialog.was_cancelled():
+                    return False
+
+            if not correct_url:
+                progress_dialog.update_progress(item_name, 'fail')
+
+            self.qr_cache[sku] = correct_url
+
+        progress_dialog.accept()
+        return True
 
     def setup_generator_ui(self):
         main_layout = QHBoxLayout(self.generator_tab)
@@ -1409,12 +1503,18 @@ class RetailOperationsSuite(QMainWindow):
             msg.exec()
             return
 
+        size_name = self.paper_size_combo.currentText()
+        if size_name != "6x3.5cm":
+            if not self.prepare_qr_urls([sku], {sku: item_data}):
+                return  # User cancelled
+
         if self.current_item_data and self.current_item_data.get('SKU') == sku:
             data_to_print = self.get_current_data_from_ui()
         else:
             data_to_print = self._prepare_data_for_printing(item_data)
 
-        size_name = self.paper_size_combo.currentText()
+        data_to_print['qr_url'] = self.qr_cache.get(sku)
+
         theme_name = self.theme_combo.currentText()
         brand_name = self.brand_combo.currentText()
 
@@ -1436,8 +1536,8 @@ class RetailOperationsSuite(QMainWindow):
 
         a4_pixmaps = []
         if is_dual:
-            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
-            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+            img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
+            img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
             
             a4_images = a4_layout_generator.create_a4_for_dual_single(img_en, img_ka)
             for a4_img in a4_images:
@@ -1445,7 +1545,7 @@ class RetailOperationsSuite(QMainWindow):
                 a4_pixmaps.append(QPixmap.fromImage(q_image))
         else:
             lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
-            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+            img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, is_dual=is_dual)
             
             a4_img = a4_layout_generator.create_a4_for_single(img)
             q_image = QImage(a4_img.tobytes(), a4_img.width, a4_img.height, a4_img.width * 3, QImage.Format.Format_RGB888)
@@ -1491,6 +1591,11 @@ class RetailOperationsSuite(QMainWindow):
         token = self.ensure_token_valid()
         if not token: return
         all_items_data = firebase_handler.get_items_by_sku(skus_to_print, token)
+
+        if size_name != "6x3.5cm":
+            if not self.prepare_qr_urls(skus_to_print, all_items_data):
+                return  # User cancelled
+
         all_tags_images = []
 
         background_cache = {}
@@ -1508,7 +1613,9 @@ class RetailOperationsSuite(QMainWindow):
                 item_name = item_data.get("Name", "").lower()
                 detected_brand_name = None
 
-                for b_name in self.brands_by_name.keys():
+                sorted_brand_names = sorted(self.brands_by_name.keys(), key=len, reverse=True)
+
+                for b_name in sorted_brand_names:
                     if b_name.lower() in item_name:
                         detected_brand_name = b_name
                         break
@@ -1536,6 +1643,7 @@ class RetailOperationsSuite(QMainWindow):
                         final_theme_config.update(chosen_brand_config)
 
             data_to_print = self._prepare_data_for_printing(item_data)
+            data_to_print['qr_url'] = self.qr_cache.get(sku)
 
             if brand_name == "Epson" and not use_modern_design:
                 data_to_print['all_specs'] = []
@@ -1545,14 +1653,14 @@ class RetailOperationsSuite(QMainWindow):
 
             if is_dual:
                 img_en = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='en', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+                                                          language='en', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
                 img_ka = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                          language='ka', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+                                                          language='ka', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
                 all_tags_images.extend([img_en, img_ka])
             else:
                 lang = 'en' if size_config.get("is_accessory_style", False) else self.translator.language
                 img = price_generator.create_price_tag(data_to_print, size_config, final_theme_config, layout_settings,
-                                                       language=lang, is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+                                                       language=lang, is_special=is_special, background_cache=background_cache, is_dual=is_dual)
                 all_tags_images.append(img)
 
         if not all_tags_images:
@@ -1651,6 +1759,8 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         data = self.get_current_data_from_ui()
+        data['qr_url'] = self.qr_cache.get(data.get('SKU'))
+
         size_name = self.paper_size_combo.currentText()
         theme_name = self.theme_combo.currentText()
         brand_name = self.brand_combo.currentText()
@@ -1679,8 +1789,8 @@ class RetailOperationsSuite(QMainWindow):
 
         if is_dual:
             # Generate two previews side-by-side
-            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
-            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+            img_en = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='en', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
+            img_ka = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language='ka', is_special=is_special, background_cache=background_cache, is_dual=is_dual)
             q_image_en = QImage(img_en.tobytes(), img_en.width, img_en.height, img_en.width * 3,
                                 QImage.Format.Format_RGB888)
             q_image_ka = QImage(img_ka.tobytes(), img_ka.width, img_ka.height, img_ka.width * 3,
@@ -1700,7 +1810,7 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap = combined_pixmap
         else:
             # Generate a single preview
-            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, qr_cache=self.qr_cache, is_dual=is_dual)
+            img = price_generator.create_price_tag(data, size_config, final_theme_config, layout_settings, language=lang, is_special=is_special, background_cache=background_cache, is_dual=is_dual)
             q_image = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
             final_pixmap = QPixmap.fromImage(q_image)
 

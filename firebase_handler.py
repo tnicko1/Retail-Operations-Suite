@@ -395,21 +395,25 @@ def find_item_by_identifier(identifier, token):
 
     if barcode_field:
         # The barcode field is nested inside the 'attributes' dictionary.
-        # We must construct the full path for the query.
         query_path = f"attributes/{barcode_field}"
-        
-        # IMPORTANT: For this to be efficient, the user must have a rule in their
-        # Firebase Realtime Database security rules to index the designated barcode field's path.
-        # e.g., "items": { ".indexOn": ["attributes/Attribute 4 value(s)"] }
         try:
             results = db.child("items").order_by_child(query_path).equal_to(identifier).get(token).val()
             if results:
-                # .equal_to() can return multiple matches, we return the first one.
                 return list(results.values())[0]
         except Exception as e:
             print(f"Warning: Query on user-defined barcode field '{query_path}' failed. Is it indexed correctly in Firebase Rules? Error: {e}")
 
-    # Priority 3: Fallback to searching by Part Number (slow, scans all items)
+    # Priority 3: Hardcoded check for "Attribute 4 value(s)"
+    try:
+        query_path = "attributes/Attribute 4 value(s)"
+        results = db.child("items").order_by_child(query_path).equal_to(identifier).get(token).val()
+        if results:
+            return list(results.values())[0]
+    except Exception as e:
+        # This might fail if the index doesn't exist, which is fine. We can ignore the error.
+        print(f"Info: Query on hardcoded barcode field '{query_path}' failed. This is expected if the field is not indexed. Error: {e}")
+
+    # Priority 4: Fallback to searching by Part Number (slow, scans all items)
     all_items_dict = db.child("items").get(token).val()
     if not all_items_dict: return None
     for sku, item_data in all_items_dict.items():
