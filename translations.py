@@ -265,6 +265,10 @@ TRANSLATIONS = {
         "brand_selection_prompt": "Multiple designs are available for {brand_name}. Please select one.",
         "brand_selection_choose_all": "Use this design for all subsequent '{brand_name}' items in this batch",
 
+        "logistics_tab_title": "Logistics",
+        "logistics_input_placeholder": "Enter SKU, Barcode, or Part Number",
+        "logistics_check_button": "Check Location",
+
         # Spec Labels
         "spec_labels": {
             # --- General Identifiers ---
@@ -783,6 +787,10 @@ TRANSLATIONS = {
         "brand_selection_title": "აირჩიეთ დიზაინი ბრენდისთვის: {brand_name}",
         "brand_selection_prompt": "ბრენდისთვის '{brand_name}' ხელმისაწვდომია რამდენიმე დიზაინი. გთხოვთ, აირჩიოთ ერთი.",
         "brand_selection_choose_all": "ამ დიზაინის გამოყენება ამ ბრენდის ყველა შემდგომი პროდუქტისთვის",
+
+        "logistics_tab_title": "ლოგისტიკა",
+        "logistics_input_placeholder": "შეიყვანეთ კოდი, შტრიხკოდი, ან P/N",
+        "logistics_check_button": "მდებარეობის შემოწმება",
 
         # Spec Labels
         "spec_labels": {

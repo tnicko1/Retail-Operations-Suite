@@ -539,6 +539,11 @@ class RetailOperationsSuite(QMainWindow):
             self.tab_widget.addTab(self.dashboard_tab, self.tr("admin_dashboard"))
             self.setup_dashboard_ui()
 
+        if self.user.get('role') in ['Admin', 'Logistics']:
+            self.logistics_tab = QWidget()
+            self.tab_widget.addTab(self.logistics_tab, "Logistics")
+            self.setup_logistics_ui()
+
         self.create_menu()
         self.retranslate_ui()
         self.clear_all_fields()
@@ -1047,6 +1052,14 @@ class RetailOperationsSuite(QMainWindow):
             self.low_stock_table.setHorizontalHeaderLabels(
                 [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"),
                  self.tr("dashboard_header_category"), self.tr("dashboard_header_stock")])
+
+        if self.user.get('role') in ['Admin', 'Logistics']:
+            logistics_tab_index = self.tab_widget.indexOf(self.logistics_tab)
+            if logistics_tab_index != -1:
+                self.tab_widget.setTabText(logistics_tab_index, self.tr("logistics_tab_title"))
+                self.logistics_input.setPlaceholderText(self.tr("logistics_input_placeholder"))
+                self.logistics_check_button.setText(self.tr("logistics_check_button"))
+                self.logistics_branch_combo.setItemText(0, self.tr("dashboard_all_branches"))
 
         self.update_branch_combo()
         self.update_paper_size_combo()
@@ -1952,3 +1965,84 @@ class RetailOperationsSuite(QMainWindow):
         data_handler.clear_refresh_token()
         self.close()
         QApplication.instance().exit(1)  # Signal to re-open login window
+
+    def setup_logistics_ui(self):
+        layout = QVBoxLayout(self.logistics_tab)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # --- Controls ---
+        controls_layout = QHBoxLayout()
+        self.logistics_branch_combo = QComboBox()
+        self.logistics_branch_combo.addItem("All Branches", "all")
+        for key, data in self.branch_data_map.items():
+            self.logistics_branch_combo.addItem(self.tr(key), key)
+        self.logistics_input = QLineEdit()
+        self.logistics_input.setPlaceholderText("Enter SKU, Barcode, or Part Number")
+        self.logistics_check_button = QPushButton("Check Location")
+        self.logistics_check_button.clicked.connect(self.check_item_location)
+        controls_layout.addWidget(self.logistics_branch_combo)
+        controls_layout.addWidget(self.logistics_input)
+        controls_layout.addWidget(self.logistics_check_button)
+        layout.addLayout(controls_layout)
+
+        self.logistics_scan_timer = QTimer(self)
+        self.logistics_scan_timer.setSingleShot(True)
+        self.logistics_scan_timer.timeout.connect(self.check_item_location)
+        self.logistics_input.textChanged.connect(self.handle_logistics_input_change)
+
+        # --- Result ---
+        self.logistics_result_label = QLabel("")
+        layout.addWidget(self.logistics_result_label)
+
+    def handle_logistics_input_change(self, text):
+        self.logistics_scan_timer.start(500)  # 500ms delay
+
+    def check_item_location(self):
+        identifier = self.logistics_input.text().strip()
+        if not identifier:
+            return
+
+        token = self.ensure_token_valid()
+        if not token:
+            return
+
+        item_data = firebase_handler.find_item_by_identifier(identifier.upper(), token)
+
+        if not item_data:
+            self.logistics_result_label.setText("Item not found.")
+            self.logistics_result_label.setStyleSheet("color: red;")
+            return
+
+        sku = item_data.get("SKU")
+        display_locations = []
+        stock_locations = []
+
+        selected_branch = self.logistics_branch_combo.currentData()
+
+        branches_to_check = [selected_branch] if selected_branch != "all" else self.branch_data_map.keys()
+
+        display_statuses = firebase_handler.get_display_status(token)
+        for branch_key in branches_to_check:
+            branch_data = self.branch_data_map[branch_key]
+            branch_db_key = branch_data["db_key"]
+            if branch_db_key in display_statuses and sku in display_statuses[branch_db_key]:
+                display_locations.append(self.tr(branch_key))
+
+        if display_locations:
+            self.logistics_result_label.setText(f"On Display at: {', '.join(display_locations)}")
+            self.logistics_result_label.setStyleSheet("color: green;")
+            return
+
+        for branch_key in branches_to_check:
+            branch_data = self.branch_data_map[branch_key]
+            stock_col = branch_data['stock_col']
+            stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
+            if stock_str.isdigit() and int(stock_str) > 0:
+                stock_locations.append(f"{self.tr(branch_key)} ({stock_str})")
+
+        if stock_locations:
+            self.logistics_result_label.setText(f"In Storage at: {', '.join(stock_locations)}")
+            self.logistics_result_label.setStyleSheet("color: blue;")
+        else:
+            self.logistics_result_label.setText("Not in stock at any location.")
+            self.logistics_result_label.setStyleSheet("color: red;")
