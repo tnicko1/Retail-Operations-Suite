@@ -259,6 +259,8 @@ TRANSLATIONS = {
         "print_queue_load_prompt_label": "Select a list to load:",
         "print_queue_save_prompt": "Enter a name for this batch list:",
         "print_queue_delete_confirm": "Are you sure you want to delete the saved list '{}'?",
+        "upload_excel_button": "Upload Excel",
+        "select_excel_file": "Select Excel File",
 
         # Brand Selection Dialog
         "brand_selection_title": "Choose Design for {brand_name}",
@@ -782,6 +784,8 @@ TRANSLATIONS = {
         "print_queue_load_prompt_label": "აირჩიეთ სია:",
         "print_queue_save_prompt": "შეიყვანეთ სახელი ამ სიისთვის:",
         "print_queue_delete_confirm": "დარწმუნებული ხართ რომ გსურთ წაშალოთ შენახული სია '{}'?",
+        "upload_excel_button": "Excel-ის ატვირთვა",
+        "select_excel_file": "Excel-ის ფაილის არჩევა",
 
         # Brand Selection Dialog
         "brand_selection_title": "აირჩიეთ დიზაინი ბრენდისთვის: {brand_name}",

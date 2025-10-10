@@ -1119,10 +1119,10 @@ class RetailOperationsSuite(QMainWindow):
 
     def update_branch_combo(self):
         self.branch_combo.blockSignals(True)
-        current_key = self.branch_combo.currentData() or self.settings.get("default_branch", "branch_vaja")
+        current_key = self.branch_combo.currentData() or self.branch_data_map.get(self.settings.get("default_branch", "branch_vaja"), {}).get('db_key')
         self.branch_combo.clear()
-        for key in self.branch_data_map.keys():
-            self.branch_combo.addItem(self.tr(key), key)
+        for key, data in self.branch_data_map.items():
+            self.branch_combo.addItem(self.tr(key), data['db_key']) # Use the correct db_key
 
         index = self.branch_combo.findData(current_key)
         if index != -1:

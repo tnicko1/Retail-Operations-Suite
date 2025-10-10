@@ -9,3 +9,5 @@ PySocks
 qrcode
 cairosvg
 lxml
+pandas
+openpyxl

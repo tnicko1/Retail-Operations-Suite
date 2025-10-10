@@ -9,11 +9,12 @@ import pytz
 import price_generator
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt, QSize
+import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
-                             QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar)
-
+                             QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar,
+                             QFileDialog)
 import data_handler
 import firebase_handler
 from translations import Translator
@@ -511,10 +512,13 @@ class PrintQueueDialog(QDialog):
         self.save_button.clicked.connect(self.save_list)
         self.delete_list_button = QPushButton(self.translator.get("print_queue_delete_button"))
         self.delete_list_button.clicked.connect(self.delete_list)
+        self.upload_excel_button = QPushButton(self.translator.get("upload_excel_button"))
+        self.upload_excel_button.clicked.connect(self.load_from_excel)
         saved_layout.addWidget(self.saved_lists_combo)
         saved_layout.addWidget(self.load_button)
         saved_layout.addWidget(self.save_button)
         saved_layout.addWidget(self.delete_list_button)
+        saved_layout.addWidget(self.upload_excel_button)
         saved_group.setLayout(saved_layout)
         main_layout.addWidget(saved_group)
 
@@ -579,6 +583,71 @@ class PrintQueueDialog(QDialog):
         self.sku_input.clear()
         if sys.platform == "win32":
             winsound.Beep(880, 150)
+
+    def load_from_excel(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, self.translator.get("select_excel_file"), "", "Excel Files (*.xlsx *.xls)")
+        if not file_path:
+            return
+
+        try:
+            df = pd.read_excel(file_path, header=None) # Read without header
+        except Exception as e:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"Failed to read Excel file: {e}")
+            msg.setWindowTitle("Error")
+            msg.exec()
+            return
+
+        # Find the cell containing 'No.'
+        start_row, start_col = -1, -1
+        for r in range(df.shape[0]):
+            for c in range(df.shape[1]):
+                if str(df.iat[r, c]).strip() == 'No.':
+                    start_row, start_col = r, c
+                    break
+            if start_row != -1:
+                break
+        
+        skus_from_excel = []
+        if start_row != -1:
+            # If 'No.' was found, get SKUs from the column below it
+            skus_from_excel = df.iloc[start_row + 1:, start_col].dropna().astype(str).tolist()
+        else:
+            # If 'No.' was not found, assume the first column contains the SKUs
+            if not df.empty:
+                skus_from_excel = df.iloc[:, 0].dropna().astype(str).tolist()
+
+        if not skus_from_excel:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText("No SKUs found in the Excel file.")
+            msg.setWindowTitle("No Data")
+            msg.exec()
+            return
+
+        # Automatically prefix with 'I' if it's a 5-digit number
+        skus_from_excel = [f"I{sku}" if len(sku) == 5 and sku.isdigit() else sku for sku in skus_from_excel]
+
+        branch_db_key = self.parent_window.branch_combo.currentData()
+        on_display_data = firebase_handler.get_display_status(self.token).get(branch_db_key, {})
+        on_display_skus = {str(key) for key in on_display_data.keys()}
+
+        current_skus_in_queue = {self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())}
+        added_count = 0
+        for sku in skus_from_excel:
+            if sku in on_display_skus and sku not in current_skus_in_queue:
+                self.sku_list_widget.addItem(sku)
+                added_count += 1
+        
+        if added_count > 0:
+            self.save_queue()
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(f"Added {added_count} items to the print queue.")
+        msg.setWindowTitle("Success")
+        msg.exec()
 
     def load_queue(self):
         self.sku_list_widget.clear()

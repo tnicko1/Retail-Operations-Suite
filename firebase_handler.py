@@ -685,7 +685,7 @@ def get_saved_batch_lists(user):
         lists = db.child("user_data").child(uid).child("saved_lists").get(token).val()
         return lists if lists else {}
 
-    _db_request(user, operation)
+    return _db_request(user, operation)
 
 
 def save_batch_list(user, list_name, skus):
