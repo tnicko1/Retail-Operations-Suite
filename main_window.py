@@ -33,8 +33,118 @@ class RetailOperationsSuite(QMainWindow):
         self.user = user
         self.uid = self.user.get('localId')
         # self.token is now managed by self.ensure_token_valid()
-        self.token = self.user.get('idToken') 
+        self.token = self.user.get('idToken')
         self.settings = data_handler.get_settings()
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f0f2f5;
+            }
+            QTabWidget::pane {
+                border: none;
+                padding: 10px;
+                background-color: #f0f2f5;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+            QTabBar::tab {
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                padding: 8px 15px;
+                font-size: 14px;
+                font-weight: bold;
+                color: #555;
+            }
+            QTabBar::tab:selected {
+                border-bottom: 2px solid #0078d7;
+                color: #0078d7;
+            }
+            QTabBar::tab:!selected:hover {
+                background: #eef;
+            }
+            QGroupBox {
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                margin-top: 1ex;
+                font-weight: bold;
+                padding-top: 15px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 10px;
+                background-color: #ffffff;
+                left: 10px;
+                color: #333;
+            }
+            QLineEdit, QComboBox, QListWidget, QDoubleSpinBox, QSpinBox {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: #fff;
+            }
+            QLineEdit:focus, QComboBox:focus, QListWidget:focus {
+                border: 1px solid #0078d7;
+            }
+            QPushButton {
+                background-color: #0078d7;
+                color: white;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QPushButton:pressed {
+                background-color: #004578;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
+            QLabel {
+                font-size: 13px;
+            }
+            QCheckBox {
+                font-size: 13px;
+            }
+            QMenuBar {
+                background-color: #fff;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            QMenuBar::item {
+                padding: 4px 8px;
+            }
+            QMenuBar::item:selected {
+                background-color: #e0e0e0;
+            }
+            QMenu {
+                background-color: #fff;
+                border: 1px solid #ccc;
+            }
+            QMenu::item:selected {
+                background-color: #0078d7;
+                color: white;
+            }
+            #LangButton {
+                background-color: transparent;
+                border: none;
+                padding: 5px;
+            }
+            #IconButton {
+                background-color: transparent;
+                border: none;
+                padding: 5px;
+                color: #555;
+            }
+            #IconButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
         self.translator = Translator(self.settings.get("language", "en"))
         self.tr = self.translator.get
         self.printer = QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -622,7 +732,8 @@ class RetailOperationsSuite(QMainWindow):
     def setup_generator_ui(self):
         main_layout = QHBoxLayout(self.generator_tab)
         main_layout.addWidget(self.create_left_panel(), 1)
-        main_layout.addWidget(self.create_right_panel(), 2)
+        main_layout.addWidget(self.create_center_panel(), 2)
+        main_layout.addWidget(self.create_right_panel(), 1)
 
     def setup_dashboard_ui(self):
         layout = QVBoxLayout(self.dashboard_tab)
@@ -877,34 +988,26 @@ class RetailOperationsSuite(QMainWindow):
 
     def create_left_panel(self):
         panel = QWidget()
+        panel.setContentsMargins(10, 0, 10, 10)
         layout = QVBoxLayout(panel)
+        layout.setSpacing(15)
 
-        top_layout = QHBoxLayout()
-        top_layout.addStretch()
-        self.lang_button = QPushButton()
-        self.lang_button.setFixedSize(40, 40)
-        self.lang_button.setIconSize(QSize(32, 32))
-        self.lang_button.clicked.connect(self.switch_language)
-        top_layout.addWidget(self.lang_button)
-        layout.addLayout(top_layout)
 
-        self.branch_group = QGroupBox()
-        branch_layout = QFormLayout()
-        self.branch_combo = QComboBox()
-        self.branch_combo.currentIndexChanged.connect(self.handle_branch_change)
-        self.branch_label_widget = QLabel()
-        branch_layout.addRow(self.branch_label_widget, self.branch_combo)
-        self.branch_group.setLayout(branch_layout)
-
+        # Find Item Group
         self.find_item_group = QGroupBox(self.tr("find_item_group"))
-        find_layout = QVBoxLayout()
+        find_layout = QVBoxLayout(self.find_item_group)
+        find_layout.setContentsMargins(10, 10, 10, 10)
+        
         sku_layout = QHBoxLayout()
         self.sku_input = QLineEdit()
         self.sku_input.returnPressed.connect(self.find_item)
-        self.find_button = QPushButton()
+        self.find_button = QPushButton(self.tr("find_button"))
+        self.find_button.setIcon(QIcon(resource_path("assets/spec_icons/scan-text.svg")))
         self.find_button.clicked.connect(self.find_item)
         self.add_to_queue_button = QPushButton()
-        self.add_to_queue_button.setFixedSize(40, self.find_button.sizeHint().height())
+        self.add_to_queue_button.setIcon(QIcon(resource_path("assets/spec_icons/package-open.svg")))
+        self.add_to_queue_button.setFixedSize(40, 40)
+        self.add_to_queue_button.setObjectName("IconButton")
         self.add_to_queue_button.clicked.connect(self.add_current_to_queue)
 
         sku_layout.addWidget(self.sku_input)
@@ -915,18 +1018,17 @@ class RetailOperationsSuite(QMainWindow):
         status_layout = QHBoxLayout()
         self.status_label_title = QLabel()
         self.status_label_value = QLabel()
-        self.status_duration_label = QLabel()  # New label for duration
+        self.status_duration_label = QLabel()
         self.stock_label_title = QLabel(self.tr("stock_label"))
         self.stock_label_value = QLabel("-")
         self.low_stock_warning_label = QLabel()
-
         self.toggle_status_button = QPushButton()
         self.toggle_status_button.clicked.connect(self.toggle_display_status)
         self.toggle_status_button.setVisible(False)
 
         status_layout.addWidget(self.status_label_title)
         status_layout.addWidget(self.status_label_value)
-        status_layout.addWidget(self.status_duration_label)  # Add to layout
+        status_layout.addWidget(self.status_duration_label)
         status_layout.addStretch()
         status_layout.addWidget(self.stock_label_title)
         status_layout.addWidget(self.stock_label_value)
@@ -934,110 +1036,73 @@ class RetailOperationsSuite(QMainWindow):
         status_layout.addStretch()
         status_layout.addWidget(self.toggle_status_button)
         find_layout.addLayout(status_layout)
-        self.find_item_group.setLayout(find_layout)
+        layout.addWidget(self.find_item_group)
 
-        self.details_group = QGroupBox()
-        details_layout = QFormLayout()
-        self.name_label_widget, self.price_label_widget, self.sale_price_label_widget = QLabel(), QLabel(), QLabel()
-        self.name_input, self.price_input, self.sale_price_input = QLineEdit(), QLineEdit(), QLineEdit()
-        self.price_history_button = QPushButton(self.tr("price_history_button"))
+        # Details Group
+        self.details_group = QGroupBox(self.tr("item_details_group"))
+        details_layout = QFormLayout(self.details_group)
+        details_layout.setContentsMargins(10, 10, 10, 10)
+        self.name_label_widget = QLabel(self.tr("name_label"))
+        self.name_input = QLineEdit()
+        self.price_label_widget = QLabel(self.tr("price_label"))
+        self.price_input = QLineEdit()
+        self.sale_price_label_widget = QLabel(self.tr("sale_price_label"))
+        self.sale_price_input = QLineEdit()
+        self.price_history_button = QPushButton()
+        self.price_history_button.setIcon(QIcon(resource_path("assets/spec_icons/clock-arrow-down.svg")))
+        self.price_history_button.setObjectName("IconButton")
+        self.price_history_button.setFixedSize(40, 40)
         self.price_history_button.clicked.connect(self.show_price_history)
         self.price_history_button.setVisible(False)
 
         self.name_input.textChanged.connect(self.update_preview)
         self.price_input.textChanged.connect(self.update_preview)
         self.sale_price_input.textChanged.connect(self.update_preview)
+        
         details_layout.addRow(self.name_label_widget, self.name_input)
         price_layout = QHBoxLayout()
         price_layout.addWidget(self.price_input)
         price_layout.addWidget(self.price_history_button)
         details_layout.addRow(self.price_label_widget, price_layout)
         details_layout.addRow(self.sale_price_label_widget, self.sale_price_input)
-        self.details_group.setLayout(details_layout)
 
-        self.style_group = QGroupBox()
-        style_layout = QVBoxLayout()
-        settings_layout = QFormLayout()
-        self.paper_size_label, self.theme_label, self.brand_label = QLabel(), QLabel(), QLabel()
-        self.paper_size_combo = QComboBox()
-        self.paper_size_combo.currentTextChanged.connect(self.handle_paper_size_change)
-        self.theme_combo = QComboBox()
-        self.brand_combo = QComboBox()
-        
-        # Connect signals for exclusivity
-        self.theme_combo.currentTextChanged.connect(self.handle_theme_selection)
-        self.brand_combo.currentTextChanged.connect(self.handle_brand_selection)
 
-        self.dual_lang_label = QLabel()
-        self.dual_lang_checkbox = QCheckBox()
-        self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
-        self.dual_lang_checkbox.stateChanged.connect(self.toggle_dual_language)
-        self.special_tag_label = QLabel()
-        self.special_tag_checkbox = QCheckBox()
-        self.special_tag_checkbox.stateChanged.connect(self.update_preview)
-        settings_layout.addRow(self.paper_size_label, self.paper_size_combo)
-        settings_layout.addRow(self.theme_label, self.theme_combo)
-        settings_layout.addRow(self.brand_label, self.brand_combo)
-        checkbox_layout = QHBoxLayout()
-        checkbox_layout.addWidget(self.dual_lang_label)
-        checkbox_layout.addWidget(self.dual_lang_checkbox)
-        checkbox_layout.addStretch()
-        checkbox_layout.addWidget(self.special_tag_label)
-        checkbox_layout.addWidget(self.special_tag_checkbox)
-        checkbox_layout.addStretch()
-        style_layout.addLayout(settings_layout)
-        style_layout.addLayout(checkbox_layout)
-
-        self.layout_settings_button = QPushButton()
-        self.layout_settings_button.clicked.connect(self.open_layout_settings)
-        style_layout.addWidget(self.layout_settings_button)
-
-        self.style_group.setLayout(style_layout);
-
-        self.specs_group = QGroupBox();
-        specs_layout = QVBoxLayout();
+        # Specs Group
+        self.specs_group = QGroupBox(self.tr("specs_group"))
+        specs_layout = QVBoxLayout(self.specs_group)
+        specs_layout.setContentsMargins(10, 10, 10, 10)
         self.specs_list = QListWidget()
-        self.specs_list.itemChanged.connect(self.update_preview);
-        specs_buttons_layout = QHBoxLayout();
+        self.specs_list.itemChanged.connect(self.update_preview)
+        specs_layout.addWidget(self.specs_list)
+
+        specs_buttons_layout = QHBoxLayout()
+        specs_buttons_layout.addStretch()
         self.add_spec_button = QPushButton()
+        self.add_spec_button.setIcon(QIcon(resource_path("assets/spec_icons/plus.svg")))
+        self.add_spec_button.setObjectName("IconButton")
+        self.add_spec_button.setFixedSize(40,40)
         self.add_spec_button.clicked.connect(self.add_spec)
-        self.edit_button, self.remove_button = QPushButton(), QPushButton()
-        self.edit_button.clicked.connect(self.edit_spec);
+        self.edit_button = QPushButton()
+        self.edit_button.setIcon(QIcon(resource_path("assets/spec_icons/cog.svg")))
+        self.edit_button.setObjectName("IconButton")
+        self.edit_button.setFixedSize(40,40)
+        self.edit_button.clicked.connect(self.edit_spec)
+        self.remove_button = QPushButton()
+        self.remove_button.setIcon(QIcon(resource_path("assets/spec_icons/shredder.svg")))
+        self.remove_button.setObjectName("IconButton")
+        self.remove_button.setFixedSize(40,40)
         self.remove_button.clicked.connect(self.remove_spec)
-        specs_buttons_layout.addWidget(self.add_spec_button);
-        specs_buttons_layout.addWidget(self.edit_button);
+        specs_buttons_layout.addWidget(self.add_spec_button)
+        specs_buttons_layout.addWidget(self.edit_button)
         specs_buttons_layout.addWidget(self.remove_button)
-        specs_layout.addWidget(self.specs_list);
-        specs_layout.addLayout(specs_buttons_layout);
-        self.specs_group.setLayout(specs_layout)
+        specs_layout.addLayout(specs_buttons_layout)
 
-        self.output_group = QGroupBox()
-        actions_layout = QVBoxLayout()
-        self.display_manager_button = QPushButton()
-        self.display_manager_button.setFixedHeight(40)
-        self.display_manager_button.clicked.connect(self.open_display_manager)
-        self.single_button = QPushButton()
-        self.single_button.setFixedHeight(40)
-        self.single_button.clicked.connect(self.generate_single)
-        self.batch_button = QPushButton()
-        self.batch_button.setFixedHeight(40)
-        self.batch_button.clicked.connect(self.open_print_queue)
-        actions_layout.addWidget(self.display_manager_button)
-        actions_layout.addWidget(self.single_button)
-        actions_layout.addWidget(self.batch_button)
-        self.output_group.setLayout(actions_layout)
 
-        layout.addWidget(self.branch_group)
-        layout.addWidget(self.find_item_group)
-        layout.addWidget(self.details_group)
-        layout.addWidget(self.style_group)
-        layout.addWidget(self.specs_group)
-        layout.addWidget(self.output_group)
         layout.addStretch()
 
         return panel
 
-    def create_right_panel(self):
+    def create_center_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
         self.preview_label = QLabel()
@@ -1047,23 +1112,121 @@ class RetailOperationsSuite(QMainWindow):
         layout.addWidget(self.preview_label)
         return panel
 
+    def create_right_panel(self):
+        panel = QWidget()
+        panel.setContentsMargins(10, 0, 10, 10)
+        layout = QVBoxLayout(panel)
+        layout.setSpacing(15)
+
+        # Language Button in the top right
+        top_layout = QHBoxLayout()
+        top_layout.addStretch()
+        self.lang_button = QPushButton()
+        self.lang_button.setObjectName("LangButton")
+        self.lang_button.setFixedSize(40, 40)
+        self.lang_button.setIconSize(QSize(32, 32))
+        self.lang_button.clicked.connect(self.switch_language)
+        top_layout.addWidget(self.lang_button)
+        layout.addLayout(top_layout)
+
+        # Branch Group
+        self.branch_group = QGroupBox(self.tr("branch_group_title"))
+        branch_layout = QFormLayout(self.branch_group)
+        branch_layout.setContentsMargins(10, 10, 10, 10)
+        self.branch_combo = QComboBox()
+        self.branch_combo.currentIndexChanged.connect(self.handle_branch_change)
+        self.branch_label_widget = QLabel(self.tr("branch_label"))
+        branch_layout.addRow(self.branch_label_widget, self.branch_combo)
+        layout.addWidget(self.branch_group)
+
+        # Style Group
+        self.style_group = QGroupBox(self.tr("style_group"))
+        style_layout = QVBoxLayout(self.style_group)
+        style_layout.setContentsMargins(10, 10, 10, 10)
+        settings_layout = QFormLayout()
+        self.paper_size_label = QLabel(self.tr("paper_size_label"))
+        self.paper_size_combo = QComboBox()
+        self.paper_size_combo.currentTextChanged.connect(self.handle_paper_size_change)
+        self.theme_label = QLabel(self.tr("theme_label"))
+        self.theme_combo = QComboBox()
+        self.brand_label = QLabel(self.tr("brand_label"))
+        self.brand_combo = QComboBox()
+        self.theme_combo.currentTextChanged.connect(self.handle_theme_selection)
+        self.brand_combo.currentTextChanged.connect(self.handle_brand_selection)
+
+        settings_layout.addRow(self.paper_size_label, self.paper_size_combo)
+        settings_layout.addRow(self.theme_label, self.theme_combo)
+        settings_layout.addRow(self.brand_label, self.brand_combo)
+        style_layout.addLayout(settings_layout)
+
+        checkbox_layout = QHBoxLayout()
+        self.dual_lang_label = QLabel(self.tr("dual_language_label"))
+        self.dual_lang_checkbox = QCheckBox()
+        self.dual_lang_checkbox.setChecked(self.settings.get("generate_dual_language", False))
+        self.dual_lang_checkbox.stateChanged.connect(self.toggle_dual_language)
+        self.special_tag_label = QLabel(self.tr("special_tag_label"))
+        self.special_tag_checkbox = QCheckBox()
+        self.special_tag_checkbox.stateChanged.connect(self.update_preview)
+        checkbox_layout.addWidget(self.dual_lang_label)
+        checkbox_layout.addWidget(self.dual_lang_checkbox)
+        checkbox_layout.addStretch()
+        checkbox_layout.addWidget(self.special_tag_label)
+        checkbox_layout.addWidget(self.special_tag_checkbox)
+        checkbox_layout.addStretch()
+        style_layout.addLayout(checkbox_layout)
+
+        self.layout_settings_button = QPushButton(self.tr("layout_settings_button"))
+        self.layout_settings_button.setIcon(QIcon(resource_path("assets/spec_icons/settings-2.svg")))
+        self.layout_settings_button.clicked.connect(self.open_layout_settings)
+        style_layout.addWidget(self.layout_settings_button)
+        layout.addWidget(self.style_group)
+
+        # Output Group
+        self.output_group = QGroupBox(self.tr("output_group"))
+        actions_layout = QVBoxLayout(self.output_group)
+        actions_layout.setContentsMargins(10, 10, 10, 10)
+        actions_layout.setSpacing(10)
+        self.display_manager_button = QPushButton(self.tr("display_manager_button"))
+        self.display_manager_button.setIcon(QIcon(resource_path("assets/spec_icons/monitor-cog.svg")))
+        self.display_manager_button.clicked.connect(self.open_display_manager)
+        self.single_button = QPushButton(self.tr("generate_single_button"))
+        self.single_button.setIcon(QIcon(resource_path("assets/spec_icons/printer.svg")))
+        self.single_button.clicked.connect(self.generate_single)
+        self.batch_button = QPushButton(self.tr("generate_batch_button"))
+        self.batch_button.setIcon(QIcon(resource_path("assets/spec_icons/printer-check.svg")))
+        self.batch_button.clicked.connect(self.open_print_queue)
+        actions_layout.addWidget(self.display_manager_button)
+        actions_layout.addWidget(self.single_button)
+        actions_layout.addWidget(self.batch_button)
+        layout.addWidget(self.output_group)
+
+        layout.addStretch()
+
+        return panel
+
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
         self.tab_widget.setTabText(0, self.tr("generator_tab_title"))
+
         if self.user.get('role') == 'Admin':
-            self.tab_widget.setTabText(1, self.tr("admin_dashboard"))
-            self.refresh_button.setText(self.tr("dashboard_refresh_button"))
-            self.stats_group.setTitle(self.tr("dashboard_stats_group"))
-            threshold = self.settings.get('low_stock_threshold', 3)
-            self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
-            self.low_stock_table.setHorizontalHeaderLabels(
-                [self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"),
-                 self.tr("dashboard_header_category"), self.tr("dashboard_header_stock")])
+            admin_tab_index = self.tab_widget.indexOf(self.dashboard_tab)
+            if admin_tab_index != -1:
+                self.tab_widget.setTabText(admin_tab_index, self.tr("admin_dashboard"))
+                self.refresh_button.setText(self.tr("dashboard_refresh_button"))
+                self.stats_group.setTitle(self.tr("dashboard_stats_group"))
+                threshold = self.settings.get('low_stock_threshold', 3)
+                self.low_stock_group.setTitle(self.tr("dashboard_low_stock_label", threshold))
+                self.low_stock_table.setHorizontalHeaderLabels([
+                    self.tr("dashboard_header_sku"), self.tr("dashboard_header_name"),
+                    self.tr("dashboard_header_category"), self.tr("dashboard_header_stock")
+                ])
 
         if self.user.get('role') in ['Admin', 'Logistics']:
             logistics_tab_index = self.tab_widget.indexOf(self.logistics_tab)
             if logistics_tab_index != -1:
                 self.tab_widget.setTabText(logistics_tab_index, self.tr("logistics_tab_title"))
+                self.logistics_search_group.setTitle(self.tr("logistics_search_group"))
+                self.logistics_result_card.setTitle(self.tr("logistics_result_group"))
                 self.logistics_input.setPlaceholderText(self.tr("logistics_input_placeholder"))
                 self.logistics_check_button.setText(self.tr("logistics_check_button"))
                 self.logistics_scan_checkbox.setText(self.tr("logistics_scan_check_label"))
@@ -1080,11 +1243,11 @@ class RetailOperationsSuite(QMainWindow):
         self.find_item_group.setTitle(self.tr("find_item_group"))
         self.sku_input.setPlaceholderText(self.tr("sku_placeholder"))
         self.find_button.setText(self.tr("find_button"))
-        self.add_to_queue_button.setText("+")
         self.add_to_queue_button.setToolTip(self.tr("add_to_queue_button"))
         self.details_group.setTitle(self.tr("item_details_group"))
         self.name_label_widget.setText(self.tr("name_label"))
         self.price_label_widget.setText(self.tr("price_label"))
+        self.price_history_button.setToolTip(self.tr("price_history_button"))
         self.sale_price_label_widget.setText(self.tr("sale_price_label"))
         self.style_group.setTitle(self.tr("style_group"))
         self.paper_size_label.setText(self.tr("paper_size_label"))
@@ -1094,9 +1257,9 @@ class RetailOperationsSuite(QMainWindow):
         self.special_tag_label.setText(self.tr("special_tag_label"))
         self.layout_settings_button.setText(self.tr("layout_settings_button"))
         self.specs_group.setTitle(self.tr("specs_group"))
-        self.add_spec_button.setText(self.tr("add_button"))
-        self.edit_button.setText(self.tr("edit_button"))
-        self.remove_button.setText(self.tr("remove_button"))
+        self.add_spec_button.setToolTip(self.tr("add_button"))
+        self.edit_button.setToolTip(self.tr("edit_button"))
+        self.remove_button.setToolTip(self.tr("remove_button"))
         self.output_group.setTitle(self.tr("output_group"))
         self.display_manager_button.setText(self.tr("display_manager_button"))
         self.single_button.setText(self.tr("generate_single_button"))
@@ -2005,8 +2168,8 @@ class RetailOperationsSuite(QMainWindow):
         main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # --- Search Controls ---
-        search_group = QGroupBox(self.tr("logistics_search_group"))
-        search_layout = QVBoxLayout(search_group)
+        self.logistics_search_group = QGroupBox(self.tr("logistics_search_group"))
+        search_layout = QVBoxLayout(self.logistics_search_group)
         
         controls_layout = QHBoxLayout()
         self.logistics_branch_combo = QComboBox()
@@ -2031,7 +2194,7 @@ class RetailOperationsSuite(QMainWindow):
         controls_layout.addWidget(self.logistics_scan_checkbox)
         
         search_layout.addLayout(controls_layout)
-        main_layout.addWidget(search_group)
+        main_layout.addWidget(self.logistics_search_group)
 
         # --- Result Display ---
         self.logistics_result_card = QGroupBox(self.tr("logistics_result_group"))
