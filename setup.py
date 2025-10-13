@@ -21,7 +21,7 @@ from setuptools import setup, Command
 
 # --- Application Information ---
 APP_NAME = "Retail Operations Suite"
-APP_VERSION = "2.3.2"
+APP_VERSION = "3.0.0"
 APP_DESCRIPTION = "A suite of tools for managing retail operations, including price tag generation."
 COMPANY_NAME = "Nikoloz Taturashvili"
 

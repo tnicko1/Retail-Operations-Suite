@@ -20,13 +20,61 @@ import os
 import requests
 import subprocess
 import tempfile
-from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressDialog
+from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressDialog, QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton
 from PyQt6.QtCore import Qt
 from packaging.version import parse as parse_version
 
 # --- CONFIGURATION ---
 # The GitHub repository in the format 'owner/repo'
 GITHUB_REPO = "tnicko1/Retail-Operations-Suite"
+
+
+class UpdateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Updating...")
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setFixedWidth(400)
+
+        self.was_cancelled = False
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        self.title_label = QLabel("Downloading Update")
+        font = self.title_label.font()
+        font.setPointSize(16)
+        font.setBold(True)
+        self.title_label.setFont(font)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.title_label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(True)
+        layout.addWidget(self.progress_bar)
+
+        self.details_label = QLabel("Connecting...")
+        self.details_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.details_label)
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel)
+        layout.addWidget(self.cancel_button)
+
+    def cancel(self):
+        self.was_cancelled = True
+        self.reject()
+
+    def set_total_size(self, total_size):
+        self.progress_bar.setMaximum(total_size)
+
+    def update_progress(self, downloaded_size, total_size):
+        self.progress_bar.setValue(downloaded_size)
+        self.details_label.setText(f"Downloaded {downloaded_size / (1024*1024):.2f} MB of {total_size / (1024*1024):.2f} MB")
+
+    def wasCanceled(self):
+        return self.was_cancelled
 
 
 # The expected name of the MSI asset in the GitHub release.
@@ -110,15 +158,15 @@ def download_and_install_update(download_url, parent=None):
         installer_path = os.path.join(temp_dir, installer_name)
 
         # --- Progress Dialog ---
-        progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size, parent)
-        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        progress_dialog.setWindowTitle("Updating")
-        progress_dialog.show()
+        update_dialog = UpdateDialog(parent)
+        update_dialog.set_total_size(total_size)
+        update_dialog.show()
 
         downloaded_size = 0
         with open(installer_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
-                if progress_dialog.wasCanceled():
+                QApplication.processEvents()  # Keep UI responsive
+                if update_dialog.wasCanceled():
                     print("Download cancelled by user.")
                     # Clean up the partially downloaded file
                     f.close()
@@ -126,9 +174,9 @@ def download_and_install_update(download_url, parent=None):
                     return
                 f.write(chunk)
                 downloaded_size += len(chunk)
-                progress_dialog.setValue(downloaded_size)
+                update_dialog.update_progress(downloaded_size, total_size)
 
-        progress_dialog.setValue(total_size)
+        update_dialog.accept()
         print(f"Downloaded installer to: {installer_path}")
 
         # --- Launch Installer ---

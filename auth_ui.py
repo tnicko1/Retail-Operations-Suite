@@ -23,34 +23,100 @@ from translations import Translator
 import data_handler
 
 
+from PyQt6.QtGui import QPixmap, QIcon
+from utils import resource_path
+
 class LoginWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.translator = Translator()  # Assuming default language is fine for login
         self.setWindowTitle(self.translator.get("login_window_title"))
+        self.setWindowIcon(QIcon(resource_path("assets/program/logo-no-flair.ico")))
         self.setModal(True)
         self.user = None
 
-        layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f0f2f5;
+            }
+            QLabel#Title {
+                font-size: 24px;
+                font-weight: bold;
+                color: #333;
+            }
+            QLineEdit {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 10px;
+                background-color: #fff;
+                font-size: 14px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0078d7;
+            }
+            QPushButton#LoginButton {
+                background-color: #0078d7;
+                color: white;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton#LoginButton:hover {
+                background-color: #005a9e;
+            }
+            QPushButton#RegisterButton {
+                background-color: transparent;
+                color: #0078d7;
+                border: none;
+                font-size: 12px;
+                text-align: right;
+            }
+        """)
 
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Logo
+        logo_label = QLabel()
+        pixmap = QPixmap(resource_path("assets/logo.png"))
+        logo_label.setPixmap(pixmap.scaled(128, 128, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(logo_label)
+
+        # Title
+        title_label = QLabel("Retail Operations Suite")
+        title_label.setObjectName("Title")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Form
         self.identifier_input = QLineEdit()
+        self.identifier_input.setPlaceholderText(self.translator.get("login_identifier_label"))
         self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText(self.translator.get("login_password_label"))
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
 
-        form_layout.addRow(self.translator.get("login_identifier_label"), self.identifier_input)
-        form_layout.addRow(self.translator.get("login_password_label"), self.password_input)
-        layout.addLayout(form_layout)
+        layout.addWidget(self.identifier_input)
+        layout.addWidget(self.password_input)
 
+        # Login Button
         self.login_button = QPushButton(self.translator.get("login_button"))
-        self.register_button = QPushButton(self.translator.get("register_button"))
-
-        self.login_button.clicked.connect(self.handle_login)
+        self.login_button.setObjectName("LoginButton")
         self.login_button.setDefault(True)
-        self.register_button.clicked.connect(self.handle_register)
-
+        self.login_button.clicked.connect(self.handle_login)
         layout.addWidget(self.login_button)
+
+        # Register Button
+        self.register_button = QPushButton(self.translator.get("register_button_link_text", "Don't have an account? Register"))
+        self.register_button.setObjectName("RegisterButton")
+        self.register_button.clicked.connect(self.handle_register)
         layout.addWidget(self.register_button)
+
+        self.setFixedSize(400, 500)
 
     def handle_login(self):
         identifier = self.identifier_input.text()
@@ -96,26 +162,75 @@ class RegisterDialog(QDialog):
         self.setWindowTitle(self.translator.get("register_window_title"))
         self.setModal(True)
 
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f0f2f5;
+            }
+            QLabel#Title {
+                font-size: 24px;
+                font-weight: bold;
+                color: #333;
+            }
+            QLineEdit {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 10px;
+                background-color: #fff;
+                font-size: 14px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0078d7;
+            }
+            QPushButton {
+                background-color: #0078d7;
+                color: white;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+        """)
+
         layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Title
+        title_label = QLabel("Create Account")
+        title_label.setObjectName("Title")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
 
         self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText(self.translator.get("register_username_label"))
         self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText(self.translator.get("register_email_label"))
         self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText(self.translator.get("register_password_label"))
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password_input = QLineEdit()
+        self.confirm_password_input.setPlaceholderText(self.translator.get("register_confirm_password_label"))
         self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
 
-        form_layout.addRow(self.translator.get("register_username_label"), self.username_input)
-        form_layout.addRow(self.translator.get("register_email_label"), self.email_input)
-        form_layout.addRow(self.translator.get("register_password_label"), self.password_input)
-        form_layout.addRow(self.translator.get("register_confirm_password_label"), self.confirm_password_input)
-        layout.addLayout(form_layout)
+        layout.addWidget(self.username_input)
+        layout.addWidget(self.email_input)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.confirm_password_input)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.handle_registration)
         button_box.rejected.connect(self.reject)
+        
+        button_box.button(QDialogButtonBox.StandardButton.Ok).setText(self.translator.get("register_button"))
+
         layout.addWidget(button_box)
+
+        self.setFixedSize(400, 500)
 
     def handle_registration(self):
         username = self.username_input.text().strip().lower()

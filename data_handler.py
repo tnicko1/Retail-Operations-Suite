@@ -76,7 +76,9 @@ def get_default_settings():
         "generate_dual_language": False,
         "default_branch": "branch_vaja",
         "low_stock_threshold": 3,
-        "layout_settings": get_default_layout_settings()
+        "layout_settings": get_default_layout_settings(),
+        "recent_items": [],
+        "recent_items_max_size": 10
     }
 
 

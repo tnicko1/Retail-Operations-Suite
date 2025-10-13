@@ -4,8 +4,8 @@ from datetime import datetime
 
 import pytz
 from PyQt6.QtCore import Qt, QSize, QTimer, QRectF
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage, QPainter, QPageLayout
-from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage, QPainter, QPageLayout, QColor
+from PyQt6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLineEdit, QPushButton, QLabel, QListWidget, QListWidgetItem,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
@@ -74,10 +74,11 @@ class RetailOperationsSuite(QMainWindow):
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
-                padding: 0 10px;
-                background-color: #ffffff;
-                left: 10px;
+                padding: 2px 8px;
+                background-color: #f0f2f5;
                 color: #333;
+                border-radius: 4px;
+                left: 10px;
             }
             QLineEdit, QComboBox, QListWidget, QDoubleSpinBox, QSpinBox {
                 border: 1px solid #ccc;
@@ -111,6 +112,10 @@ class RetailOperationsSuite(QMainWindow):
             }
             QCheckBox {
                 font-size: 13px;
+            }
+            QListWidget::indicator {
+                width: 13px;
+                height: 13px;
             }
             QMenuBar {
                 background-color: #fff;
@@ -992,7 +997,6 @@ class RetailOperationsSuite(QMainWindow):
         layout = QVBoxLayout(panel)
         layout.setSpacing(15)
 
-
         # Find Item Group
         self.find_item_group = QGroupBox(self.tr("find_item_group"))
         find_layout = QVBoxLayout(self.find_item_group)
@@ -1065,14 +1069,14 @@ class RetailOperationsSuite(QMainWindow):
         price_layout.addWidget(self.price_history_button)
         details_layout.addRow(self.price_label_widget, price_layout)
         details_layout.addRow(self.sale_price_label_widget, self.sale_price_input)
-
+        layout.addWidget(self.details_group)
 
         # Specs Group
         self.specs_group = QGroupBox(self.tr("specs_group"))
         specs_layout = QVBoxLayout(self.specs_group)
         specs_layout.setContentsMargins(10, 10, 10, 10)
         self.specs_list = QListWidget()
-        self.specs_list.itemChanged.connect(self.update_preview)
+        self.specs_list.itemClicked.connect(self.on_spec_item_clicked)
         specs_layout.addWidget(self.specs_list)
 
         specs_buttons_layout = QHBoxLayout()
@@ -1082,21 +1086,34 @@ class RetailOperationsSuite(QMainWindow):
         self.add_spec_button.setObjectName("IconButton")
         self.add_spec_button.setFixedSize(40,40)
         self.add_spec_button.clicked.connect(self.add_spec)
+        self.add_spec_button.setToolTip(self.tr("add_button"))
         self.edit_button = QPushButton()
         self.edit_button.setIcon(QIcon(resource_path("assets/spec_icons/cog.svg")))
         self.edit_button.setObjectName("IconButton")
         self.edit_button.setFixedSize(40,40)
         self.edit_button.clicked.connect(self.edit_spec)
+        self.edit_button.setEnabled(False)
+        self.edit_button.setToolTip(self.tr("edit_button"))
         self.remove_button = QPushButton()
         self.remove_button.setIcon(QIcon(resource_path("assets/spec_icons/shredder.svg")))
         self.remove_button.setObjectName("IconButton")
         self.remove_button.setFixedSize(40,40)
         self.remove_button.clicked.connect(self.remove_spec)
+        self.remove_button.setEnabled(False)
+        self.remove_button.setToolTip(self.tr("remove_button"))
         specs_buttons_layout.addWidget(self.add_spec_button)
         specs_buttons_layout.addWidget(self.edit_button)
         specs_buttons_layout.addWidget(self.remove_button)
         specs_layout.addLayout(specs_buttons_layout)
+        layout.addWidget(self.specs_group)
 
+        # Recent Items Group
+        self.recent_items_group = QGroupBox(self.tr("recent_items_group"))
+        recent_items_layout = QVBoxLayout(self.recent_items_group)
+        self.recent_items_list = QListWidget()
+        self.recent_items_list.itemClicked.connect(self.load_item_from_history)
+        recent_items_layout.addWidget(self.recent_items_list)
+        layout.addWidget(self.recent_items_group)
 
         layout.addStretch()
 
@@ -1265,7 +1282,19 @@ class RetailOperationsSuite(QMainWindow):
         self.single_button.setText(self.tr("generate_single_button"))
         self.batch_button.setText(self.tr("generate_batch_button"))
         self.status_label_title.setText(f"{self.tr('status_label')}:")
-        self.stock_label_title.setText(self.tr("stock_label"))
+        self.recent_items_group.setTitle(self.tr("recent_items_group"))
+        self.update_recent_items_list()
+
+    def update_recent_items_list(self):
+        self.recent_items_list.clear()
+        for item in self.settings.get("recent_items", []):
+            if isinstance(item, dict) and 'sku' in item and 'name' in item:
+                self.recent_items_list.addItem(f"{item['sku']} - {item['name']}")
+
+    def load_item_from_history(self, item):
+        sku = item.text().split(" - ")[0]
+        self.sku_input.setText(sku)
+        self.find_item()
         self.lang_button.setIcon(QIcon(resource_path("assets/en.png" if self.translator.language == "en" else "assets/ka.png")))
         self.update_status_display()
         if not self.current_item_data:
@@ -1290,22 +1319,27 @@ class RetailOperationsSuite(QMainWindow):
 
     def update_branch_combo(self):
         self.branch_combo.blockSignals(True)
-        current_key = self.branch_combo.currentData() or self.branch_data_map.get(self.settings.get("default_branch", "branch_vaja"), {}).get('db_key')
+        saved_branch_key = self.settings.get("default_branch", "branch_vaja")
+        current_db_key = self.branch_data_map.get(saved_branch_key, {}).get('db_key')
         self.branch_combo.clear()
         for key, data in self.branch_data_map.items():
-            self.branch_combo.addItem(self.tr(key), data['db_key']) # Use the correct db_key
+            self.branch_combo.addItem(self.tr(key), data['db_key'])
 
-        index = self.branch_combo.findData(current_key)
-        if index != -1:
-            self.branch_combo.setCurrentIndex(index)
+        if current_db_key:
+            index = self.branch_combo.findData(current_db_key)
+            if index != -1:
+                self.branch_combo.setCurrentIndex(index)
 
         self.branch_combo.blockSignals(False)
 
     def handle_branch_change(self, index):
-        key = self.branch_combo.currentData()
-        if key:
-            self.settings["default_branch"] = key
-            data_handler.save_settings(self.settings)
+        current_db_key = self.branch_combo.currentData()
+        if current_db_key:
+            for branch_key, data in self.branch_data_map.items():
+                if data['db_key'] == current_db_key:
+                    self.settings["default_branch"] = branch_key
+                    data_handler.save_settings(self.settings)
+                    break
         self.update_status_display()
         self.update_stock_display()
         self.update_preview()
@@ -1448,7 +1482,7 @@ class RetailOperationsSuite(QMainWindow):
 
         if dialog.exec():
             # OK was clicked, save the potentially modified settings
-            self.settings["layout_settings"] = dialog.get_layout_settings()
+            self.settings = dialog.get_settings()
             data_handler.save_settings(self.settings)
         else:
             # Cancel was clicked, restore the original settings
@@ -1571,6 +1605,24 @@ class RetailOperationsSuite(QMainWindow):
         self.update_status_display()
         self.update_stock_display()
         self.price_history_button.setVisible(True)
+
+        sku = self.current_item_data.get('SKU')
+        name = self.current_item_data.get("Name", "")
+        
+        # Add to recent items
+        recent_items = self.settings.get("recent_items", [])
+        # Remove if already exists to avoid duplicates and move to top
+        recent_items = [item for item in recent_items if item['sku'] != sku]
+        # Add to the top
+        recent_items.insert(0, {"sku": sku, "name": name})
+        # Trim the list
+        max_size = self.settings.get("recent_items_max_size", 10)
+        self.settings["recent_items"] = recent_items[:max_size]
+        # Save settings
+        data_handler.save_settings(self.settings)
+        # Update UI
+        self.update_recent_items_list()
+
         self.update_preview()
 
     def update_stock_display(self):
@@ -1887,30 +1939,34 @@ class RetailOperationsSuite(QMainWindow):
             firebase_handler.log_activity(token, f"User printed a batch of {len(skus_to_print)} items and set them to 'on display'.")
 
     def handle_a4_print_with_dialog(self, pixmaps):
-        dialog = QPrintDialog(self.printer, self)
+        self.pixmaps_to_print = pixmaps
+        dialog = QPrintPreviewDialog(self.printer, self)
+        dialog.paintRequested.connect(self.paint_a4_pixmaps)
         if dialog.exec():
-            self.printer.setResolution(price_generator.DPI)
-            painter = QPainter(self.printer)
-            for i, pixmap in enumerate(pixmaps):
-                # Get the printable area rectangle in device pixels. This rectangle's top-left
-                # (x, y) coordinate gives us the physical hardware margins of the printer.
-                printable_rect_px = self.printer.pageRect(QPrinter.Unit.DevicePixel)
-
-                # The painter's coordinate system starts at the top-left of the printable area.
-                # To draw our full-page pixmap as if we're drawing on the physical paper (origin 0,0),
-                # we must offset our drawing by the negative of the printable area's origin.
-                # This effectively cancels out the printer's hardware margins, ensuring a true 1:1 print.
-                x_offset = -printable_rect_px.x()
-                y_offset = -printable_rect_px.y()
-
-                # Draw the pixmap at the calculated offset.
-                painter.drawPixmap(int(x_offset), int(y_offset), pixmap)
-
-                if i < len(pixmaps) - 1:
-                    self.printer.newPage()
-            painter.end()
             return True
         return False
+
+    def paint_a4_pixmaps(self, printer):
+        printer.setResolution(price_generator.DPI)
+        painter = QPainter(printer)
+        for i, pixmap in enumerate(self.pixmaps_to_print):
+            # Get the printable area rectangle in device pixels. This rectangle's top-left
+            # (x, y) coordinate gives us the physical hardware margins of the printer.
+            printable_rect_px = printer.pageRect(QPrinter.Unit.DevicePixel)
+
+            # The painter's coordinate system starts at the top-left of the printable area.
+            # To draw our full-page pixmap as if we're drawing on the physical paper (origin 0,0),
+            # we must offset our drawing by the negative of the printable area's origin.
+            # This effectively cancels out the printer's hardware margins, ensuring a true 1:1 print.
+            x_offset = -printable_rect_px.x()
+            y_offset = -printable_rect_px.y()
+
+            # Draw the pixmap at the calculated offset.
+            painter.drawPixmap(int(x_offset), int(y_offset), pixmap)
+
+            if i < len(self.pixmaps_to_print) - 1:
+                printer.newPage()
+        painter.end()
 
     def handle_batch_print_with_dialog(self, pixmap):
         dialog = QPrintDialog(self.printer, self)
@@ -1928,7 +1984,7 @@ class RetailOperationsSuite(QMainWindow):
         data["Regular price"] = self.price_input.text()
         data["Sale price"] = self.sale_price_input.text()
         data['all_specs'] = [self.specs_list.item(i).text() for i in range(self.specs_list.count()) if
-                             self.specs_list.item(i).checkState() == Qt.CheckState.Checked]
+                             self.specs_list.item(i).data(Qt.ItemDataRole.UserRole)]
         return data
 
     def _prepare_data_for_printing(self, item_data):
@@ -2004,6 +2060,17 @@ class RetailOperationsSuite(QMainWindow):
             final_pixmap.scaled(self.preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
 
+    def on_spec_item_clicked(self, item):
+        # Toggle checked state
+        is_checked = not item.data(Qt.ItemDataRole.UserRole)
+        item.setData(Qt.ItemDataRole.UserRole, is_checked)
+        # Update appearance
+        self.update_spec_item_appearance(item)
+        # Update preview
+        QTimer.singleShot(0, self.update_preview)
+        self.edit_button.setEnabled(True)
+        self.remove_button.setEnabled(True)
+
     def process_specifications(self, item_data):
         """
         Extracts, cleans, normalizes, and de-duplicates specifications from various sources within item_data.
@@ -2051,33 +2118,52 @@ class RetailOperationsSuite(QMainWindow):
 
         return list(best_specs.values())
 
-    def update_specs_list(self):
-        self.specs_list.clear()
-        if 'all_specs' in self.current_item_data:
-            size_name = self.paper_size_combo.currentText()
-            size_config = self.paper_sizes.get(size_name, {})
-            is_keyboard_layout = size_config.get('design') == 'keyboard'
-            spec_limit = self.paper_sizes.get(size_name, {}).get('spec_limit', 99)
-            
-            count = 0
-            for spec in self.current_item_data['all_specs']:
-                item = QListWidgetItem(spec)
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+    def get_pre_selected_specs(self):
+        size_name = self.paper_size_combo.currentText()
+        if not size_name:
+            return []
 
-                # Special handling for Warranty: always check it if present
-                spec_lower = spec.lower()
-                if 'warranty' in spec_lower or 'material details' in spec_lower:
-                    item.setCheckState(Qt.CheckState.Checked)
-                # For keyboards, check all specs. Otherwise, respect the limit.
-                elif is_keyboard_layout:
-                    item.setCheckState(Qt.CheckState.Checked)
-                else:
-                    if count < spec_limit:
-                        item.setCheckState(Qt.CheckState.Checked)
-                        count += 1
-                    else:
-                        item.setCheckState(Qt.CheckState.Unchecked)
-                self.specs_list.addItem(item)
+        size_config = self.paper_sizes.get(size_name, {})
+        spec_limit = size_config.get('spec_limit')
+
+        all_specs = self.current_item_data.get('all_specs', [])
+
+        if spec_limit is None or spec_limit == 0:
+            return []
+        
+        brand_name = self.brand_combo.currentText()
+        if brand_name == "Epson":
+            return []
+
+        return all_specs[:spec_limit]
+
+    def update_spec_item_appearance(self, item):
+        is_checked = item.data(Qt.ItemDataRole.UserRole)
+        if is_checked:
+            item.setBackground(QColor("#e6f2ff"))
+        else:
+            item.setBackground(Qt.GlobalColor.white)
+
+    def update_specs_list(self):
+        self.specs_list.blockSignals(True)
+        self.specs_list.clear()
+        if not self.current_item_data:
+            self.specs_list.blockSignals(False)
+            return
+
+        pre_selected_specs = self.get_pre_selected_specs()
+        all_specs = self.current_item_data.get('all_specs', [])
+        if not all_specs:
+            self.specs_list.blockSignals(False)
+            return
+
+        for spec in all_specs:
+            item = QListWidgetItem(spec)
+            is_checked = spec in pre_selected_specs
+            item.setData(Qt.ItemDataRole.UserRole, is_checked)
+            self.update_spec_item_appearance(item)
+            self.specs_list.addItem(item)
+        self.specs_list.blockSignals(False)
 
     def handle_paper_size_change(self):
         self.update_specs_list()
@@ -2101,6 +2187,8 @@ class RetailOperationsSuite(QMainWindow):
             item.setCheckState(Qt.CheckState.Checked)
             self.specs_list.addItem(item)
             self.update_preview()
+            self.edit_button.setEnabled(True)
+            self.remove_button.setEnabled(True)
 
     def edit_spec(self):
         current_item = self.specs_list.currentItem()
@@ -2116,6 +2204,9 @@ class RetailOperationsSuite(QMainWindow):
         if current_item:
             self.specs_list.takeItem(self.specs_list.row(current_item))
             self.update_preview()
+        if self.specs_list.count() == 0:
+            self.edit_button.setEnabled(False)
+            self.remove_button.setEnabled(False)
 
     def select_printer(self):
         dialog = QPrintDialog(self.printer, self)

@@ -8,13 +8,13 @@ import price_generator
 import pytz
 import price_generator
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QEvent
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
                              QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar,
-                             QFileDialog)
+                             QFileDialog, QCompleter)
 import data_handler
 import firebase_handler
 from translations import Translator
@@ -66,6 +66,12 @@ class LayoutSettingsDialog(QDialog):
 
             form_layout.addRow(self.translator.get(label_key), row_layout)
 
+        self.recent_items_spinbox = QSpinBox()
+        self.recent_items_spinbox.setRange(1, 100)
+        self.recent_items_spinbox.setValue(self.temp_settings.get("recent_items_max_size", 10))
+        self.recent_items_spinbox.valueChanged.connect(self.update_recent_items_max_size)
+        form_layout.addRow(self.translator.get("recent_items_max_size_label", "Recent Items History Size:"), self.recent_items_spinbox)
+
         main_layout.addLayout(form_layout)
 
         button_layout = QHBoxLayout()
@@ -82,7 +88,7 @@ class LayoutSettingsDialog(QDialog):
 
         main_layout.addLayout(button_layout)
 
-    def update_label_and_preview(self):
+    def update_label_and_preview(self, value):
         # Find which slider was moved
         sender = self.sender()
         for key, slider in self.sliders.items():
@@ -97,13 +103,24 @@ class LayoutSettingsDialog(QDialog):
                     self.parent_window.update_preview()
                 break
 
+    def update_recent_items_max_size(self, value):
+        self.temp_settings["recent_items_max_size"] = value
+        if self.parent_window:
+            self.parent_window.settings["recent_items_max_size"] = value
+            self.parent_window.update_recent_items_list()
+
+
     def reset_to_defaults(self):
         defaults = data_handler.get_default_layout_settings()
         for key, slider in self.sliders.items():
             slider.setValue(int(defaults.get(key, 1.0) * 100))
+        
+        default_settings = data_handler.get_default_settings()
+        self.recent_items_spinbox.setValue(default_settings.get("recent_items_max_size", 10))
 
-    def get_layout_settings(self):
-        return self.layout_settings
+
+    def get_settings(self):
+        return self.temp_settings
 
 
 class AddEditSizeDialog(QDialog):
@@ -1065,6 +1082,10 @@ class DisplayManagerDialog(QDialog):
         self.find_group = QGroupBox(self.translator.get("find_by_category_group"))
         find_layout = QHBoxLayout()
         self.category_combo = QComboBox()
+        self.category_combo.setEditable(True)
+        self.category_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.category_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.category_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.find_by_category_button = QPushButton(self.translator.get("find_available_button"))
         self.find_by_category_button.clicked.connect(self.find_available_for_display)
         self.category_label = QLabel(self.translator.get("category_label"))
@@ -1140,16 +1161,17 @@ class DisplayManagerDialog(QDialog):
 
     def populate_category_combo(self):
         self.category_combo.clear()
-        self.category_combo.addItem(self.translator.get("all_categories_placeholder"), "all")
         if self.parent and self.parent.all_items_cache:
             categories = sorted(list(
                 set(item.get("Categories", "N/A") for item in self.parent.all_items_cache.values() if
                     item.get("Categories"))))
             self.category_combo.addItems(categories)
+        self.category_combo.lineEdit().setPlaceholderText(self.translator.get("all_categories_placeholder"))
+        self.category_combo.setCurrentIndex(-1)
 
     def find_available_for_display(self):
         category = self.category_combo.currentText()
-        if self.category_combo.currentData() == "all":
+        if not category or category == self.translator.get("all_categories_placeholder"):
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setText(self.translator.get("category_selection_error_message"))

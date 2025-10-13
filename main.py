@@ -25,7 +25,7 @@ from main_window import RetailOperationsSuite
 import updater
 import data_handler
 
-APP_VERSION = "2.3.2"
+APP_VERSION = "3.0.0"
 
 
 def global_exception_hook(exctype, value, tb):
@@ -85,7 +85,7 @@ def main():
                 return 0  # Exit if login is cancelled
 
         main_window = RetailOperationsSuite(user)
-        main_window.show()
+        main_window.showMaximized()
 
         result = app.exec()
         if result == 0:  # Normal exit
