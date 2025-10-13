@@ -268,6 +268,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#00FFFF",
                 "text_color": "black"
             },
+            "Acer Nitro": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Nitro.png"),
+                "brand_name": "Acer Nitro",
+                "bg_color": "#BA0B0B",
+                "text_color": "black"
+            },
             "Dell": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Dell.png"),
@@ -1059,6 +1066,7 @@ class RetailOperationsSuite(QMainWindow):
                 self.tab_widget.setTabText(logistics_tab_index, self.tr("logistics_tab_title"))
                 self.logistics_input.setPlaceholderText(self.tr("logistics_input_placeholder"))
                 self.logistics_check_button.setText(self.tr("logistics_check_button"))
+                self.logistics_scan_checkbox.setText(self.tr("logistics_scan_check_label"))
                 self.logistics_branch_combo.setItemText(0, self.tr("dashboard_all_branches"))
 
         self.update_branch_combo()
@@ -1140,12 +1148,14 @@ class RetailOperationsSuite(QMainWindow):
         self.update_preview()
 
     def get_current_branch_stock_column(self):
-        current_key = self.branch_combo.currentData()
-        return self.branch_data_map.get(current_key, {}).get("stock_col")
+        current_db_key = self.branch_combo.currentData()
+        for key, data in self.branch_data_map.items():
+            if data['db_key'] == current_db_key:
+                return data.get("stock_col")
+        return None
 
     def get_current_branch_db_key(self):
-        current_key = self.branch_combo.currentData()
-        return self.branch_data_map.get(current_key, {}).get("db_key")
+        return self.branch_combo.currentData()
 
     def open_display_manager(self):
         branch_db_key = self.get_current_branch_db_key()
@@ -1967,38 +1977,121 @@ class RetailOperationsSuite(QMainWindow):
         QApplication.instance().exit(1)  # Signal to re-open login window
 
     def setup_logistics_ui(self):
-        layout = QVBoxLayout(self.logistics_tab)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.logistics_tab.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: bold;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 3px;
+            }
+            QLabel {
+                font-size: 12px;
+            }
+            QPushButton {
+                font-size: 12px;
+                padding: 5px 10px;
+            }
+        """)
 
-        # --- Controls ---
+        main_layout = QVBoxLayout(self.logistics_tab)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # --- Search Controls ---
+        search_group = QGroupBox(self.tr("logistics_search_group"))
+        search_layout = QVBoxLayout(search_group)
+        
         controls_layout = QHBoxLayout()
         self.logistics_branch_combo = QComboBox()
-        self.logistics_branch_combo.addItem("All Branches", "all")
+        self.logistics_branch_combo.addItem(self.tr("dashboard_all_branches"), "all")
         for key, data in self.branch_data_map.items():
             self.logistics_branch_combo.addItem(self.tr(key), key)
+        
         self.logistics_input = QLineEdit()
-        self.logistics_input.setPlaceholderText("Enter SKU, Barcode, or Part Number")
-        self.logistics_check_button = QPushButton("Check Location")
-        self.logistics_check_button.clicked.connect(self.check_item_location)
-        controls_layout.addWidget(self.logistics_branch_combo)
-        controls_layout.addWidget(self.logistics_input)
-        controls_layout.addWidget(self.logistics_check_button)
-        layout.addLayout(controls_layout)
+        self.logistics_input.setPlaceholderText(self.tr("logistics_input_placeholder"))
+        self.logistics_input.returnPressed.connect(self.check_item_location)
 
+        self.logistics_check_button = QPushButton(self.tr("logistics_check_button"))
+        self.logistics_check_button.setIcon(QIcon(resource_path("assets/spec_icons/scan-text.svg")))
+        self.logistics_check_button.clicked.connect(self.check_item_location)
+
+        self.logistics_scan_checkbox = QCheckBox(self.tr("logistics_scan_check_label"))
+
+        controls_layout.addWidget(QLabel(self.tr("branch_label")))
+        controls_layout.addWidget(self.logistics_branch_combo, 1)
+        controls_layout.addWidget(self.logistics_input, 2)
+        controls_layout.addWidget(self.logistics_check_button)
+        controls_layout.addWidget(self.logistics_scan_checkbox)
+        
+        search_layout.addLayout(controls_layout)
+        main_layout.addWidget(search_group)
+
+        # --- Result Display ---
+        self.logistics_result_card = QGroupBox(self.tr("logistics_result_group"))
+        self.logistics_result_card.setVisible(False)
+        result_layout = QVBoxLayout(self.logistics_result_card)
+
+        self.logistics_item_name_label = QLabel()
+        self.logistics_item_name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        result_layout.addWidget(self.logistics_item_name_label)
+
+        self.logistics_item_sku_label = QLabel()
+        self.logistics_item_sku_label.setStyleSheet("font-size: 12px; color: #555;")
+        result_layout.addWidget(self.logistics_item_sku_label)
+
+        result_layout.addSpacing(10)
+
+        # Display Status
+        display_layout = QHBoxLayout()
+        display_icon = QLabel()
+        display_icon.setPixmap(QPixmap(resource_path("assets/spec_icons/monitor.svg")).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logistics_display_status_label = QLabel()
+        display_layout.addWidget(display_icon)
+        display_layout.addWidget(self.logistics_display_status_label)
+        display_layout.addStretch()
+        result_layout.addLayout(display_layout)
+
+        # Storage Status
+        storage_layout = QHBoxLayout()
+        storage_icon = QLabel()
+        storage_icon.setPixmap(QPixmap(resource_path("assets/spec_icons/storage.svg")).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logistics_storage_status_label = QLabel()
+        storage_layout.addWidget(storage_icon)
+        storage_layout.addWidget(self.logistics_storage_status_label)
+        storage_layout.addStretch()
+        result_layout.addLayout(storage_layout)
+        
+        self.logistics_error_label = QLabel()
+        self.logistics_error_label.setStyleSheet("color: red;")
+        result_layout.addWidget(self.logistics_error_label)
+
+        main_layout.addWidget(self.logistics_result_card)
+        main_layout.addStretch()
+
+        # --- Timers ---
         self.logistics_scan_timer = QTimer(self)
         self.logistics_scan_timer.setSingleShot(True)
         self.logistics_scan_timer.timeout.connect(self.check_item_location)
         self.logistics_input.textChanged.connect(self.handle_logistics_input_change)
 
-        # --- Result ---
-        self.logistics_result_label = QLabel("")
-        layout.addWidget(self.logistics_result_label)
-
     def handle_logistics_input_change(self, text):
-        self.logistics_scan_timer.start(500)  # 500ms delay
+        if self.logistics_scan_checkbox.isChecked():
+            self.logistics_scan_timer.start(500)  # 500ms delay
 
     def check_item_location(self):
         identifier = self.logistics_input.text().strip()
+        self.logistics_result_card.setVisible(False)
+        self.logistics_error_label.setText("")
+        self.logistics_display_status_label.setText("")
+        self.logistics_storage_status_label.setText("")
+
         if not identifier:
             return
 
@@ -2007,18 +2100,22 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), token)
+        self.logistics_result_card.setVisible(True)
 
         if not item_data:
-            self.logistics_result_label.setText("Item not found.")
-            self.logistics_result_label.setStyleSheet("color: red;")
+            self.logistics_item_name_label.setText(self.tr("logistics_item_not_found"))
+            self.logistics_item_sku_label.setText(identifier)
+            self.logistics_error_label.setText(self.tr("logistics_check_again_prompt"))
             return
 
         sku = item_data.get("SKU")
+        self.logistics_item_name_label.setText(item_data.get("Name", "N/A"))
+        self.logistics_item_sku_label.setText(f"SKU: {sku}")
+
         display_locations = []
         stock_locations = []
 
         selected_branch = self.logistics_branch_combo.currentData()
-
         branches_to_check = [selected_branch] if selected_branch != "all" else self.branch_data_map.keys()
 
         display_statuses = firebase_handler.get_display_status(token)
@@ -2029,9 +2126,11 @@ class RetailOperationsSuite(QMainWindow):
                 display_locations.append(self.tr(branch_key))
 
         if display_locations:
-            self.logistics_result_label.setText(f"On Display at: {', '.join(display_locations)}")
-            self.logistics_result_label.setStyleSheet("color: green;")
-            return
+            self.logistics_display_status_label.setText(self.tr("logistics_on_display_at", locations=', '.join(display_locations)))
+            self.logistics_display_status_label.setStyleSheet("color: green;")
+        else:
+            self.logistics_display_status_label.setText(self.tr("logistics_not_on_display"))
+            self.logistics_display_status_label.setStyleSheet("color: #555;")
 
         for branch_key in branches_to_check:
             branch_data = self.branch_data_map[branch_key]
@@ -2041,8 +2140,11 @@ class RetailOperationsSuite(QMainWindow):
                 stock_locations.append(f"{self.tr(branch_key)} ({stock_str})")
 
         if stock_locations:
-            self.logistics_result_label.setText(f"In Storage at: {', '.join(stock_locations)}")
-            self.logistics_result_label.setStyleSheet("color: blue;")
+            self.logistics_storage_status_label.setText(self.tr("logistics_in_storage_at", locations=', '.join(stock_locations)))
+            self.logistics_storage_status_label.setStyleSheet("color: blue;")
         else:
-            self.logistics_result_label.setText("Not in stock at any location.")
-            self.logistics_result_label.setStyleSheet("color: red;")
+            self.logistics_storage_status_label.setText(self.tr("logistics_not_in_stock"))
+            self.logistics_storage_status_label.setStyleSheet("color: #555;")
+
+        if not display_locations and not stock_locations:
+            self.logistics_error_label.setText(self.tr("logistics_no_stock_anywhere"))

@@ -270,6 +270,19 @@ TRANSLATIONS = {
         "logistics_tab_title": "Logistics",
         "logistics_input_placeholder": "Enter SKU, Barcode, or Part Number",
         "logistics_check_button": "Check Location",
+        "logistics_scan_check_label": "Scan Check",
+
+        # Logistics Tab Modern UI
+        "logistics_search_group": "Item Locator",
+        "logistics_result_group": "Location Information",
+        "logistics_item_not_found": "Item Not Found",
+        "logistics_check_again_prompt": "Please check the identifier and try again.",
+        "logistics_on_display_at": "On Display at: {locations}",
+        "logistics_not_on_display": "Not currently on display in the selected branch(es).",
+        "logistics_in_storage_at": "In Storage at: {locations}",
+        "logistics_not_in_stock": "Not in stock in the selected branch(es).",
+        "logistics_no_stock_anywhere": "Item is not on display or in stock in any of the selected branches.",
+
 
         # Spec Labels
         "spec_labels": {
@@ -795,6 +808,19 @@ TRANSLATIONS = {
         "logistics_tab_title": "ლოგისტიკა",
         "logistics_input_placeholder": "შეიყვანეთ კოდი, შტრიხკოდი, ან P/N",
         "logistics_check_button": "მდებარეობის შემოწმება",
+        "logistics_scan_check_label": "სკანირების შემოწმება",
+
+        # Logistics Tab Modern UI
+        "logistics_search_group": "ნივთის ლოკატორი",
+        "logistics_result_group": "ადგილმდებარეობის ინფორმაცია",
+        "logistics_item_not_found": "ნივთი ვერ მოიძებნა",
+        "logistics_check_again_prompt": "გთხოვთ, შეამოწმოთ იდენტიფიკატორი და სცადოთ თავიდან.",
+        "logistics_on_display_at": "ვიტრინაშია: {locations}",
+        "logistics_not_on_display": "არ არის ვიტრინაში არჩეულ ფილიალ(ებ)ში.",
+        "logistics_in_storage_at": "საწყობშია: {locations}",
+        "logistics_not_in_stock": "არ არის მარაგში არჩეულ ფილიალ(ებ)ში.",
+        "logistics_no_stock_anywhere": "ნივთი არ არის ვიტრინაში ან მარაგში არცერთ არჩეულ ფილიალში.",
+
 
         # Spec Labels
         "spec_labels": {
