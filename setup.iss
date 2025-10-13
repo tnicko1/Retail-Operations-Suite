@@ -28,6 +28,11 @@ SolidCompression=yes
 WizardStyle=modern
 ChangesAssociations=yes
 Uninstallable=yes
+WizardImageFile=assets/program/logo.png
+WizardSmallImageFile=assets/program/logo.png
+AppContact=nikoloz@taturashvili.com
+InfoBeforeFile=info_before.txt
+InfoAfterFile=info_after.txt
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
