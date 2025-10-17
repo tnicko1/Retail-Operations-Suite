@@ -19,6 +19,7 @@ import data_handler
 import firebase_handler
 from translations import Translator
 from utils import format_timedelta
+from theme_utils import get_theme_colors
 
 
 class LayoutSettingsDialog(QDialog):
@@ -786,7 +787,8 @@ class BrandSelectionDialog(QDialog):
             preview_label = QLabel()
             preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_label.setMinimumSize(300, 400)  # Adjust size as needed
-            preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
+            colors = get_theme_colors()
+            preview_label.setStyleSheet(f"border: 1px solid {colors["preview_border"]}; background-color: {colors["preview_bg"]};")
 
             theme_config = copy.deepcopy(self.parent_window.themes["Default"])
             theme_config.update(config)

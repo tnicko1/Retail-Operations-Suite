@@ -25,6 +25,7 @@ import data_handler
 
 from PyQt6.QtGui import QPixmap, QIcon
 from utils import resource_path
+from theme_utils import get_theme_colors
 
 class LoginWindow(QDialog):
     def __init__(self, parent=None):
@@ -35,44 +36,46 @@ class LoginWindow(QDialog):
         self.setModal(True)
         self.user = None
 
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f0f2f5;
-            }
-            QLabel#Title {
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {colors["main_bg"]};
+            }}
+            QLabel#Title {{
                 font-size: 24px;
                 font-weight: bold;
-                color: #333;
-            }
-            QLineEdit {
-                border: 1px solid #ccc;
+                color: {colors["title_text"]};
+            }}
+            QLineEdit {{
+                border: 1px solid {colors["input_border"]};
                 border-radius: 4px;
                 padding: 10px;
-                background-color: #fff;
+                background-color: {colors["input_bg"]};
+                color: {colors["input_text"]};
                 font-size: 14px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #0078d7;
-            }
-            QPushButton#LoginButton {
-                background-color: #0078d7;
-                color: white;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {colors["input_focus_border"]};
+            }}
+            QPushButton#LoginButton {{
+                background-color: {colors["button_bg"]};
+                color: {colors["button_text"]};
                 border-radius: 4px;
                 padding: 10px;
                 font-size: 14px;
                 font-weight: bold;
                 border: none;
-            }
-            QPushButton#LoginButton:hover {
-                background-color: #005a9e;
-            }
-            QPushButton#RegisterButton {
+            }}
+            QPushButton#LoginButton:hover {{
+                background-color: {colors["button_hover"]};
+            }}
+            QPushButton#RegisterButton {{
                 background-color: transparent;
-                color: #0078d7;
+                color: {colors["register_button_text"]};
                 border: none;
                 font-size: 12px;
                 text-align: right;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(self)
@@ -162,37 +165,39 @@ class RegisterDialog(QDialog):
         self.setWindowTitle(self.translator.get("register_window_title"))
         self.setModal(True)
 
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f0f2f5;
-            }
-            QLabel#Title {
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {colors["main_bg"]};
+            }}
+            QLabel#Title {{
                 font-size: 24px;
                 font-weight: bold;
-                color: #333;
-            }
-            QLineEdit {
-                border: 1px solid #ccc;
+                color: {colors["title_text"]};
+            }}
+            QLineEdit {{
+                border: 1px solid {colors["input_border"]};
                 border-radius: 4px;
                 padding: 10px;
-                background-color: #fff;
+                background-color: {colors["input_bg"]};
+                color: {colors["input_text"]};
                 font-size: 14px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #0078d7;
-            }
-            QPushButton {
-                background-color: #0078d7;
-                color: white;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {colors["input_focus_border"]};
+            }}
+            QPushButton {{
+                background-color: {colors["button_bg"]};
+                color: {colors["button_text"]};
                 border-radius: 4px;
                 padding: 10px;
                 font-size: 14px;
                 font-weight: bold;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #005a9e;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {colors["button_hover"]};
+            }}
         """)
 
         layout = QVBoxLayout(self)

@@ -25,6 +25,7 @@ from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerD
                      ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog)
 from translations import Translator
 from utils import format_timedelta, resource_path
+from theme_utils import get_theme_colors
 
 
 class RetailOperationsSuite(QMainWindow):
@@ -35,120 +36,123 @@ class RetailOperationsSuite(QMainWindow):
         # self.token is now managed by self.ensure_token_valid()
         self.token = self.user.get('idToken')
         self.settings = data_handler.get_settings()
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f2f5;
-            }
-            QTabWidget::pane {
+        self.colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {self.colors["main_bg"]};
+            }}
+            QTabWidget::pane {{
                 border: none;
                 padding: 10px;
-                background-color: #f0f2f5;
-            }
-            QTabWidget::tab-bar {
+                background-color: {self.colors["pane_bg"]};
+            }}
+            QTabWidget::tab-bar {{
                 alignment: left;
-            }
-            QTabBar::tab {
+            }}
+            QTabBar::tab {{
                 background: transparent;
                 border: none;
                 border-bottom: 2px solid transparent;
                 padding: 8px 15px;
                 font-size: 14px;
                 font-weight: bold;
-                color: #555;
-            }
-            QTabBar::tab:selected {
-                border-bottom: 2px solid #0078d7;
-                color: #0078d7;
-            }
-            QTabBar::tab:!selected:hover {
-                background: #eef;
-            }
-            QGroupBox {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
+                color: {self.colors["tab_text"]};
+            }}
+            QTabBar::tab:selected {{
+                border-bottom: 2px solid {self.colors["tab_selected_border"]};
+                color: {self.colors["tab_selected_text"]};
+            }}
+            QTabBar::tab:!selected:hover {{
+                background: {self.colors["tab_hover_bg"]};
+            }}
+            QGroupBox {{
+                background-color: {self.colors["group_bg"]};
+                border: 1px solid {self.colors["group_border"]};
                 border-radius: 8px;
                 margin-top: 1ex;
                 font-weight: bold;
                 padding-top: 15px;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 2px 8px;
-                background-color: #f0f2f5;
-                color: #333;
+                background-color: {self.colors["group_title_bg"]};
+                color: {self.colors["group_title_text"]};
                 border-radius: 4px;
                 left: 10px;
-            }
-            QLineEdit, QComboBox, QListWidget, QDoubleSpinBox, QSpinBox {
-                border: 1px solid #ccc;
+            }}
+            QLineEdit, QComboBox, QListWidget, QDoubleSpinBox, QSpinBox {{
+                border: 1px solid {self.colors["input_border"]};
                 border-radius: 4px;
                 padding: 6px;
-                background-color: #fff;
-            }
-            QLineEdit:focus, QComboBox:focus, QListWidget:focus {
-                border: 1px solid #0078d7;
-            }
-            QPushButton {
-                background-color: #0078d7;
-                color: white;
+                background-color: {self.colors["input_bg"]};
+                color: {self.colors["input_text"]};
+            }}
+            QLineEdit:focus, QComboBox:focus, QListWidget:focus {{
+                border: 1px solid {self.colors["input_focus_border"]};
+            }}
+            QPushButton {{
+                background-color: {self.colors["button_bg"]};
+                color: {self.colors["button_text"]};
                 border-radius: 4px;
                 padding: 8px 12px;
                 font-weight: bold;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #005a9e;
-            }
-            QPushButton:pressed {
-                background-color: #004578;
-            }
-            QPushButton:disabled {
-                background-color: #e0e0e0;
-                color: #a0a0a0;
-            }
-            QLabel {
+            }}
+            QPushButton:hover {{
+                background-color: {self.colors["button_hover"]};
+            }}
+            QPushButton:pressed {{
+                background-color: {self.colors["button_pressed"]};
+            }}
+            QPushButton:disabled {{
+                background-color: {self.colors["button_disabled_bg"]};
+                color: {self.colors["button_disabled_text"]};
+            }}
+            QLabel {{
                 font-size: 13px;
-            }
-            QCheckBox {
+                color: {self.colors["label_text"]};
+            }}
+            QCheckBox {{
                 font-size: 13px;
-            }
-            QListWidget::indicator {
+            }}
+            QListWidget::indicator {{
                 width: 13px;
                 height: 13px;
-            }
-            QMenuBar {
-                background-color: #fff;
-                border-bottom: 1px solid #e0e0e0;
-            }
-            QMenuBar::item {
+            }}
+            QMenuBar {{
+                background-color: {self.colors["menu_bg"]};
+                border-bottom: 1px solid {self.colors["menu_border"]};
+            }}
+            QMenuBar::item {{
                 padding: 4px 8px;
-            }
-            QMenuBar::item:selected {
-                background-color: #e0e0e0;
-            }
-            QMenu {
-                background-color: #fff;
-                border: 1px solid #ccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d7;
-                color: white;
-            }
-            #LangButton {
+            }}
+            QMenuBar::item:selected {{
+                background-color: {self.colors["menu_item_selected_bg"]};
+            }}
+            QMenu {{
+                background-color: {self.colors["menu_bg"]};
+                border: 1px solid {self.colors["menu_border"]};
+            }}
+            QMenu::item:selected {{
+                background-color: {self.colors["menu_item_selected_bg"]};
+                color: {self.colors["menu_item_selected_text"]};
+            }}
+            #LangButton {{
                 background-color: transparent;
                 border: none;
                 padding: 5px;
-            }
-            #IconButton {
+            }}
+            #IconButton {{
                 background-color: transparent;
                 border: none;
                 padding: 5px;
-                color: #555;
-            }
-            #IconButton:hover {
-                background-color: #e0e0e0;
-            }
+                color: {self.colors["icon_button_text"]};
+            }}
+            #IconButton:hover {{
+                background-color: {self.colors["icon_button_hover_bg"]};
+            }}
         """)
         self.translator = Translator(self.settings.get("language", "en"))
         self.tr = self.translator.get
@@ -1125,7 +1129,7 @@ class RetailOperationsSuite(QMainWindow):
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(600, 700)
-        self.preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
+        self.preview_label.setStyleSheet(f"border: 1px solid {self.colors["preview_border"]}; background-color: {self.colors["preview_bg"]};")
         layout.addWidget(self.preview_label)
         return panel
 
@@ -1644,7 +1648,7 @@ class RetailOperationsSuite(QMainWindow):
             threshold = self.settings.get('low_stock_threshold', 3)
             if 0 < stock_val <= threshold:
                 self.low_stock_warning_label.setText(self.tr("low_stock_warning"))
-                self.low_stock_warning_label.setStyleSheet("color: red; font-weight: bold;")
+                self.low_stock_warning_label.setStyleSheet(f"color: {self.colors["low_stock_warning"]}; font-weight: bold;")
             else:
                 self.low_stock_warning_label.setText("")
         else:
@@ -1669,7 +1673,7 @@ class RetailOperationsSuite(QMainWindow):
 
         if timestamp_str:
             self.status_label_value.setText(self.tr('status_on_display'))
-            self.status_label_value.setStyleSheet("color: green; font-weight: bold;")
+            self.status_label_value.setStyleSheet(f"color: {self.colors["status_on_display"]}; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_storage_button'))
 
             if isinstance(timestamp_str, str):
@@ -1695,7 +1699,7 @@ class RetailOperationsSuite(QMainWindow):
 
         else:
             self.status_label_value.setText(self.tr('status_in_storage'))
-            self.status_label_value.setStyleSheet("color: red; font-weight: bold;")
+            self.status_label_value.setStyleSheet(f"color: {self.colors["status_in_storage"]}; font-weight: bold;")
             self.toggle_status_button.setText(self.tr('set_to_display_button'))
             self.status_duration_label.setVisible(False)
 

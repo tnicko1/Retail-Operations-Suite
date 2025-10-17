@@ -89,6 +89,7 @@ TRANSLATIONS = {
         "layout_sku_size": "SKU Font Size:",
         "layout_pn_size": "P/N Font Size:",
         "layout_reset_button": "Reset to Defaults",
+        "recent_items_max_size_label": "Recent Items History Size:",
 
         # Auth
         "login_window_title": "Login - Retail Operations Suite",
@@ -646,6 +647,7 @@ TRANSLATIONS = {
         "layout_sku_size": "კოდის შრიფტი:",
         "layout_pn_size": "P/N-ის შრიფტი:",
         "layout_reset_button": "საწყისზე დაბრუნება",
+        "recent_items_max_size_label": "ისტორიის ზომა:",
 
         # Auth
         "login_window_title": "ავტორიზაცია - საცალო ოპერაციების კომპლექსი",

@@ -11,3 +11,4 @@ cairosvg
 lxml
 pandas
 openpyxl
+setuptools

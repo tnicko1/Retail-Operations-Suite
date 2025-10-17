@@ -1,0 +1,81 @@
+from PyQt6.QtWidgets import QApplication
+
+def get_theme_colors():
+    palette = QApplication.palette()
+    base_color = palette.color(palette.ColorRole.Base)
+    is_dark_mode = base_color.lightness() < 128
+
+    if is_dark_mode:
+        return {
+            "main_bg": "#2e2e2e",
+            "pane_bg": "#2e2e2e",
+            "tab_text": "#cccccc",
+            "tab_selected_border": "#0078d7",
+            "tab_selected_text": "#0078d7",
+            "tab_hover_bg": "#3e3e3e",
+            "group_bg": "#3c3c3c",
+            "group_border": "#555555",
+            "group_title_bg": "#2e2e2e",
+            "group_title_text": "#cccccc",
+            "input_border": "#555555",
+            "input_bg": "#2e2e2e",
+            "input_text": "#ffffff",
+            "input_focus_border": "#0078d7",
+            "button_bg": "#0078d7",
+            "button_text": "white",
+            "button_hover": "#005a9e",
+            "button_pressed": "#004578",
+            "button_disabled_bg": "#444444",
+            "button_disabled_text": "#888888",
+            "label_text": "#cccccc",
+            "title_text": "#cccccc",
+            "menu_bg": "#3c3c3c",
+            "menu_border": "#555555",
+            "menu_item_selected_bg": "#0078d7",
+            "menu_item_selected_text": "white",
+            "icon_button_text": "#cccccc",
+            "icon_button_hover_bg": "#555555",
+            "preview_bg": "#2e2e2e",
+            "preview_border": "#555555",
+            "low_stock_warning": "yellow",
+            "status_on_display": "#33ff33",
+            "status_in_storage": "#ff3333",
+            "register_button_text": "#0078d7"
+        }
+    else:
+        return {
+            "main_bg": "#f0f2f5",
+            "pane_bg": "#f0f2f5",
+            "tab_text": "#555",
+            "tab_selected_border": "#0078d7",
+            "tab_selected_text": "#0078d7",
+            "tab_hover_bg": "#eef",
+            "group_bg": "#ffffff",
+            "group_border": "#e0e0e0",
+            "group_title_bg": "#f0f2f5",
+            "group_title_text": "#333",
+            "input_border": "#ccc",
+            "input_bg": "#fff",
+            "input_text": "#000000",
+            "input_focus_border": "#0078d7",
+            "button_bg": "#0078d7",
+            "button_text": "white",
+            "button_hover": "#005a9e",
+            "button_pressed": "#004578",
+            "button_disabled_bg": "#e0e0e0",
+            "button_disabled_text": "#a0a0a0",
+            "label_text": "#000000",
+            "title_text": "#333",
+            "menu_bg": "#fff",
+            "menu_border": "#ccc",
+            "menu_item_selected_bg": "#0078d7",
+            "menu_item_selected_text": "white",
+            "icon_button_text": "#555",
+            "icon_button_hover_bg": "#e0e0e0",
+            "preview_bg": "#f0f0f0",
+            "preview_border": "#ccc",
+            "low_stock_warning": "red",
+            "status_on_display": "green",
+            "status_in_storage": "red",
+            "register_button_text": "#0078d7"
+        }
