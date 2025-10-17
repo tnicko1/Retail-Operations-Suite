@@ -98,6 +98,7 @@ def sanitize_for_indexing(text):
     """
     if not text:
         return ""
+    text = text.strip()
     # Replace common separators and problematic characters with an underscore
     s = re.sub(r'[ >/\\.]', '_', text)
     # Remove any characters that are not alphanumeric or underscore

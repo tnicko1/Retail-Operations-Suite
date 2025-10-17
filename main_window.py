@@ -2144,9 +2144,11 @@ class RetailOperationsSuite(QMainWindow):
     def update_spec_item_appearance(self, item):
         is_checked = item.data(Qt.ItemDataRole.UserRole)
         if is_checked:
-            item.setBackground(QColor("#e6f2ff"))
+            item.setBackground(QColor(self.colors["spec_checked_bg"]))
+            item.setForeground(QColor(self.colors["spec_checked_text"]))
         else:
-            item.setBackground(Qt.GlobalColor.white)
+            item.setBackground(QColor(self.colors["spec_unchecked_bg"]))
+            item.setForeground(QColor(self.colors["spec_unchecked_text"]))
 
     def update_specs_list(self):
         self.specs_list.blockSignals(True)
@@ -2353,6 +2355,11 @@ class RetailOperationsSuite(QMainWindow):
         if not identifier:
             return
 
+        # Automatically prefix with 'I' if it's a 5-digit number
+        if len(identifier) == 5 and identifier.isdigit():
+            identifier = f"I{identifier}"
+            self.logistics_input.setText(identifier) # Update the UI to reflect the change
+
         token = self.ensure_token_valid()
         if not token:
             return
@@ -2385,24 +2392,17 @@ class RetailOperationsSuite(QMainWindow):
 
         if display_locations:
             self.logistics_display_status_label.setText(self.tr("logistics_on_display_at", locations=', '.join(display_locations)))
-            self.logistics_display_status_label.setStyleSheet("color: green;")
+            self.logistics_display_status_label.setStyleSheet(f"color: {self.colors['logistics_on_display']};")
         else:
             self.logistics_display_status_label.setText(self.tr("logistics_not_on_display"))
-            self.logistics_display_status_label.setStyleSheet("color: #555;")
-
-        for branch_key in branches_to_check:
-            branch_data = self.branch_data_map[branch_key]
-            stock_col = branch_data['stock_col']
-            stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
-            if stock_str.isdigit() and int(stock_str) > 0:
-                stock_locations.append(f"{self.tr(branch_key)} ({stock_str})")
+            self.logistics_display_status_label.setStyleSheet(f"color: {self.colors['logistics_not_on_display']};")
 
         if stock_locations:
             self.logistics_storage_status_label.setText(self.tr("logistics_in_storage_at", locations=', '.join(stock_locations)))
-            self.logistics_storage_status_label.setStyleSheet("color: blue;")
+            self.logistics_storage_status_label.setStyleSheet(f"color: {self.colors['logistics_in_storage']};")
         else:
             self.logistics_storage_status_label.setText(self.tr("logistics_not_in_stock"))
-            self.logistics_storage_status_label.setStyleSheet("color: #555;")
+            self.logistics_storage_status_label.setStyleSheet(f"color: {self.colors['logistics_not_in_stock']};")
 
         if not display_locations and not stock_locations:
             self.logistics_error_label.setText(self.tr("logistics_no_stock_anywhere"))

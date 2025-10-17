@@ -40,7 +40,15 @@ def get_theme_colors():
             "low_stock_warning": "yellow",
             "status_on_display": "#33ff33",
             "status_in_storage": "#ff3333",
-            "register_button_text": "#0078d7"
+            "register_button_text": "#0078d7",
+            "spec_checked_bg": "#0078d7",
+            "spec_checked_text": "white",
+            "spec_unchecked_bg": "#3c3c3c",
+            "spec_unchecked_text": "#cccccc",
+            "logistics_on_display": "#33ff33",
+            "logistics_not_on_display": "#cccccc",
+            "logistics_in_storage": "#3399ff",
+            "logistics_not_in_stock": "#cccccc"
         }
     else:
         return {
@@ -77,5 +85,13 @@ def get_theme_colors():
             "low_stock_warning": "red",
             "status_on_display": "green",
             "status_in_storage": "red",
-            "register_button_text": "#0078d7"
+            "register_button_text": "#0078d7",
+            "spec_checked_bg": "#e6f2ff",
+            "spec_checked_text": "#000000",
+            "spec_unchecked_bg": "#ffffff",
+            "spec_unchecked_text": "#000000",
+            "logistics_on_display": "green",
+            "logistics_not_on_display": "#555",
+            "logistics_in_storage": "blue",
+            "logistics_not_in_stock": "#555"
         }

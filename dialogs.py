@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt, QSize, QEvent
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
-                             QListWidget, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
+                             QListWidget, QListWidgetItem, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
                              QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar,
                              QFileDialog, QCompleter)
 import data_handler
@@ -1061,6 +1061,51 @@ class ActivityLogDialog(QDialog):
             self.table.setItem(row, 1, QTableWidgetItem(entry.get("email")))
             self.table.setItem(row, 2, QTableWidgetItem(entry.get("message")))
 
+class MultiSelectCategoryDialog(QDialog):
+    def __init__(self, translator, categories, selected_categories, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.setWindowTitle(self.translator.get("category_selection_title"))
+        self.setMinimumSize(400, 500)
+
+        layout = QVBoxLayout(self)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search Categories...")
+        self.search_input.textChanged.connect(self.filter_categories)
+        layout.addWidget(self.search_input)
+
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+
+        for category in categories:
+            item = QListWidgetItem(category)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            check_state = Qt.CheckState.Checked if category in selected_categories else Qt.CheckState.Unchecked
+            item.setCheckState(check_state)
+            self.list_widget.addItem(item)
+
+        layout.addWidget(self.list_widget)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def filter_categories(self, text):
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            item.setHidden(text.lower() not in item.text().lower())
+
+    def get_selected_categories(self):
+        selected = []
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                selected.append(item.text())
+        return selected
+
+
 
 class DisplayManagerDialog(QDialog):
     def __init__(self, translator, branch_db_key, branch_stock_col, user, parent=None):
@@ -1077,25 +1122,22 @@ class DisplayManagerDialog(QDialog):
         self.original_suggestions = []
         self.current_sort_column = -1
         self.current_sort_order = None
+        self.selected_categories = []
 
         layout = QVBoxLayout(self)
 
         # --- NEW: Find by Category Group ---
         self.find_group = QGroupBox(self.translator.get("find_by_category_group"))
         find_layout = QHBoxLayout()
-        self.category_combo = QComboBox()
-        self.category_combo.setEditable(True)
-        self.category_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.category_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.category_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self.category_button = QPushButton(self.translator.get("all_categories_placeholder"))
+        self.category_button.clicked.connect(self.open_category_selection)
         self.find_by_category_button = QPushButton(self.translator.get("find_available_button"))
         self.find_by_category_button.clicked.connect(self.find_available_for_display)
         self.category_label = QLabel(self.translator.get("category_label"))
         find_layout.addWidget(self.category_label)
-        find_layout.addWidget(self.category_combo)
+        find_layout.addWidget(self.category_button)
         find_layout.addWidget(self.find_by_category_button)
         self.find_group.setLayout(find_layout)
-        self.populate_category_combo()
 
         # --- Return Item Group ---
         self.return_group = QGroupBox(self.translator.get("return_tag_group"))
@@ -1142,38 +1184,34 @@ class DisplayManagerDialog(QDialog):
         self.category_label.setText(self.translator.get("category_label"))
         self.find_by_category_button.setText(self.translator.get("find_available_button"))
 
-        # Repopulate combo to update the placeholder
-        current_data = self.category_combo.currentData()
-        self.populate_category_combo()
-        index = self.category_combo.findData(current_data)
-        if index != -1:
-            self.category_combo.setCurrentIndex(index)
+        self.update_category_button_text()
 
         self.return_group.setTitle(self.translator.get("return_tag_group"))
-        self.return_tag_label.setText(self.translator.get("return_tag_label"))
-        self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
-        self.find_replacements_button.setText(self.translator.get("find_replacements_button"))
 
-        # Update table headers and button text within the table
-        self.update_header_indicators()
-        for row in range(self.suggestions_table.rowCount()):
-            button = self.suggestions_table.cellWidget(row, 4)
-            if button:
-                button.setText(self.translator.get("quick_print_button"))
-
-    def populate_category_combo(self):
-        self.category_combo.clear()
+    def get_all_categories(self):
         if self.parent and self.parent.all_items_cache:
-            categories = sorted(list(
+            return sorted(list(
                 set(item.get("Categories", "N/A") for item in self.parent.all_items_cache.values() if
                     item.get("Categories"))))
-            self.category_combo.addItems(categories)
-        self.category_combo.lineEdit().setPlaceholderText(self.translator.get("all_categories_placeholder"))
-        self.category_combo.setCurrentIndex(-1)
+        return []
+
+    def open_category_selection(self):
+        all_categories = self.get_all_categories()
+        dialog = MultiSelectCategoryDialog(self.translator, all_categories, self.selected_categories, self)
+        if dialog.exec():
+            self.selected_categories = dialog.get_selected_categories()
+            self.update_category_button_text()
+
+    def update_category_button_text(self):
+        if not self.selected_categories:
+            self.category_button.setText(self.translator.get("all_categories_placeholder"))
+        elif len(self.selected_categories) == 1:
+            self.category_button.setText(self.selected_categories[0])
+        else:
+            self.category_button.setText(f"{len(self.selected_categories)} categories selected")
 
     def find_available_for_display(self):
-        category = self.category_combo.currentText()
-        if not category or category == self.translator.get("all_categories_placeholder"):
+        if not self.selected_categories:
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setText(self.translator.get("category_selection_error_message"))
@@ -1183,16 +1221,15 @@ class DisplayManagerDialog(QDialog):
             return
 
         branch_name = self.parent.branch_combo.currentText()
-        self.suggestions_group.setTitle(self.translator.get("available_for_display_group_title", category, branch_name))
+        self.suggestions_group.setTitle(self.translator.get("available_for_display_group_title", ", ".join(self.selected_categories), branch_name))
 
-        self.original_suggestions = firebase_handler.get_available_items_for_display(
-            category, self.branch_db_key, self.branch_stock_col, self.token
-        )
-
+        self.original_suggestions = []
+        for category in self.selected_categories:
+            self.original_suggestions.extend(firebase_handler.get_available_items_for_display(
+                category, self.branch_db_key, self.branch_stock_col, self.token
+            ))
         self.current_sort_column = -1
-        self.current_sort_order = None
-        self.populate_suggestions(self.original_suggestions)
-        self.update_header_indicators()
+        self.sort_and_repopulate()
 
     def find_replacements_for_return(self):
         identifier = self.return_input.text().strip()
@@ -1234,7 +1271,7 @@ class DisplayManagerDialog(QDialog):
 
         self.current_sort_column = -1
         self.current_sort_order = None
-        self.populate_suggestions(self.original_suggestions)
+        self.sort_and_repopulate()
         self.update_header_indicators()
 
         if self.parent and self.parent.current_item_data.get('SKU') == sku:
