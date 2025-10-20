@@ -1498,6 +1498,110 @@ class DisplayManagerDialog(QDialog):
             msg.exec()
 
 
+class ExportStockDialog(QDialog):
+    def __init__(self, translator, token, branch_map, parent=None):
+        super().__init__(parent)
+        self.translator = translator
+        self.token = token
+        self.branch_map = branch_map
+        self.parent = parent
+        self.selected_categories = []
+
+        self.setWindowTitle("Export Stock Information")
+        self.setMinimumSize(500, 200)
+
+        layout = QVBoxLayout(self)
+
+        self.category_button = QPushButton("Select Categories")
+        self.category_button.clicked.connect(self.open_category_selection)
+        layout.addWidget(self.category_button)
+
+        self.export_button = QPushButton("Export to Excel")
+        self.export_button.clicked.connect(self.export_to_excel)
+        layout.addWidget(self.export_button)
+
+    def get_all_categories(self):
+        if self.parent and self.parent.all_items_cache:
+            return sorted(list(
+                set(item.get("Categories", "N/A") for item in self.parent.all_items_cache.values() if
+                    item.get("Categories"))))
+        return []
+
+    def open_category_selection(self):
+        all_categories = self.get_all_categories()
+        dialog = MultiSelectCategoryDialog(self.translator, all_categories, self.selected_categories, self)
+        if dialog.exec():
+            self.selected_categories = dialog.get_selected_categories()
+            self.update_category_button_text()
+
+    def update_category_button_text(self):
+        if not self.selected_categories:
+            self.category_button.setText("Select Categories")
+        elif len(self.selected_categories) == 1:
+            self.category_button.setText(self.selected_categories[0])
+        else:
+            self.category_button.setText(f"{len(self.selected_categories)} categories selected")
+
+    def export_to_excel(self):
+        if not self.selected_categories:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Please select at least one category.")
+            msg.setWindowTitle("No Categories Selected")
+            msg.exec()
+            return
+
+        branch_key = self.parent.logistics_branch_combo.currentData()
+        if not branch_key or branch_key == "all":
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("Please select a single branch in the Logistics tab.")
+            msg.setWindowTitle("No Branch Selected")
+            msg.exec()
+            return
+
+        branch_info = self.branch_map[branch_key]
+        stock_col = branch_info['stock_col']
+
+        items_to_export = []
+        for sku, item_data in self.parent.all_items_cache.items():
+            if item_data.get("Categories") in self.selected_categories:
+                stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
+                if stock_str.isdigit() and int(stock_str) > 0:
+                    items_to_export.append({
+                        "SKU": sku,
+                        "Name": item_data.get("Name", "N/A"),
+                        "Category": item_data.get("Categories", "N/A"),
+                        "Stock": int(stock_str)
+                    })
+
+        if not items_to_export:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText("No items with stock found in the selected categories for this branch.")
+            msg.setWindowTitle("No Data to Export")
+            msg.exec()
+            return
+
+        df = pd.DataFrame(items_to_export)
+
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel File", "", "Excel Files (*.xlsx)")
+            if file_path:
+                df.to_excel(file_path, index=False)
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Information)
+                msg.setText(f"Data exported successfully to {file_path}")
+                msg.setWindowTitle("Export Successful")
+                msg.exec()
+        except Exception as e:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"Failed to export data: {e}")
+            msg.setWindowTitle("Export Error")
+            msg.exec()
+
+
 class UserManagementDialog(QDialog):
     def __init__(self, translator, user, parent=None):
         super().__init__(parent)

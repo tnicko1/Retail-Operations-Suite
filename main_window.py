@@ -22,7 +22,7 @@ import price_generator
 from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerDialog, QuickStockDialog,
                      TemplateSelectionDialog, NewItemDialog, PrintQueueDialog, PriceHistoryDialog,
                      TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
-                     ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog)
+                     ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog, ExportStockDialog)
 from translations import Translator
 from utils import format_timedelta, resource_path
 from theme_utils import get_theme_colors
@@ -1252,6 +1252,30 @@ class RetailOperationsSuite(QMainWindow):
         actions_layout.addWidget(self.batch_button)
         layout.addWidget(self.output_group)
 
+        # Image Preview Group
+        self.image_preview_group = QGroupBox("Image Preview")
+        self.image_preview_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: bold;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 3px;
+            }
+        """)
+        image_preview_layout = QVBoxLayout(self.image_preview_group)
+        self.generator_item_image_label = QLabel()
+        self.generator_item_image_label.setMinimumSize(200, 200)
+        self.generator_item_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.generator_item_image_label.setStyleSheet("border: 1px solid #ccc; background-color: white;")
+        image_preview_layout.addWidget(self.generator_item_image_label)
+        layout.addWidget(self.image_preview_group)
+
         layout.addStretch()
 
         return panel
@@ -1296,6 +1320,44 @@ class RetailOperationsSuite(QMainWindow):
                 return brand_keys[0]
 
         return "None"
+
+    def update_item_image(self, image_label):
+        if not self.current_item_data:
+            image_label.clear()
+            return
+
+        def fetch_and_display_image():
+            try:
+                sku = self.current_item_data.get('SKU')
+                if not sku:
+                    raise ValueError("SKU not found in item data")
+                
+                image_url = f"https://pcshop.ge/wp-content/uploads/{sku}.jpg"
+
+                with urllib.request.urlopen(image_url, timeout=5) as response:
+                    image_data = response.read()
+
+                pixmap = QPixmap()
+                pixmap.loadFromData(image_data)
+
+                if not pixmap.isNull():
+                    image_label.setPixmap(
+                        pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation))
+                    return
+
+            except Exception as e:
+                pass # Silently fail and load fallback
+
+            fallback_path = resource_path("assets/props/no-image.jpg")
+            image = QImage(fallback_path)
+            if not image.isNull():
+                pixmap = QPixmap.fromImage(image)
+                if not pixmap.isNull():
+                    image_label.setPixmap(
+                        pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+
+        fetch_and_display_image()
 
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
@@ -1716,6 +1778,8 @@ class RetailOperationsSuite(QMainWindow):
         data_handler.save_settings(self.settings)
         # Update UI
         self.update_recent_items_list()
+
+        self.update_item_image(self.generator_item_image_label)
 
         self.update_preview()
 
@@ -2367,8 +2431,14 @@ class RetailOperationsSuite(QMainWindow):
         result_layout.addWidget(self.logistics_item_name_label)
 
         self.logistics_item_sku_label = QLabel()
-        self.logistics_item_sku_label.setStyleSheet("font-size: 12px; color: #555;")
+        self.logistics_item_sku_label.setStyleSheet("font-size: 12px;")
         result_layout.addWidget(self.logistics_item_sku_label)
+
+        self.logistics_item_image_label = QLabel()
+        self.logistics_item_image_label.setMinimumSize(200, 200)
+        self.logistics_item_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.logistics_item_image_label.setStyleSheet("border: 1px solid #ccc; background-color: white;")
+        result_layout.addWidget(self.logistics_item_image_label)
 
         result_layout.addSpacing(10)
 
@@ -2399,11 +2469,25 @@ class RetailOperationsSuite(QMainWindow):
         main_layout.addWidget(self.logistics_result_card)
         main_layout.addStretch()
 
+        # --- Export Group ---
+        self.export_group = QGroupBox("Export Stock Information")
+        export_layout = QVBoxLayout(self.export_group)
+        self.export_stock_button = QPushButton("Select Categories to Export")
+        self.export_stock_button.clicked.connect(self.open_export_stock_dialog)
+        export_layout.addWidget(self.export_stock_button)
+        main_layout.addWidget(self.export_group)
+
         # --- Timers ---
         self.logistics_scan_timer = QTimer(self)
         self.logistics_scan_timer.setSingleShot(True)
         self.logistics_scan_timer.timeout.connect(self.check_item_location)
         self.logistics_input.textChanged.connect(self.handle_logistics_input_change)
+
+    def open_export_stock_dialog(self):
+        token = self.ensure_token_valid()
+        if not token: return
+        dialog = ExportStockDialog(self.translator, token, self.branch_data_map, self)
+        dialog.exec()
 
     def handle_logistics_input_change(self, text):
         if self.logistics_scan_checkbox.isChecked():
@@ -2431,11 +2515,17 @@ class RetailOperationsSuite(QMainWindow):
         item_data = firebase_handler.find_item_by_identifier(identifier.upper(), token)
         self.logistics_result_card.setVisible(True)
 
+        self.logistics_item_image_label.clear()
+
         if not item_data:
             self.logistics_item_name_label.setText(self.tr("logistics_item_not_found"))
             self.logistics_item_sku_label.setText(identifier)
             self.logistics_error_label.setText(self.tr("logistics_check_again_prompt"))
             return
+
+        # --- Image Fetching ---
+        self.update_item_image(self.logistics_item_image_label)
+        # --- End Image Fetching ---
 
         sku = item_data.get("SKU")
         self.logistics_item_name_label.setText(item_data.get("Name", "N/A"))
@@ -2453,6 +2543,11 @@ class RetailOperationsSuite(QMainWindow):
             branch_db_key = branch_data["db_key"]
             if branch_db_key in display_statuses and sku in display_statuses[branch_db_key]:
                 display_locations.append(self.tr(branch_key))
+
+            stock_col = branch_data['stock_col']
+            stock_str = str(item_data.get(stock_col, '0')).replace(',', '')
+            if stock_str.isdigit() and int(stock_str) > 0:
+                stock_locations.append(f"{self.tr(branch_key)} ({stock_str})")
 
         if display_locations:
             self.logistics_display_status_label.setText(self.tr("logistics_on_display_at", locations=', '.join(display_locations)))
