@@ -135,6 +135,8 @@ TRANSLATIONS = {
         "suggestions_header_price": "Price",
         "suggestions_header_action": "Action",
         "quick_print_button": "Print & Display",
+        "add_to_print_queue_button": "Add to Print Queue",
+        "export_to_excel_button": "Export to Excel",
 
         # Menus
         "file_menu": "&File",
@@ -694,6 +696,8 @@ TRANSLATIONS = {
         "suggestions_header_price": "ფასი",
         "suggestions_header_action": "მოქმედება",
         "quick_print_button": "ბეჭდვა და ვიტრინაზე დაყენება",
+        "add_to_print_queue_button": "ბეჭდვის რიგში დამატება",
+        "export_to_excel_button": "ექსპორტი Excel-ში",
 
         # Menus
         "file_menu": "&ფაილი",

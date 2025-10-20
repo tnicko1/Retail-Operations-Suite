@@ -18,7 +18,15 @@
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message=".*pkg_resources is deprecated.*")
 import sys
+import os
 import traceback
+
+if hasattr(sys, '_MEIPASS'):
+    # PyInstaller-specific: Add the bundled DLLs to the PATH
+    os.environ['PATH'] = sys._MEIPASS + os.pathsep + os.environ['PATH']
+else:
+    # Development environment: Add the project root to the PATH
+    os.environ['PATH'] = os.path.dirname(os.path.abspath(__file__)) + os.pathsep + os.environ['PATH']
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 import firebase_handler

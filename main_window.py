@@ -159,6 +159,7 @@ class RetailOperationsSuite(QMainWindow):
         self.printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         self.column_mappings = firebase_handler.get_column_mappings(self.token)
         self.qr_cache = {}
+        self.brand_design_choices = {}
 
         # Barcode scanner detection setup
         self.scan_timer = QTimer(self)
@@ -632,6 +633,34 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#A50034",
                 "text_color": "black"
             },
+            "XBOX": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/XBOX.png"),
+                "brand_name": "Microsoft Xbox",
+                "bg_color": "#107C10",
+                "text_color": "black"
+            },
+            "Skyworth": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Skyworth.png"),
+                "brand_name": "Skyworth",
+                "bg_color": "#0063B2",
+                "text_color": "black"
+            },
+            "Hisense": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Hisense.png"),
+                "brand_name": "Hisense",
+                "bg_color": "#009999",
+                "text_color": "black"
+            },
+            "Poly": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Poly.png"),
+                "brand_name": "Poly",
+                "bg_color": "#FF3900",
+                "text_color": "black"
+            },
             "PCSHOP": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/logo.png"),
@@ -947,6 +976,8 @@ class RetailOperationsSuite(QMainWindow):
     def open_size_manager(self):
         dialog = CustomSizeManagerDialog(self.translator, self)
         if dialog.exec():
+            self.settings["custom_sizes"] = dialog.get_updated_sizes()
+            data_handler.save_settings(self.settings)
             self.update_paper_size_combo()
 
     def open_column_mapping_manager(self):
@@ -1225,6 +1256,47 @@ class RetailOperationsSuite(QMainWindow):
 
         return panel
 
+    def detect_brand_from_name(self, item_name):
+        if not item_name:
+            return "None"
+
+        item_name_lower = item_name.lower()
+        detected_brand_name = None
+
+        # Sort brand names by length, descending, to match longer names first (e.g., "Logitech G" before "Logitech")
+        sorted_brand_names = sorted(self.brands_by_name.keys(), key=len, reverse=True)
+
+        for b_name in sorted_brand_names:
+            if b_name.lower() in item_name_lower:
+                detected_brand_name = b_name
+                break
+
+        if detected_brand_name:
+            # Check if a choice has already been made for this brand
+            if detected_brand_name in self.brand_design_choices:
+                return self.brand_design_choices[detected_brand_name]
+
+            brand_keys = self.brands_by_name[detected_brand_name]
+            if len(brand_keys) > 1:
+                # If multiple designs exist, prompt the user
+                brand_options = {key: self.brands[key] for key in brand_keys}
+                # We need item_data for the dialog, so we'll fetch it if needed,
+                # assuming the current item is the one we're working with.
+                item_data = self.current_item_data if self.current_item_data.get("Name") == item_name else {"Name": item_name}
+
+                dialog = BrandSelectionDialog(self.translator, detected_brand_name, brand_options, item_data, self)
+                if dialog.exec():
+                    selected_key = dialog.get_selected_brand_key() or "None"
+                    if dialog.is_choice_for_all():
+                        self.brand_design_choices[detected_brand_name] = selected_key
+                    return selected_key
+                else:
+                    return "None"  # User cancelled
+            elif len(brand_keys) == 1:
+                return brand_keys[0]
+
+        return "None"
+
     def retranslate_ui(self):
         self.setWindowTitle(self.tr("window_title"))
         self.tab_widget.setTabText(0, self.tr("generator_tab_title"))
@@ -1386,25 +1458,24 @@ class RetailOperationsSuite(QMainWindow):
             return
 
         sku = self.current_item_data.get("SKU")
+        self.add_sku_to_print_queue(sku)
+
+    def add_sku_to_print_queue(self, sku):
+        """Adds a single SKU to the user's print queue."""
+        if not sku:
+            return
+
         token = self.ensure_token_valid()
-        if not token: return
+        if not token:
+            return
+
         queue = firebase_handler.get_print_queue(self.user)
         if sku not in queue:
             queue.append(sku)
             firebase_handler.save_print_queue(self.user, queue)
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Information)
-            msg.setText(f"Item {sku} added to the print queue.")
-            msg.setWindowTitle("Success")
-            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            msg.exec()
+            self.statusBar().showMessage(f"Item {sku} added to the print queue.", 3000)
         else:
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Information)
-            msg.setText(f"Item {sku} is already in the print queue.")
-            msg.setWindowTitle("Duplicate")
-            msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            msg.exec()
+            self.statusBar().showMessage(f"Item {sku} is already in the print queue.", 3000)
 
     def show_price_history(self):
         if not self.current_item_data: return
@@ -1451,6 +1522,7 @@ class RetailOperationsSuite(QMainWindow):
 
     def update_brand_combo(self):
         self.brand_combo.clear()
+        self.brand_combo.addItem("Automatic")
         self.brand_combo.addItems(list(self.brands.keys()))
         self.brand_combo.setCurrentText(self.settings.get("default_brand_theme", "None"))
 
@@ -1470,12 +1542,27 @@ class RetailOperationsSuite(QMainWindow):
         if not brand_name or self.brand_combo.signalsBlocked():
             return
 
-        # If a real brand is selected, force the theme to Default
+        if brand_name == "Automatic":
+            if self.current_item_data:
+                item_name = self.name_input.text()
+                detected_brand_key = self.detect_brand_from_name(item_name)
+                # Update brand_name to the detected key for the rest of the function
+                brand_name = detected_brand_key
+                # Visually update the combo box without re-triggering the signal
+                self.brand_combo.blockSignals(True)
+                self.brand_combo.setCurrentText(brand_name)
+                self.brand_combo.blockSignals(False)
+            else:
+                # No item loaded, so treat as "None"
+                brand_name = "None"
+
+        # If a real brand is selected (not "None"), force the theme to Default
         if brand_name != "None":
-            self.theme_combo.blockSignals(True)
-            self.theme_combo.setCurrentText("Default")
-            self.theme_combo.blockSignals(False)
-            
+            if self.theme_combo.currentText() != "Default":
+                self.theme_combo.blockSignals(True)
+                self.theme_combo.setCurrentText("Default")
+                self.theme_combo.blockSignals(False)
+
         self.update_preview()
 
     def open_layout_settings(self):
@@ -1534,6 +1621,9 @@ class RetailOperationsSuite(QMainWindow):
     def find_item(self):
         identifier = self.sku_input.text().strip()
         if not identifier: return
+
+        # Remove characters that are invalid for Firebase paths
+        identifier = re.sub(r'[.#$[\]/]', '', identifier)
 
         # Automatically prefix with 'I' if it's a 5-digit number
         if len(identifier) == 5 and identifier.isdigit():
@@ -1806,6 +1896,7 @@ class RetailOperationsSuite(QMainWindow):
             self.update_status_display()
 
     def generate_batch(self, skus_to_print, use_modern_design=False):
+        self.brand_design_choices = {}
         size_name, theme_name, brand_name = self.paper_size_combo.currentText(), self.theme_combo.currentText(), self.brand_combo.currentText()
         if not size_name or not theme_name: return
 
@@ -1852,37 +1943,10 @@ class RetailOperationsSuite(QMainWindow):
             final_theme_config = copy.deepcopy(base_theme_config)
 
             if use_modern_design:
-                item_name = item_data.get("Name", "").lower()
-                detected_brand_name = None
-
-                sorted_brand_names = sorted(self.brands_by_name.keys(), key=len, reverse=True)
-
-                for b_name in sorted_brand_names:
-                    if b_name.lower() in item_name:
-                        detected_brand_name = b_name
-                        break
-
-                if detected_brand_name:
-                    chosen_brand_config = None
-                    if detected_brand_name in brand_design_choices:
-                        chosen_brand_key = brand_design_choices[detected_brand_name]
-                        chosen_brand_config = self.brands[chosen_brand_key]
-                    else:
-                        brand_keys = self.brands_by_name[detected_brand_name]
-                        if len(brand_keys) > 1:
-                            brand_options = {key: self.brands[key] for key in brand_keys}
-                            dialog = BrandSelectionDialog(self.translator, detected_brand_name, brand_options, item_data, self)
-                            if dialog.exec():
-                                chosen_brand_key = dialog.get_selected_brand_key()
-                                if chosen_brand_key:
-                                    chosen_brand_config = self.brands[chosen_brand_key]
-                                    if dialog.is_choice_for_all():
-                                        brand_design_choices[detected_brand_name] = chosen_brand_key
-                        elif len(brand_keys) == 1:
-                            chosen_brand_config = self.brands[brand_keys[0]]
-
-                    if chosen_brand_config:
-                        final_theme_config.update(chosen_brand_config)
+                item_name = item_data.get("Name", "")
+                detected_brand_key = self.detect_brand_from_name(item_name)
+                if detected_brand_key != "None":
+                    final_theme_config.update(self.brands[detected_brand_key])
 
             data_to_print = self._prepare_data_for_printing(item_data)
             data_to_print['qr_url'] = self.qr_cache.get(sku)

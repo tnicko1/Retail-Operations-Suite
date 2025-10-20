@@ -7,7 +7,7 @@ import price_generator
 
 import pytz
 import price_generator
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtGui import QImage, QPixmap, QIcon
 from PyQt6.QtCore import Qt, QSize, QEvent
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
@@ -193,78 +193,111 @@ class CustomSizeManagerDialog(QDialog):
         super().__init__(parent)
         self.translator = translator
         self.settings = data_handler.get_settings()
+        # Work on a copy of the custom sizes
+        self.custom_sizes = self.settings.get("custom_sizes", {}).copy()
+
         self.setWindowTitle(self.translator.get("size_manager_title"))
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(700, 450)
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
 
-        self.size_list = QListWidget()
-        self.populate_list()
-        layout.addWidget(self.size_list)
+        # Table for sizes
+        self.size_table = QTableWidget()
+        self.size_table.setColumnCount(5)
+        self.size_table.setHorizontalHeaderLabels([
+            self.translator.get("size_dialog_name"),
+            self.translator.get("size_dialog_width"),
+            self.translator.get("size_dialog_height"),
+            self.translator.get("size_dialog_spec_limit"),
+            self.translator.get("size_dialog_accessory_style")
+        ])
+        self.size_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.size_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.size_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.size_table.doubleClicked.connect(self.edit_size)
+        main_layout.addWidget(self.size_table)
 
+        # Buttons with icons
         button_layout = QHBoxLayout()
-        add_btn = QPushButton(self.translator.get("add_button"))
-        add_btn.clicked.connect(self.add_size)
-        edit_btn = QPushButton(self.translator.get("edit_button"))
-        edit_btn.clicked.connect(self.edit_size)
-        remove_btn = QPushButton(self.translator.get("remove_button"))
-        remove_btn.clicked.connect(self.remove_size)
+        self.add_btn = QPushButton(self.translator.get("add_button"))
+        self.add_btn.setIcon(QIcon(price_generator.resource_path("assets/spec_icons/plus.svg")))
+        self.add_btn.clicked.connect(self.add_size)
 
-        button_layout.addWidget(add_btn)
-        button_layout.addWidget(edit_btn)
-        button_layout.addWidget(remove_btn)
-        layout.addLayout(button_layout)
+        self.edit_btn = QPushButton(self.translator.get("edit_button"))
+        self.edit_btn.setIcon(QIcon(price_generator.resource_path("assets/spec_icons/cog.svg")))
+        self.edit_btn.clicked.connect(self.edit_size)
 
+        self.remove_btn = QPushButton(self.translator.get("remove_button"))
+        self.remove_btn.setIcon(QIcon(price_generator.resource_path("assets/spec_icons/shredder.svg")))
+        self.remove_btn.clicked.connect(self.remove_size)
+
+        button_layout.addStretch()
+        button_layout.addWidget(self.add_btn)
+        button_layout.addWidget(self.edit_btn)
+        button_layout.addWidget(self.remove_btn)
+        main_layout.addLayout(button_layout)
+
+        # Dialog buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
+        main_layout.addWidget(self.button_box)
 
-    def populate_list(self):
-        self.size_list.clear()
-        for name in sorted(self.settings.get("custom_sizes", {}).keys()):
-            self.size_list.addItem(name)
+        self.populate_table()
+
+    def populate_table(self):
+        self.size_table.setRowCount(0)
+        for name, data in sorted(self.custom_sizes.items()):
+            row_position = self.size_table.rowCount()
+            self.size_table.insertRow(row_position)
+            self.size_table.setItem(row_position, 0, QTableWidgetItem(name))
+            self.size_table.setItem(row_position, 1, QTableWidgetItem(f"{data['dims'][0]:.2f} cm"))
+            self.size_table.setItem(row_position, 2, QTableWidgetItem(f"{data['dims'][1]:.2f} cm"))
+            self.size_table.setItem(row_position, 3, QTableWidgetItem(str(data['spec_limit'])))
+            
+            accessory_item = QTableWidgetItem("Yes" if data.get('is_accessory_style', False) else "No")
+            accessory_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.size_table.setItem(row_position, 4, accessory_item)
 
     def add_size(self):
         dialog = AddEditSizeDialog(self.translator, parent=self)
         if dialog.exec():
             new_size = dialog.get_size_data()
-            self.settings["custom_sizes"][new_size['name']] = {
+            self.custom_sizes[new_size['name']] = {
                 "dims": new_size['dims'],
                 "spec_limit": new_size['spec_limit'],
                 "is_accessory_style": new_size['is_accessory_style']
             }
-            self.populate_list()
+            self.populate_table()
 
     def edit_size(self):
-        current_item = self.size_list.currentItem()
-        if not current_item:
+        selected_row = self.size_table.currentRow()
+        if selected_row < 0:
             return
 
-        name = current_item.text()
-        size_data_to_edit = self.settings["custom_sizes"][name]
+        name = self.size_table.item(selected_row, 0).text()
+        size_data_to_edit = self.custom_sizes[name]
         size_data_to_edit['name'] = name
 
         dialog = AddEditSizeDialog(self.translator, size_data=size_data_to_edit, parent=self)
         if dialog.exec():
             edited_size = dialog.get_size_data()
-            # Remove old entry if name changed
             if name != edited_size['name']:
-                del self.settings["custom_sizes"][name]
+                del self.custom_sizes[name]
 
-            self.settings["custom_sizes"][edited_size['name']] = {
+            self.custom_sizes[edited_size['name']] = {
                 "dims": edited_size['dims'],
                 "spec_limit": edited_size['spec_limit'],
                 "is_accessory_style": edited_size['is_accessory_style']
             }
-            self.populate_list()
+            self.populate_table()
 
     def remove_size(self):
-        current_item = self.size_list.currentItem()
-        if not current_item:
+        selected_row = self.size_table.currentRow()
+        if selected_row < 0:
             return
 
-        name = current_item.text()
+        name = self.size_table.item(selected_row, 0).text()
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Question)
         msg.setText(self.translator.get("remove_size_message", name))
@@ -275,12 +308,16 @@ class CustomSizeManagerDialog(QDialog):
         reply = msg.exec()
 
         if reply == QMessageBox.StandardButton.Yes:
-            del self.settings["custom_sizes"][name]
-            self.populate_list()
+            del self.custom_sizes[name]
+            self.populate_table()
+
+    def get_updated_sizes(self):
+        return self.custom_sizes
 
     def accept(self):
-        data_handler.save_settings(self.settings)
+        # The saving will be handled by the main window
         super().accept()
+
 
 
 class QuickStockDialog(QDialog):
@@ -1124,38 +1161,54 @@ class DisplayManagerDialog(QDialog):
         self.current_sort_order = None
         self.selected_categories = []
 
+        # --- Main Layout ---
         layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        self.setStyleSheet("""
+            QGroupBox {
+                font-size: 11pt;
+                font-weight: bold;
+            }
+            QLabel {
+                font-size: 10pt;
+            }
+            QPushButton {
+                font-size: 10pt;
+                padding: 8px;
+            }
+            QTableWidget {
+                font-size: 10pt;
+            }
+        """)
 
-        # --- NEW: Find by Category Group ---
+        # --- Find by Category Group ---
         self.find_group = QGroupBox(self.translator.get("find_by_category_group"))
-        find_layout = QHBoxLayout()
+        find_layout = QFormLayout(self.find_group)
+        find_layout.setSpacing(10)
         self.category_button = QPushButton(self.translator.get("all_categories_placeholder"))
         self.category_button.clicked.connect(self.open_category_selection)
         self.find_by_category_button = QPushButton(self.translator.get("find_available_button"))
         self.find_by_category_button.clicked.connect(self.find_available_for_display)
-        self.category_label = QLabel(self.translator.get("category_label"))
-        find_layout.addWidget(self.category_label)
-        find_layout.addWidget(self.category_button)
-        find_layout.addWidget(self.find_by_category_button)
-        self.find_group.setLayout(find_layout)
+        find_layout.addRow(self.translator.get("category_label"), self.category_button)
+        find_layout.addRow(self.find_by_category_button)
+
 
         # --- Return Item Group ---
         self.return_group = QGroupBox(self.translator.get("return_tag_group"))
-        return_layout = QHBoxLayout()
+        return_layout = QFormLayout(self.return_group)
+        return_layout.setSpacing(10)
         self.return_input = QLineEdit()
         self.return_input.setPlaceholderText(self.translator.get("return_tag_placeholder"))
         self.return_input.returnPressed.connect(self.find_replacements_for_return)
         self.find_replacements_button = QPushButton(self.translator.get("find_replacements_button"))
         self.find_replacements_button.clicked.connect(self.find_replacements_for_return)
-        self.return_tag_label = QLabel(self.translator.get("return_tag_label"))
-        return_layout.addWidget(self.return_tag_label)
-        return_layout.addWidget(self.return_input)
-        return_layout.addWidget(self.find_replacements_button)
-        self.return_group.setLayout(return_layout)
+        return_layout.addRow(self.translator.get("return_tag_label"), self.return_input)
+        return_layout.addRow(self.find_replacements_button)
 
-        # --- Suggestions Group (reused for both actions) ---
+
+        # --- Available for Display Group ---
         self.suggestions_group = QGroupBox(self.translator.get("suggestions_group_empty"))
-        suggestions_layout = QVBoxLayout()
+        suggestions_layout = QVBoxLayout(self.suggestions_group)
         self.suggestions_table = QTableWidget()
         self.suggestions_table.setColumnCount(5)
         self.suggestions_table.setHorizontalHeaderLabels([
@@ -1169,11 +1222,25 @@ class DisplayManagerDialog(QDialog):
         self.suggestions_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.suggestions_table.horizontalHeader().sectionClicked.connect(self.handle_header_click)
         suggestions_layout.addWidget(self.suggestions_table)
-        self.suggestions_group.setLayout(suggestions_layout)
 
-        layout.addWidget(self.find_group)
-        layout.addWidget(self.return_group)
-        layout.addWidget(self.suggestions_group)
+        # --- Actions Group ---
+        self.actions_group = QGroupBox("Actions")
+        actions_layout = QHBoxLayout(self.actions_group)
+        self.export_button = QPushButton(self.translator.get("export_to_excel_button", "Export to Excel"))
+        self.export_button.setIcon(QIcon(price_generator.resource_path("assets/spec_icons/archive-restore.svg")))
+        self.export_button.clicked.connect(self.export_to_excel)
+        actions_layout.addStretch()
+        actions_layout.addWidget(self.export_button)
+
+
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(self.find_group, 1)
+        top_layout.addWidget(self.return_group, 1)
+
+        layout.addLayout(top_layout)
+        layout.addWidget(self.suggestions_group, 5)
+        layout.addWidget(self.actions_group)
+
 
         self.retranslate_ui()
 
@@ -1181,12 +1248,20 @@ class DisplayManagerDialog(QDialog):
         """Updates all translatable text in the dialog."""
         self.setWindowTitle(self.translator.get("display_manager_title"))
         self.find_group.setTitle(self.translator.get("find_by_category_group"))
-        self.category_label.setText(self.translator.get("category_label"))
+        self.category_button.setText(self.translator.get("all_categories_placeholder"))
         self.find_by_category_button.setText(self.translator.get("find_available_button"))
-
         self.update_category_button_text()
-
         self.return_group.setTitle(self.translator.get("return_tag_group"))
+        self.find_replacements_button.setText(self.translator.get("find_replacements_button"))
+        self.export_button.setText(self.translator.get("export_to_excel_button", "Export to Excel"))
+        self.suggestions_table.setHorizontalHeaderLabels([
+            self.translator.get("suggestions_header_sku"),
+            self.translator.get("suggestions_header_name"),
+            self.translator.get("suggestions_stock_header"),
+            self.translator.get("suggestions_header_price"),
+            self.translator.get("suggestions_header_action")
+        ])
+
 
     def get_all_categories(self):
         if self.parent and self.parent.all_items_cache:
@@ -1343,9 +1418,16 @@ class DisplayManagerDialog(QDialog):
             self.suggestions_table.setItem(row, 2, QTableWidgetItem(str(item.get(self.branch_stock_col, '0'))))
             self.suggestions_table.setItem(row, 3, QTableWidgetItem(display_price))
 
-            print_button = QPushButton(self.translator.get("quick_print_button"))
-            print_button.clicked.connect(lambda checked, sku=item.get('SKU'): self.quick_print_tag(sku))
-            self.suggestions_table.setCellWidget(row, 4, print_button)
+            add_to_queue_button = QPushButton(self.translator.get("add_to_print_queue_button", "Add to Print Queue"))
+            add_to_queue_button.clicked.connect(lambda checked, sku=item.get('SKU'): self.add_to_print_queue(sku))
+            self.suggestions_table.setCellWidget(row, 4, add_to_queue_button)
+
+    def add_to_print_queue(self, sku):
+        if self.parent:
+            self.parent.add_sku_to_print_queue(sku)
+            # Maybe provide some feedback to the user, e.g., a status bar message
+            self.parent.statusBar().showMessage(f"SKU {sku} added to print queue.", 3000)
+
 
     def _get_price_for_sort(self, item):
         try:
@@ -1365,6 +1447,55 @@ class DisplayManagerDialog(QDialog):
             self.parent.generate_single_by_sku(sku, mark_on_display=True)
             self.original_suggestions = [item for item in self.original_suggestions if item.get('SKU') != sku]
             self.sort_and_repopulate()
+
+    def export_to_excel(self):
+        if self.suggestions_table.rowCount() == 0:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText("There is no data to export.")
+            msg.setWindowTitle("Export Empty")
+            msg.exec()
+            return
+
+        settings = data_handler.get_settings()
+        default_path = settings.get("default_export_path", "")
+        
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel File", default_path, "Excel Files (*.xlsx)")
+
+        if not file_path:
+            return
+
+        # Save the selected directory for next time
+        settings["default_export_path"] = file_path
+        data_handler.save_settings(settings)
+
+        column_headers = []
+        for j in range(self.suggestions_table.columnCount() -1): # Exclude the action column
+            column_headers.append(self.suggestions_table.horizontalHeaderItem(j).text())
+
+        data = []
+        for i in range(self.suggestions_table.rowCount()):
+            row_data = []
+            for j in range(self.suggestions_table.columnCount() - 1): # Exclude the action column
+                item = self.suggestions_table.item(i, j)
+                row_data.append(item.text() if item else "")
+            data.append(row_data)
+
+        df = pd.DataFrame(data, columns=column_headers)
+
+        try:
+            df.to_excel(file_path, index=False)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(f"Data exported successfully to {file_path}")
+            msg.setWindowTitle("Export Successful")
+            msg.exec()
+        except Exception as e:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"Failed to export data: {e}")
+            msg.setWindowTitle("Export Error")
+            msg.exec()
 
 
 class UserManagementDialog(QDialog):
