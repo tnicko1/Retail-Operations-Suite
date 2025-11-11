@@ -190,6 +190,13 @@ def get_all_paper_sizes():
     all_sizes.update(settings.get("custom_sizes", {}))
     return all_sizes
 
+def get_layout_presets():
+    try:
+        with open('layout_presets.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
 
 def extract_specs_from_description(html_description):
     """

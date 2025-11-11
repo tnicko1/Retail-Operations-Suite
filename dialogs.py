@@ -6,15 +6,18 @@ import winsound
 import price_generator
 
 import pytz
+import base64
 import price_generator
 from PyQt6.QtGui import QImage, QPixmap, QIcon
-from PyQt6.QtCore import Qt, QSize, QEvent
+from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
+from PyQt6.QtCore import Qt, QSize, QEvent, QBuffer, QByteArray
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QFormLayout, QSlider, QLabel, QHBoxLayout, QPushButton,
                              QDialogButtonBox, QLineEdit, QDoubleSpinBox, QSpinBox, QCheckBox, QMessageBox,
                              QListWidget, QListWidgetItem, QTableWidget, QHeaderView, QTableWidgetItem, QInputDialog, QComboBox,
                              QGroupBox, QAbstractItemView, QTextEdit, QWidget, QRadioButton, QButtonGroup, QProgressBar,
                              QFileDialog, QCompleter)
+from utils import resource_path
 import data_handler
 import firebase_handler
 from translations import Translator
@@ -115,7 +118,7 @@ class LayoutSettingsDialog(QDialog):
         defaults = data_handler.get_default_layout_settings()
         for key, slider in self.sliders.items():
             slider.setValue(int(defaults.get(key, 1.0) * 100))
-        
+
         default_settings = data_handler.get_default_settings()
         self.recent_items_spinbox.setValue(default_settings.get("recent_items_max_size", 10))
 
@@ -254,7 +257,7 @@ class CustomSizeManagerDialog(QDialog):
             self.size_table.setItem(row_position, 1, QTableWidgetItem(f"{data['dims'][0]:.2f} cm"))
             self.size_table.setItem(row_position, 2, QTableWidgetItem(f"{data['dims'][1]:.2f} cm"))
             self.size_table.setItem(row_position, 3, QTableWidgetItem(str(data['spec_limit'])))
-            
+
             accessory_item = QTableWidgetItem("Yes" if data.get('is_accessory_style', False) else "No")
             accessory_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.size_table.setItem(row_position, 4, accessory_item)
@@ -516,13 +519,14 @@ class NewItemDialog(QDialog):
 
 
 class PrintQueueDialog(QDialog):
-    def __init__(self, translator, user, parent=None):
+    def __init__(self, translator, user, all_items_cache, parent=None):
         super().__init__(parent)
         self.translator = translator
         self.user = user
         self.uid = self.user.get('localId')
         self.token = self.user.get('idToken')
         self.parent_window = parent
+        self.all_items_cache = all_items_cache or {}
 
         self.setWindowTitle(self.translator.get("print_queue_title"))
         self.setMinimumSize(600, 700)
@@ -542,8 +546,15 @@ class PrintQueueDialog(QDialog):
 
         queue_group = QGroupBox(self.translator.get("print_queue_skus_group"))
         queue_layout = QVBoxLayout()
-        self.sku_list_widget = QListWidget()
+        self.sku_list_widget = QTableWidget()
+        self.sku_list_widget.setColumnCount(2)
+        self.sku_list_widget.setHorizontalHeaderLabels([self.translator.get("sku_label"), self.translator.get("name_label")])
+        self.sku_list_widget.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.sku_list_widget.setColumnWidth(0, 80)
+        self.sku_list_widget.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.sku_list_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.sku_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.sku_list_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         queue_layout.addWidget(self.sku_list_widget)
 
         buttons_layout = QHBoxLayout()
@@ -580,10 +591,20 @@ class PrintQueueDialog(QDialog):
         self.modern_design_checkbox = QCheckBox("Use Modern Design for all applicable brands")
         main_layout.addWidget(self.modern_design_checkbox)
 
+        self.use_default_settings_checkbox = QCheckBox("Use Default Settings for selected paper size")
+        main_layout.addWidget(self.use_default_settings_checkbox)
+
+        action_buttons_layout = QHBoxLayout()
+        self.print_list_button = QPushButton(self.translator.get("print_queue_print_list_button", "Print Item List"))
+        self.print_list_button.setFixedHeight(40)
+        self.print_list_button.clicked.connect(self.print_item_list)
+        action_buttons_layout.addWidget(self.print_list_button)
+
         self.generate_button = QPushButton(self.translator.get("print_queue_generate_button"))
         self.generate_button.setFixedHeight(40)
         self.generate_button.clicked.connect(self.accept)
-        main_layout.addWidget(self.generate_button)
+        action_buttons_layout.addWidget(self.generate_button)
+        main_layout.addLayout(action_buttons_layout)
 
         self.load_saved_lists()
         self.load_queue()
@@ -621,7 +642,9 @@ class PrintQueueDialog(QDialog):
 
         # Check for duplicates only if the selected size is NOT the accessory size
         if self.parent_window and self.parent_window.paper_size_combo.currentText() != "6x3.5cm":
-            if sku_to_add in [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]:
+            # Extract SKU from the list items for comparison
+            current_skus = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
+            if sku_to_add in current_skus:
                 if sys.platform == "win32":
                     winsound.Beep(440, 100)
                     winsound.Beep(440, 100)
@@ -633,7 +656,11 @@ class PrintQueueDialog(QDialog):
                 msg.exec()
                 return
 
-        self.sku_list_widget.addItem(sku_to_add)
+        name = item_data.get('Name', 'Unknown Name')
+        row_position = self.sku_list_widget.rowCount()
+        self.sku_list_widget.insertRow(row_position)
+        self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku_to_add))
+        self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
         self.save_queue()
         self.sku_input.clear()
         if sys.platform == "win32":
@@ -663,7 +690,7 @@ class PrintQueueDialog(QDialog):
                     break
             if start_row != -1:
                 break
-        
+
         skus_from_excel = []
         if start_row != -1:
             # If 'No.' was found, get SKUs from the column below it
@@ -688,13 +715,18 @@ class PrintQueueDialog(QDialog):
         on_display_data = firebase_handler.get_display_status(self.token).get(branch_db_key, {})
         on_display_skus = {str(key) for key in on_display_data.keys()}
 
-        current_skus_in_queue = {self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())}
+        current_skus_in_queue = {self.sku_list_widget.item(i, 0).text() for i in range(self.sku_list_widget.rowCount()) if self.sku_list_widget.item(i, 0)}
         added_count = 0
         for sku in skus_from_excel:
             if sku in on_display_skus and sku not in current_skus_in_queue:
-                self.sku_list_widget.addItem(sku)
+                item_data = self.all_items_cache.get(sku, {})
+                name = item_data.get('Name', 'Unknown Name')
+                row_position = self.sku_list_widget.rowCount()
+                self.sku_list_widget.insertRow(row_position)
+                self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku))
+                self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
                 added_count += 1
-        
+
         if added_count > 0:
             self.save_queue()
 
@@ -705,13 +737,19 @@ class PrintQueueDialog(QDialog):
         msg.exec()
 
     def load_queue(self):
-        self.sku_list_widget.clear()
+        self.sku_list_widget.setRowCount(0) # Clear table
         queue_data = firebase_handler.get_print_queue(self.user)
         if queue_data:
-            self.sku_list_widget.addItems(queue_data)
+            for sku in queue_data:
+                item_data = self.all_items_cache.get(sku, {})
+                name = item_data.get('Name', 'Unknown Name')
+                row_position = self.sku_list_widget.rowCount()
+                self.sku_list_widget.insertRow(row_position)
+                self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku))
+                self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
 
     def save_queue(self):
-        queue_items = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+        queue_items = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
         firebase_handler.save_print_queue(self.user, queue_items)
 
     def load_saved_lists(self):
@@ -721,8 +759,9 @@ class PrintQueueDialog(QDialog):
             self.saved_lists_combo.addItems(sorted(saved_lists.keys()))
 
     def remove_selected(self):
-        for item in self.sku_list_widget.selectedItems():
-            self.sku_list_widget.takeItem(self.sku_list_widget.row(item))
+        selected_rows = sorted(set(index.row() for index in self.sku_list_widget.selectedIndexes()), reverse=True)
+        for row in selected_rows:
+            self.sku_list_widget.removeRow(row)
         self.save_queue()
 
     def clear_queue(self):
@@ -735,12 +774,18 @@ class PrintQueueDialog(QDialog):
 
         all_lists = firebase_handler.get_saved_batch_lists(self.user)
         skus_to_load = all_lists.get(list_name, [])
-        self.sku_list_widget.clear()
-        self.sku_list_widget.addItems(skus_to_load)
+        self.sku_list_widget.setRowCount(0) # Clear table
+        for sku in skus_to_load:
+            item_data = self.all_items_cache.get(sku, {})
+            name = item_data.get('Name', 'Unknown Name')
+            row_position = self.sku_list_widget.rowCount()
+            self.sku_list_widget.insertRow(row_position)
+            self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku))
+            self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
         self.save_queue()
 
     def save_list(self):
-        current_queue = [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+        current_queue = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
         if not current_queue:
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
@@ -773,10 +818,179 @@ class PrintQueueDialog(QDialog):
             self.load_saved_lists()
 
     def get_skus(self):
-        return [self.sku_list_widget.item(i).text() for i in range(self.sku_list_widget.count())]
+        skus = []
+        for row in range(self.sku_list_widget.rowCount()):
+            item = self.sku_list_widget.item(row, 0) # Get item from SKU column
+            if item:
+                skus.append(item.text())
+        return skus
 
     def get_modern_design_state(self):
         return self.modern_design_checkbox.isChecked()
+
+    def get_use_default_settings_state(self):
+        return self.use_default_settings_checkbox.isChecked()
+
+    def print_item_list(self):
+        if self.sku_list_widget.count() == 0:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("The print queue is empty.")
+            msg.setWindowTitle("Empty Queue")
+            msg.exec()
+            return
+
+        html_content = self._generate_item_list_html()
+        if not html_content:
+            return
+
+        document = QTextEdit()
+        document.setHtml(html_content)
+
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        preview_dialog = QPrintPreviewDialog(printer, self)
+        preview_dialog.paintRequested.connect(document.print)
+        preview_dialog.exec()
+
+    def _generate_item_list_html(self):
+        try:
+            with open(resource_path("assets/logo.png"), "rb") as f:
+                logo_data = f.read()
+
+            pixmap = QPixmap()
+            pixmap.loadFromData(logo_data)
+
+            # Resize the pixmap to a height of 25px, keeping aspect ratio
+            scaled_pixmap = pixmap.scaledToHeight(25, Qt.TransformationMode.SmoothTransformation)
+
+            buffer = QBuffer()
+            buffer.open(QBuffer.OpenModeFlag.ReadWrite)
+            scaled_pixmap.save(buffer, "PNG")
+
+            # Base64 encode the image data
+            logo_src = f"data:image/png;base64,{buffer.data().toBase64().data().decode()}"
+
+        except FileNotFoundError:
+            logo_src = ""
+
+        items_html = ""
+        for i in range(self.sku_list_widget.count()):
+            item_text = self.sku_list_widget.item(i).text()
+            sku = item_text.split(" - ")[0]
+            item_data = self.all_items_cache.get(sku, {})
+
+            name = item_data.get("Name", "N/A")
+
+            # Find Part Number from attributes
+            attributes = item_data.get('attributes', {})
+            part_number = ''
+            if attributes:
+                for attr_i in range(1, 10): # Check up to 10 attributes
+                    if attributes.get(f'Attribute {attr_i} name') == 'Part Number':
+                        part_number = attributes.get(f'Attribute {attr_i} value(s)', '')
+                        break
+            if not part_number:
+                 part_number = item_data.get('part_number', '')
+
+            price = item_data.get("Sale price") or item_data.get("Regular price") or "N/A"
+
+
+            items_html += f"""
+                <tr>
+                    <td>{i + 1}</td>
+                    <td>{sku}</td>
+                    <td>{name}</td>
+                    <td>{part_number}</td>
+                    <td>{price}</td>
+                </tr>
+            """
+
+        return f"""
+        <html>
+        <head>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+                body {{
+                    font-family: 'Roboto', sans-serif;
+                    margin: 40px;
+                    color: #333;
+                }}
+                .header {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    border-bottom: 2px solid #eee;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }}
+                .header img {{
+                    width: auto;
+                }}
+                .header h1 {{
+                    font-size: 18px; /* Slightly lower font size */
+                    font-weight: 700;
+                    color: #222;
+                    margin: 0;
+                }}
+                .date {{
+                    font-size: 14px;
+                    color: #777;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 48px; /* Much larger font size */
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 18px 20px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f8f8f8;
+                    font-weight: 700;
+                    color: #555;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f2f2f2;
+                }}
+                .footer {{
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 2px solid #eee;
+                    font-size: 36px;
+                    color: #777;
+                    text-align: center;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <img src="{logo_src}" alt="Company Logo">
+                <h1>Item Collection List</h1>
+                <div class="date">{datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+            </div>
+            <p>Here are the items to be collected from storage for display. Please handle with care.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>SKU</th>
+                        <th>Item Name</th>
+                        <th>Part Number</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {items_html}
+                </tbody>
+            </table>
+            <div class="footer">
+                <p>Happy hunting! May your carts be full and your steps be few.</p>
+            </div>
+        </body>
+        </html>
+        """
 
 
 class BrandSelectionDialog(QDialog):
@@ -1304,6 +1518,7 @@ class DisplayManagerDialog(QDialog):
                 category, self.branch_db_key, self.branch_stock_col, self.token
             ))
         self.current_sort_column = -1
+        self.current_sort_order = None
         self.sort_and_repopulate()
 
     def find_replacements_for_return(self):
@@ -1386,7 +1601,7 @@ class DisplayManagerDialog(QDialog):
     def sort_and_repopulate(self):
         display_list = self.original_suggestions.copy()
 
-        if self.current_sort_order is not None:
+        if self.current_sort_column != -1 and self.current_sort_order is not None:
             reverse = self.current_sort_order == Qt.SortOrder.DescendingOrder
             display_list.sort(key=self._get_sort_key, reverse=reverse)
 
@@ -1459,7 +1674,7 @@ class DisplayManagerDialog(QDialog):
 
         settings = data_handler.get_settings()
         default_path = settings.get("default_export_path", "")
-        
+
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel File", default_path, "Excel Files (*.xlsx)")
 
         if not file_path:
@@ -1796,7 +2011,7 @@ class ColumnMappingManagerDialog(QDialog):
 
         for row in range(self.table.rowCount()):
             original_name = self.table.item(row, 0).text()
-            
+
             display_name_widget = self.table.cellWidget(row, 2)
             display_name = display_name_widget.text().strip() if display_name_widget else ""
 
@@ -1819,7 +2034,7 @@ class ColumnMappingManagerDialog(QDialog):
                     'displayName': display_name,
                     'ignore': is_ignored
                 }
-        
+
         # Add the special barcodeField key to the top level of the mappings
         if barcode_field:
             new_mappings['barcodeField'] = barcode_field
@@ -1853,7 +2068,7 @@ class QRCodeURLDialog(QDialog):
         self.setMinimumWidth(400)
 
         layout = QVBoxLayout(self)
-        
+
         message = QLabel(f"Could not automatically find a URL for the item: <b>{item_name}</b> (SKU: {sku}).<br><br>Please provide a URL for the QR code, or press Skip to not include a QR code for this item.")
         message.setWordWrap(True)
         layout.addWidget(message)
@@ -1865,7 +2080,7 @@ class QRCodeURLDialog(QDialog):
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("OK")
         self.button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Skip")
-        
+
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
 

@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 
 import pytz
+from bs4 import BeautifulSoup
 from PyQt6.QtCore import Qt, QSize, QTimer, QRectF
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QImage, QPainter, QPageLayout, QColor
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog
@@ -486,6 +487,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#00529F",
                 "text_color": "black"
             },
+            "Asus Republic of Gamers": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/ROG.png"),
+                "brand_name": "ASUS ROG",
+                "bg_color": "#FF0029",
+                "text_color": "black"
+            },
             "Acer": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Acer.png"),
@@ -519,6 +527,13 @@ class RetailOperationsSuite(QMainWindow):
                 "accessory_logo_path": resource_path("assets/brands/canon.png"),
                 "brand_name": "Canon",
                 "bg_color": "#CC0000",
+                "text_color": "black"
+            },
+            "Xerox": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/xerox.png"),
+                "brand_name": "Xerox",
+                "bg_color": "#D61929",
                 "text_color": "black"
             },
             "Seagate": {
@@ -709,7 +724,7 @@ class RetailOperationsSuite(QMainWindow):
         Returns False if the user cancels the operation, otherwise True.
         """
         if not skus_to_process:
-            return True  # Nothing to do
+            return True
 
         progress_dialog = QRGenerationProgressDialog(self.translator, self)
         progress_dialog.set_total_items(len(skus_to_process))
@@ -717,6 +732,7 @@ class RetailOperationsSuite(QMainWindow):
 
         for sku in skus_to_process:
             if progress_dialog.was_cancelled():
+                QApplication.processEvents()  # Process events to ensure dialog closes
                 return False
 
             item_data = all_items_data.get(sku)
@@ -725,44 +741,33 @@ class RetailOperationsSuite(QMainWindow):
 
             item_name = item_data.get('Name', '')
 
+            # Check cache first, which is handled by the helper, but we need to manage the dialog
             if sku in self.qr_cache and self.qr_cache[sku]:
                 progress_dialog.update_progress(item_name, 'cached')
+                QApplication.processEvents()
                 continue
 
             progress_dialog.update_progress(item_name, 'searching')
+            QApplication.processEvents()
 
-            correct_url = None
-            base_slug = item_name.lower().replace(' ', '-').replace('/', '-').replace('"', '').replace('.', '-')
-            for i in range(1, 3):
-                if i == 1:
-                    slug_variant = base_slug
-                else:
-                    slug_variant = f"{base_slug}-{i}"
+            # Use the helper to find the URL
+            correct_url = self._find_product_page_url(sku, item_name)
 
-                url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
-
-                try:
-                    with urllib.request.urlopen(url_to_check, timeout=3) as response:
-                        page_content = response.read().decode('utf-8', errors='ignore')
-                    if re.search(f"SKU:.*?{re.escape(sku)}", page_content):
-                        correct_url = url_to_check
-                        progress_dialog.update_progress(item_name, 'success', url=correct_url)
-                        break
-                except urllib.error.HTTPError as e:
-                    if e.code == 404:
-                        break
-                except Exception:
-                    break
-
-            if not correct_url:
+            if correct_url:
+                progress_dialog.update_progress(item_name, 'success', url=correct_url)
+            else:
+                # If helper fails, prompt user
                 correct_url = progress_dialog.prompt_for_url(item_name, sku)
                 if progress_dialog.was_cancelled():
+                    QApplication.processEvents()
                     return False
 
-            if not correct_url:
-                progress_dialog.update_progress(item_name, 'fail')
-
-            self.qr_cache[sku] = correct_url
+                if not correct_url:
+                    progress_dialog.update_progress(item_name, 'fail')
+                else:
+                    # Cache the user-provided URL
+                    self.qr_cache[sku] = correct_url
+            QApplication.processEvents()
 
         progress_dialog.accept()
         return True
@@ -1321,41 +1326,102 @@ class RetailOperationsSuite(QMainWindow):
 
         return "None"
 
+    def _find_product_page_url(self, sku, item_name):
+        """Finds the product page URL on pcshop.ge for a given SKU and item name."""
+        if not sku or not item_name:
+            return None
+
+        # Check cache first
+        if sku in self.qr_cache:
+            return self.qr_cache[sku]
+
+        correct_url = None
+        # Sanitize item_name to create a URL slug
+        base_slug = re.sub(r'[^a-z0-9-]+', '-', item_name.lower()).strip('-')
+
+        # Try slug and slug-2
+        for i in range(1, 3):
+            if i == 1:
+                slug_variant = base_slug
+            else:
+                slug_variant = f"{base_slug}-{i}"
+
+            url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
+
+            try:
+                with urllib.request.urlopen(url_to_check, timeout=3) as response:
+                    if 'text/html' not in response.getheader('Content-Type', ''):
+                        continue
+                    page_content = response.read().decode('utf-8', errors='ignore')
+
+                if re.search(f"SKU:.*?{re.escape(sku)}", page_content, re.IGNORECASE):
+                    correct_url = url_to_check
+                    break
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    continue
+            except Exception:
+                break
+
+        self.qr_cache[sku] = correct_url
+        return correct_url
+
     def update_item_image(self, image_label):
         if not self.current_item_data:
             image_label.clear()
             return
 
         def fetch_and_display_image():
-            try:
-                sku = self.current_item_data.get('SKU')
-                if not sku:
-                    raise ValueError("SKU not found in item data")
-                
-                image_url = f"https://pcshop.ge/wp-content/uploads/{sku}.jpg"
+            sku = self.current_item_data.get('SKU')
+            item_name = self.current_item_data.get('Name')
 
-                with urllib.request.urlopen(image_url, timeout=5) as response:
-                    image_data = response.read()
+            product_page_url = self._find_product_page_url(sku, item_name)
 
-                pixmap = QPixmap()
-                pixmap.loadFromData(image_data)
+            image_url = None
+            if product_page_url:
+                try:
+                    with urllib.request.urlopen(product_page_url, timeout=3) as response:
+                        page_html = response.read()
 
-                if not pixmap.isNull():
-                    image_label.setPixmap(
-                        pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
-                                      Qt.TransformationMode.SmoothTransformation))
-                    return
+                    soup = BeautifulSoup(page_html, 'lxml')
 
-            except Exception as e:
-                pass # Silently fail and load fallback
+                    og_image = soup.find('meta', property='og:image')
+                    if og_image and og_image.get('content'):
+                        image_url = og_image['content']
+                        if image_url.startswith('//'):
+                            image_url = 'https:' + image_url
+                    else:
+                        gallery_image = soup.select_one('.woocommerce-product-gallery__image a')
+                        if gallery_image and gallery_image.get('href'):
+                            image_url = gallery_image['href']
+                            if image_url.startswith('//'):
+                                image_url = 'https:' + image_url
+
+                except Exception:
+                    image_url = None
+
+            if image_url:
+                try:
+                    with urllib.request.urlopen(image_url, timeout=5) as response:
+                        image_data = response.read()
+
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(image_data)
+
+                    if not pixmap.isNull():
+                        image_label.setPixmap(
+                            pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
+                                          Qt.TransformationMode.SmoothTransformation))
+                        return
+                except Exception:
+                    pass
 
             fallback_path = resource_path("assets/props/no-image.jpg")
-            image = QImage(fallback_path)
-            if not image.isNull():
-                pixmap = QPixmap.fromImage(image)
-                if not pixmap.isNull():
-                    image_label.setPixmap(
-                        pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            pixmap = QPixmap(fallback_path)
+            if not pixmap.isNull():
+                image_label.setPixmap(
+                    pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation))
 
         fetch_and_display_image()
 
@@ -1502,12 +1568,13 @@ class RetailOperationsSuite(QMainWindow):
         self.active_dialog = None  # Clear reference after dialog closes
 
     def open_print_queue(self):
-        dialog = PrintQueueDialog(self.translator, self.user, self)
+        dialog = PrintQueueDialog(self.translator, self.user, self.all_items_cache, self)
         if dialog.exec():
             skus_to_print = dialog.get_skus()
             use_modern_design = dialog.get_modern_design_state()
+            use_default_settings = dialog.get_use_default_settings_state()
             if skus_to_print:
-                self.generate_batch(skus_to_print, use_modern_design)
+                self.generate_batch(skus_to_print, use_modern_design, use_default_settings)
 
     def add_current_to_queue(self):
         if not self.current_item_data:
@@ -1959,7 +2026,7 @@ class RetailOperationsSuite(QMainWindow):
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
-    def generate_batch(self, skus_to_print, use_modern_design=False):
+    def generate_batch(self, skus_to_print, use_modern_design=False, use_default_settings=False):
         self.brand_design_choices = {}
         size_name, theme_name, brand_name = self.paper_size_combo.currentText(), self.theme_combo.currentText(), self.brand_combo.currentText()
         if not size_name or not theme_name: return
@@ -1971,7 +2038,12 @@ class RetailOperationsSuite(QMainWindow):
             brand_config = self.brands.get(brand_name, {})
             base_theme_config.update(brand_config)
 
-        layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
+        if use_default_settings:
+            layout_presets = data_handler.get_layout_presets()
+            # Fallback to default settings if size_name is not in presets
+            layout_settings = layout_presets.get(size_name, data_handler.get_default_layout_settings())
+        else:
+            layout_settings = self.settings.get("layout_settings", data_handler.get_default_layout_settings())
 
         layout_info = a4_layout_generator.calculate_layout(*size_config['dims'])
 

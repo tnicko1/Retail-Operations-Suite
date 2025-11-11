@@ -2112,7 +2112,7 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     return img.convert('RGB')
 
 
-def create_price_tag(item_data, size_config, theme, layout_settings=None, language='en', is_special=False, background_cache=None, is_dual=False):
+def create_price_tag(item_data, size_config, theme, layout_settings, language='en', is_special=False, background_cache=None, is_dual=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
 

@@ -1,0 +1,50 @@
+{
+    "6x3.5cm": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.0,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    },
+    "10x8cm": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.25,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    },
+    "14.8x8cm": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.0,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    },
+    "15x10cm": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.3,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    },
+    "17x5.7cm Keyboard": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.4,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    },
+    "17.5x12.5cm": {
+        "logo_scale": 1.0,
+        "title_scale": 1.0,
+        "spec_scale": 1.45,
+        "price_scale": 1.0,
+        "sku_scale": 1.0,
+        "pn_scale": 1.0
+    }
+}
