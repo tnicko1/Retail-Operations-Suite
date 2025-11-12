@@ -274,6 +274,12 @@ TRANSLATIONS = {
         "print_queue_delete_confirm": "Are you sure you want to delete the saved list '{}'?",
         "upload_excel_button": "Upload Excel",
         "select_excel_file": "Select Excel File",
+        "excel_import_options_title": "Excel Import Options",
+        "excel_import_options_text": "How would you like to import SKUs from the Excel file?",
+        "excel_import_add_all": "Add All Valid SKUs",
+        "excel_import_on_display_only": "Add 'On Display' Only",
+        "excel_import_on_display_info": "'On Display' Only is useful for updating price tags for items already on display whose prices have changed.",
+
 
         # Brand Selection Dialog
         "brand_selection_title": "Choose Design for {brand_name}",
@@ -824,6 +830,12 @@ TRANSLATIONS = {
         "print_queue_delete_confirm": "დარწმუნებული ხართ რომ გსურთ წაშალოთ შენახული სია '{}'?",
         "upload_excel_button": "Excel-ის ატვირთვა",
         "select_excel_file": "Excel-ის ფაილის არჩევა",
+        "excel_import_options_title": "Excel-ის იმპორტის პარამეტრები",
+        "excel_import_options_text": "როგორ გსურთ SKU-ების იმპორტი Excel ფაილიდან?",
+        "excel_import_add_all": "ყველა ვალიდური SKU-ის დამატება",
+        "excel_import_on_display_only": "მხოლოდ 'ვიტრინაში არსებულის' დამატება",
+        "excel_import_on_display_info": "'მხოლოდ ვიტრინაში არსებულის' ვარიანტი სასარგებლოა ვიტრინაში უკვე არსებული ნივთების ფასმაჩვენებლების განახლებისთვის, თუ მათი ფასი შეიცვალა.",
+
 
         # Brand Selection Dialog
         "brand_selection_title": "აირჩიეთ დიზაინი ბრენდისთვის: {brand_name}",

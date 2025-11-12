@@ -643,7 +643,7 @@ class PrintQueueDialog(QDialog):
         # Check for duplicates only if the selected size is NOT the accessory size
         if self.parent_window and self.parent_window.paper_size_combo.currentText() != "6x3.5cm":
             # Extract SKU from the list items for comparison
-            current_skus = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
+            current_skus = [self.sku_list_widget.item(i, 0).text() for i in range(self.sku_list_widget.rowCount())]
             if sku_to_add in current_skus:
                 if sys.platform == "win32":
                     winsound.Beep(440, 100)
@@ -667,12 +667,13 @@ class PrintQueueDialog(QDialog):
             winsound.Beep(880, 150)
 
     def load_from_excel(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, self.translator.get("select_excel_file"), "", "Excel Files (*.xlsx *.xls)")
+        file_path, _ = QFileDialog.getOpenFileName(self, self.translator.get("select_excel_file"), "",
+                                                   "Excel Files (*.xlsx *.xls)")
         if not file_path:
             return
 
         try:
-            df = pd.read_excel(file_path, header=None) # Read without header
+            df = pd.read_excel(file_path, header=None)  # Read without header
         except Exception as e:
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Critical)
@@ -708,32 +709,83 @@ class PrintQueueDialog(QDialog):
             msg.exec()
             return
 
-        # Automatically prefix with 'I' if it's a 5-digit number
-        skus_from_excel = [f"I{sku}" if len(sku) == 5 and sku.isdigit() else sku for sku in skus_from_excel]
+        # Automatically prefix with 'I' if it's a 5-digit number and strip whitespace
+        skus_from_excel = [f"I{sku.strip()}" if len(sku.strip()) == 5 and sku.strip().isdigit() else sku.strip() for sku in skus_from_excel]
 
-        branch_db_key = self.parent_window.branch_combo.currentData()
-        on_display_data = firebase_handler.get_display_status(self.token).get(branch_db_key, {})
-        on_display_skus = {str(key) for key in on_display_data.keys()}
+        # --- Ask user for import mode ---
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setWindowTitle(self.translator.get("excel_import_options_title", "Excel Import Options"))
+        msg_box.setText(self.translator.get("excel_import_options_text", "How would you like to import SKUs from the Excel file?"))
+        msg_box.setInformativeText(self.translator.get("excel_import_on_display_info", "'On Display' Only is useful for updating price tags for items already on display whose prices have changed."))
 
-        current_skus_in_queue = {self.sku_list_widget.item(i, 0).text() for i in range(self.sku_list_widget.rowCount()) if self.sku_list_widget.item(i, 0)}
+        add_all_button = msg_box.addButton(self.translator.get("excel_import_add_all", "Add All Valid SKUs"), QMessageBox.ButtonRole.YesRole)
+        on_display_button = msg_box.addButton(self.translator.get("excel_import_on_display_only", "Add 'On Display' Only"), QMessageBox.ButtonRole.NoRole)
+        msg_box.addButton(QMessageBox.StandardButton.Cancel)
+
+        msg_box.exec()
+        clicked_button = msg_box.clickedButton()
+
+        filter_on_display = False
+        if clicked_button == on_display_button:
+            filter_on_display = True
+        elif clicked_button == add_all_button:
+            filter_on_display = False
+        else:  # Cancelled
+            return
+        # --- End of choice ---
+
+        on_display_skus = set()
+        if filter_on_display:
+            branch_db_key = self.parent_window.branch_combo.currentData()
+            on_display_data = firebase_handler.get_display_status(self.token).get(branch_db_key, {})
+            on_display_skus = {str(key) for key in on_display_data.keys()}
+
+        current_skus_in_queue = {self.sku_list_widget.item(i, 0).text() for i in
+                                 range(self.sku_list_widget.rowCount()) if self.sku_list_widget.item(i, 0)}
         added_count = 0
+        not_found_skus = []
+
         for sku in skus_from_excel:
-            if sku in on_display_skus and sku not in current_skus_in_queue:
-                item_data = self.all_items_cache.get(sku, {})
-                name = item_data.get('Name', 'Unknown Name')
-                row_position = self.sku_list_widget.rowCount()
-                self.sku_list_widget.insertRow(row_position)
-                self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku))
-                self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
-                added_count += 1
+            if sku in current_skus_in_queue:
+                continue
+
+            item_data = self.all_items_cache.get(sku)
+
+            if not item_data:
+                not_found_skus.append(sku)
+                continue
+
+            if filter_on_display:
+                if sku not in on_display_skus:
+                    continue  # Skip if not on display, but don't report as "not found"
+
+            # If we reach here, the item is valid and meets the filter criteria
+            name = item_data.get('Name', 'Unknown Name')
+            row_position = self.sku_list_widget.rowCount()
+            self.sku_list_widget.insertRow(row_position)
+            self.sku_list_widget.setItem(row_position, 0, QTableWidgetItem(sku))
+            self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
+            added_count += 1
 
         if added_count > 0:
             self.save_queue()
 
+        if self.translator.language == "ka":
+            summary_message = f"დაემატა {added_count} ნივთი ბეჭდვის რიგში."
+            if not_found_skus:
+                summary_message += f"\n\nშემდეგი {len(not_found_skus)} SKU ვერ მოიძებნა და არ დაემატა: {', '.join(not_found_skus)}"
+            title = "იმპორტი დასრულებულია"
+        else:  # "en" and fallback
+            summary_message = f"Added {added_count} items to the print queue."
+            if not_found_skus:
+                summary_message += f"\n\nThe following {len(not_found_skus)} SKUs were not found and were not added: {', '.join(not_found_skus)}"
+            title = "Import Complete"
+
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Information)
-        msg.setText(f"Added {added_count} items to the print queue.")
-        msg.setWindowTitle("Success")
+        msg.setText(summary_message)
+        msg.setWindowTitle(title)
         msg.exec()
 
     def load_queue(self):
@@ -749,7 +801,7 @@ class PrintQueueDialog(QDialog):
                 self.sku_list_widget.setItem(row_position, 1, QTableWidgetItem(name))
 
     def save_queue(self):
-        queue_items = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
+        queue_items = [self.sku_list_widget.item(row, 0).text() for row in range(self.sku_list_widget.rowCount()) if self.sku_list_widget.item(row, 0)]
         firebase_handler.save_print_queue(self.user, queue_items)
 
     def load_saved_lists(self):
@@ -765,7 +817,7 @@ class PrintQueueDialog(QDialog):
         self.save_queue()
 
     def clear_queue(self):
-        self.sku_list_widget.clear()
+        self.sku_list_widget.setRowCount(0)
         self.save_queue()
 
     def load_list(self):
@@ -785,7 +837,7 @@ class PrintQueueDialog(QDialog):
         self.save_queue()
 
     def save_list(self):
-        current_queue = [self.sku_list_widget.item(i).text().split(' - ')[0] for i in range(self.sku_list_widget.count())]
+        current_queue = [self.sku_list_widget.item(i, 0).text() for i in range(self.sku_list_widget.rowCount()) if self.sku_list_widget.item(i, 0)]
         if not current_queue:
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
@@ -832,7 +884,7 @@ class PrintQueueDialog(QDialog):
         return self.use_default_settings_checkbox.isChecked()
 
     def print_item_list(self):
-        if self.sku_list_widget.count() == 0:
+        if self.sku_list_widget.rowCount() == 0:
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setText("The print queue is empty.")
@@ -874,9 +926,11 @@ class PrintQueueDialog(QDialog):
             logo_src = ""
 
         items_html = ""
-        for i in range(self.sku_list_widget.count()):
-            item_text = self.sku_list_widget.item(i).text()
-            sku = item_text.split(" - ")[0]
+        for i in range(self.sku_list_widget.rowCount()):
+            sku_item = self.sku_list_widget.item(i, 0)
+            if not sku_item:
+                continue
+            sku = sku_item.text()
             item_data = self.all_items_cache.get(sku, {})
 
             name = item_data.get("Name", "N/A")
