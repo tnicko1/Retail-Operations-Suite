@@ -76,6 +76,17 @@ def run_update_check(app_version):
 
 
 def main():
+    # --- SSL Certificate Fix for PyInstaller ---
+    try:
+        import ssl
+        import certifi
+        ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        # This will only fail if certifi is not installed, which shouldn't happen
+        # with the updated requirements.txt.
+        pass
+    # -----------------------------------------
+
     sys.excepthook = global_exception_hook
     app = QApplication(sys.argv)
 

@@ -4,7 +4,14 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\bin\\*.dll', '.')],
-    datas=[('assets', 'assets'), ('fonts', 'fonts'), ('config.json', '.'), ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\pytz', 'pytz')],
+    datas=[
+        ('assets', 'assets'),
+        ('fonts', 'fonts'),
+        ('config.json', '.'),
+        ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\pytz', 'pytz'),
+        ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\plugins\\styles', 'PyQt6\\Qt6\\plugins\\styles'),
+        ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\certifi', 'certifi')
+    ],
     hiddenimports=['PyQt6', 'PyQt6.sip', 'pytz'],
     hookspath=[],
     hooksconfig={},
