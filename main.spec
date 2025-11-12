@@ -3,9 +3,9 @@
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('assets', 'assets'), ('fonts', 'fonts'), ('config.json', '.')],
-    hiddenimports=['PyQt6.sip'],
+    binaries=[('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\bin\\*.dll', '.')],
+    datas=[('assets', 'assets'), ('fonts', 'fonts'), ('config.json', '.'), ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\pytz', 'pytz')],
+    hiddenimports=['PyQt6', 'PyQt6.sip', 'pytz'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
