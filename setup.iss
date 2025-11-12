@@ -2,9 +2,9 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPTS!
 
 #define MyAppName "Retail Operations Suite"
-#define MyAppVersion "3.0.1"
+#define MyAppVersion "3.0.2"
 #define MyAppPublisher "Nikoloz Taturashvili"
-#define MyAppURL "https://github.com/lone-wolf-akela/Retail-Operations-Suite"
+#define MyAppURL "https://github.com/tnicko1/Retail-Operations-Suite"
 #define MyAppExeName "Retail Operations Suite.exe"
 
 [Setup]
