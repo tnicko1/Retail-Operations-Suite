@@ -2112,6 +2112,206 @@ def _create_modern_brand_tag_large(item_data, width_px, height_px, width_cm, hei
     return img.convert('RGB')
 
 
+def _draw_black_friday_theme(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    """Creates a price tag with the Black Friday theme."""
+    # --- 1. Setup and Colors ---
+    img = Image.new('RGB', (width_px, height_px), '#000000')
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # --- Scaling ---
+    current_area = width_cm * height_cm
+    scale_factor = math.sqrt(current_area / (10 * 7)) # Base on a 10x7cm tag
+
+    # --- Fonts ---
+    price_font_size = int(130 * scale_factor)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, price_font_size, is_bold=True)
+
+    strikethrough_font_size = int(80 * scale_factor)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_font_size)
+
+    tape_font_size = int(50 * scale_factor)
+    tape_font = get_font(PRIMARY_FONT_BOLD_PATH, tape_font_size, is_bold=True)
+
+    # --- 2. Header Logo ---
+    logo_to_use = resource_path("assets/logo-white.png") # Use white logo
+    try:
+        with Image.open(logo_to_use).convert("RGBA") as logo:
+            logo_max_h = height_px * 0.12 # Reduced size
+            logo.thumbnail((width_px * 0.3, logo_max_h), Image.Resampling.LANCZOS)
+            logo_x = int((width_px - logo.width) / 2)
+            logo_y = int(height_px * 0.05)
+            img.paste(logo, (logo_x, logo_y), logo)
+    except FileNotFoundError:
+        print(f"Warning: Logo file not found at '{logo_to_use}'")
+
+    # --- 3. Background Image ---
+    try:
+        bf_image_path = resource_path("assets/props/black_friday.png")
+        with Image.open(bf_image_path).convert("RGBA") as bf_image:
+            # Scale the image to be 80% of the tag's width
+            image_width = int(width_px * 0.8)
+            # Preserve aspect ratio
+            w_percent = (image_width / float(bf_image.size[0]))
+            h_size = int((float(bf_image.size[1]) * float(w_percent)))
+            bf_image = bf_image.resize((image_width, h_size), Image.Resampling.LANCZOS)
+
+            # Center the image horizontally, then shift right
+            paste_x = int((width_px - bf_image.width) / 2 + width_px * 0.1)
+            # Position it vertically, further up
+            paste_y = int(height_px * 0.15)
+            
+            img.paste(bf_image, (paste_x, paste_y), bf_image)
+    except FileNotFoundError:
+        print(f"Warning: Black Friday image not found at '{bf_image_path}'")
+
+
+    # --- 4. Price Container (White Box) ---
+    box_height = height_px * 0.33
+    box_y_start = height_px - box_height
+    draw.rectangle([(0, box_y_start), (width_px, height_px)], fill='#FFFFFF')
+
+    # --- Price Value ---
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    price_center_y = box_y_start + (box_height / 2)
+    gel_text = "₾"
+    spacing = int(10 * scale_factor)
+
+    is_on_sale = False
+    if sale_price and regular_price:
+        try:
+            sale_val = float(sale_price.replace(',', '.'))
+            regular_val = float(regular_price.replace(',', '.'))
+            if sale_val > 0 and sale_val < regular_val:
+                is_on_sale = True
+        except ValueError:
+            is_on_sale = False
+
+    if is_on_sale:
+        # --- Sale Price (Right) ---
+        price_text = str(sale_price)
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        
+        end_x = width_px - (4 * spacing) # Moved left
+        
+        # Draw GEL symbol for sale price
+        draw.text((end_x, price_center_y), gel_text, font=gel_font, fill='#000000', anchor="rm")
+        
+        # Draw sale price
+        price_x = end_x - gel_width - spacing
+        draw.text((price_x, price_center_y), price_text, font=price_font, fill='#000000', anchor="rm")
+        
+        # --- Old Price (Left of Sale Price) ---
+        old_price_text = str(regular_price)
+        old_price_width = strikethrough_font.getbbox(old_price_text)[2]
+        old_gel_width = gel_font_strikethrough.getbbox(gel_text)[2]
+        
+        old_price_end_x = price_x - price_width - (2 * spacing)
+
+        # Draw GEL symbol for old price
+        draw.text((old_price_end_x, price_center_y), gel_text, font=gel_font_strikethrough, fill='#888888', anchor="rm")
+
+        # Draw old price
+        old_price_x = old_price_end_x - old_gel_width - spacing
+        draw.text((old_price_x, price_center_y), old_price_text, font=strikethrough_font, fill='#888888', anchor="rm")
+        
+        # Draw strikethrough line
+        line_y = price_center_y
+        total_old_price_width = old_price_width + old_gel_width + spacing
+        line_start_x = old_price_end_x - total_old_price_width
+        padding = 5 * scale_factor
+        draw.line([(line_start_x - padding, line_y), (old_price_end_x + padding, line_y)], fill='#888888', width=int(5 * scale_factor))
+
+    else:
+        # --- Default Price (Right Aligned) ---
+        display_price = sale_price or regular_price or "N/A"
+        price_text = str(display_price)
+        price_width = price_font.getbbox(price_text)[2]
+        gel_width = gel_font.getbbox(gel_text)[2]
+        
+        end_x = width_px - (4 * spacing) # Moved left
+
+        # Draw GEL symbol
+        draw.text((end_x, price_center_y), gel_text, font=gel_font, fill='#000000', anchor="rm")
+        
+        # Draw price
+        price_x = end_x - gel_width - spacing
+        draw.text((price_x, price_center_y), price_text, font=price_font, fill='#000000', anchor="rm")
+
+    # --- 5. Overlay Decorations (Caution Tapes) ---
+    def create_tape(rotation):
+        tape_color = '#F4D03F'
+        text_pattern = ("BLACK FRIDAY ", "SALE ")
+        full_text = (text_pattern[0] + text_pattern[1]) * 3
+        tape_height = int(70 * scale_factor)
+        tape_width = width_px * 1.2 # Make tape wider to ensure it covers the area when rotated
+
+        tape_img = Image.new('RGBA', (int(tape_width), tape_height), (0,0,0,0))
+        tape_draw = ImageDraw.Draw(tape_img)
+        tape_draw.rectangle([(0,0), (tape_width, tape_height)], fill=tape_color)
+
+        x_cursor = 0
+        for _ in range(3):
+            # Draw "BLACK FRIDAY"
+            bf_width = tape_font.getbbox(text_pattern[0])[2]
+            tape_draw.text((x_cursor, tape_height/2), text_pattern[0], font=tape_font, fill='#000000', anchor="lm")
+            x_cursor += bf_width
+
+            # Draw "SALE" with inverted colors
+            sale_width = tape_font.getbbox(text_pattern[1])[2]
+            tape_draw.rectangle([(x_cursor, 0), (x_cursor + sale_width, tape_height)], fill='#000000')
+            tape_draw.text((x_cursor, tape_height/2), text_pattern[1], font=tape_font, fill=tape_color, anchor="lm")
+            x_cursor += sale_width
+
+        return tape_img.rotate(rotation, expand=True, resample=Image.Resampling.BICUBIC)
+
+    def create_sku_tape(sku_text, rotation):
+        tape_color = '#F4D03F'
+        tape_height = int(70 * scale_factor)
+        
+        # Make tape wider to ensure it covers the corner
+        tape_width = int(width_px * 0.6)
+
+        tape_img = Image.new('RGBA', (tape_width, tape_height), (0,0,0,0))
+        tape_draw = ImageDraw.Draw(tape_img)
+        
+        # Draw the yellow tape background
+        tape_draw.rectangle([(0,0), (tape_width, tape_height)], fill=tape_color)
+        
+        # Draw the SKU text centered on the tape
+        tape_draw.text((tape_width/2, tape_height/2), sku_text, font=tape_font, fill='#000000', anchor="mm")
+
+        return tape_img.rotate(rotation, expand=True, resample=Image.Resampling.BICUBIC)
+
+    # Tape A (-15 degrees)
+    tape_a = create_tape(-15)
+    paste_x_a = int(width_px * 0.35 - tape_a.width * 0.5)
+    paste_y_a = int(box_y_start - box_height * 0.4)
+    img.paste(tape_a, (paste_x_a, paste_y_a), tape_a)
+
+    # Tape B (-45 degrees)
+    tape_b = create_tape(-45)
+    paste_x_b = int(width_px * 0.4 - tape_b.width * 0.5)
+    paste_y_b = int(box_y_start - box_height * 0.8)
+    img.paste(tape_b, (paste_x_b, paste_y_b), tape_b)
+
+    # Tape C (SKU Tape, -45 degrees)
+    sku_text = item_data.get('SKU', 'N/A')
+    tape_c = create_sku_tape(sku_text, -45)
+    paste_x_c = width_px - tape_c.width * 0.65  # Move slightly more right
+    paste_y_c = -tape_c.height * 0.35         # Move slightly more up
+    img.paste(tape_c, (int(paste_x_c), int(paste_y_c)), tape_c)
+
+    # --- Final Border ---
+    # Add a very thin black outline around the entire tag
+    draw.rectangle([(0, 0), (width_px - 1, height_px - 1)], outline='#000000', width=1)
+
+    return img.convert('RGB')
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings, language='en', is_special=False, background_cache=None, is_dual=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -2120,6 +2320,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings, language='e
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
+    if theme.get('design') == 'black_friday':
+        return _draw_black_friday_theme(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'modern_brand':
         if width_cm == 6 and height_cm == 3.5:
             return _create_modern_brand_tag(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)

@@ -210,6 +210,11 @@ class RetailOperationsSuite(QMainWindow):
                 "background_grid": True,
                 "background_color": "#2E7D32",
                 "draw_school_icons": True
+            },
+            "Black Friday": {
+                "design": "black_friday",
+                "logo_path": resource_path("assets/logo.png"),
+                "logo_path_ka": resource_path("assets/logo-geo.png")
             }
         }
         self.brands = {
