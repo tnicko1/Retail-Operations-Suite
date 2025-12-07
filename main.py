@@ -35,7 +35,7 @@ from main_window import RetailOperationsSuite
 import updater
 import data_handler
 
-APP_VERSION = "3.0.3"
+APP_VERSION = "3.0.4"
 
 
 def global_exception_hook(exctype, value, tb):
