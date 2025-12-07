@@ -73,13 +73,13 @@ Admins have access to a suite of powerful tools to manage the application and da
 
 ## 📸 Screenshots
 
-|               Main Generator Window                |                      Admin Dashboard                       |
-|:--------------------------------------------------:|:----------------------------------------------------------:|
-| ![Main Window](assets/screenshots/main-window.png) | ![Admin Dashboard](assets/screenshots/admin-dashboard.png) |
+|               Main Generator Window                |                       Logistics Window                       |
+|:--------------------------------------------------:|:------------------------------------------------------------:|
+| ![Main Window](assets/screenshots/main-window.png) | ![Logistics Window](assets/screenshots/logistics-window.png) |
 
-|                        Custom Size Manager                        |                        Quick Stock Checker                         |
-|:-----------------------------------------------------------------:|:------------------------------------------------------------------:|
-| ![Custom Size Manager](assets/screenshots/custom-size-dialog.png) | ![Quick Stock Checker](assets/screenshots/quick-stock-checker.png) |
+|                        Custom Size Manager                        |                    Advanced Print Queue                     |
+|:-----------------------------------------------------------------:|:-----------------------------------------------------------:|
+| ![Custom Size Manager](assets/screenshots/custom-size-dialog.png) | ![Advanced Print Queue](assets/screenshots/print-queue.png) |
 
 
 ## 💻 Technology Stack
