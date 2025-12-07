@@ -47,7 +47,7 @@ def _db_request(user, operation):
     try:
         return operation(user['idToken'])
     except HTTPError as e:
-        if e.response.status_code == 401:
+        if "401" in str(e):
             print("Token expired. Attempting to refresh...")
             try:
                 refreshed_user = auth.refresh(user['refreshToken'])
