@@ -199,6 +199,11 @@ class RetailOperationsSuite(QMainWindow):
                 "bullet_image_path": resource_path("assets/snowflake.png"),
                 "background_snow": True
             },
+            "New Year": {
+                "design": "new_year",
+                "logo_path": resource_path("assets/logo.png"),
+                "logo_path_ka": resource_path("assets/logo-geo.png")
+            },
             "Back To School": {
                 "name_color": "white",
                 "price_color": "#FFC107",
@@ -415,6 +420,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#00F0F0",
                 "text_color": "black"
             },
+            "Philips": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Philips.png"),
+                "brand_name": "Philips",
+                "bg_color": "#0B5ED6",
+                "text_color": "black"
+            },
             "AOC": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/AOC.png"),
@@ -562,6 +574,27 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#034EA2",
                 "text_color": "black"
             },
+            "Mecool": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Mecool.png"),
+                "brand_name": "MECOOL",
+                "bg_color": "#000000",
+                "text_color": "black"
+            },
+            "Ubiquiti": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Ubiquiti.png"),
+                "brand_name": "Ubiquiti",
+                "bg_color": "#00A0DF",
+                "text_color": "black"
+            },
+            "Eufy": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Eufy.png"),
+                "brand_name": "Eufy",
+                "bg_color": "#005D8E",
+                "text_color": "black"
+            },
             "Toshiba": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Toshiba.png"),
@@ -679,6 +712,13 @@ class RetailOperationsSuite(QMainWindow):
                 "accessory_logo_path": resource_path("assets/brands/Poly.png"),
                 "brand_name": "Poly",
                 "bg_color": "#FF3900",
+                "text_color": "black"
+            },
+            "Choetech": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Choetech.png"),
+                "brand_name": "Choetech",
+                "bg_color": "#00FEBF",
                 "text_color": "black"
             },
             "PCSHOP": {
@@ -1301,7 +1341,9 @@ class RetailOperationsSuite(QMainWindow):
         sorted_brand_names = sorted(self.brands_by_name.keys(), key=len, reverse=True)
 
         for b_name in sorted_brand_names:
-            if b_name.lower() in item_name_lower:
+            # Use regex to match whole words only (prevents "Spire" matching inside "Aspire")
+            pattern = r'\b' + re.escape(b_name.lower()) + r'\b'
+            if re.search(pattern, item_name_lower):
                 detected_brand_name = b_name
                 break
 
@@ -1657,7 +1699,8 @@ class RetailOperationsSuite(QMainWindow):
     def update_brand_combo(self):
         self.brand_combo.clear()
         self.brand_combo.addItem("Automatic")
-        self.brand_combo.addItems(list(self.brands.keys()))
+        sorted_brands = sorted(self.brands.keys())
+        self.brand_combo.addItems(sorted_brands)
         self.brand_combo.setCurrentText(self.settings.get("default_brand_theme", "None"))
 
     def handle_theme_selection(self, theme_name):
@@ -1853,7 +1896,8 @@ class RetailOperationsSuite(QMainWindow):
 
         self.update_item_image(self.generator_item_image_label)
 
-        self.update_preview()
+        # Automatically detect brand
+        self.handle_brand_selection("Automatic")
 
     def update_stock_display(self):
         if not self.current_item_data:

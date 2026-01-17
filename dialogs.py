@@ -600,6 +600,12 @@ class PrintQueueDialog(QDialog):
         self.print_list_button.clicked.connect(self.print_item_list)
         action_buttons_layout.addWidget(self.print_list_button)
 
+        self.export_queue_button = QPushButton(self.translator.get("print_queue_export_excel_button", "To Excel"))
+        self.export_queue_button.setFixedHeight(40)
+        self.export_queue_button.setIcon(QIcon(price_generator.resource_path("assets/spec_icons/archive-restore.svg")))
+        self.export_queue_button.clicked.connect(self.export_queue_to_excel)
+        action_buttons_layout.addWidget(self.export_queue_button)
+
         self.generate_button = QPushButton(self.translator.get("print_queue_generate_button"))
         self.generate_button.setFixedHeight(40)
         self.generate_button.clicked.connect(self.accept)
@@ -883,6 +889,65 @@ class PrintQueueDialog(QDialog):
     def get_use_default_settings_state(self):
         return self.use_default_settings_checkbox.isChecked()
 
+    def export_queue_to_excel(self):
+        if self.sku_list_widget.rowCount() == 0:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setText("The print queue is empty.")
+            msg.setWindowTitle("Empty Queue")
+            msg.exec()
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel File", "print_queue.xlsx", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
+
+        data = []
+        for i in range(self.sku_list_widget.rowCount()):
+            sku_item = self.sku_list_widget.item(i, 0)
+            if not sku_item: continue
+            
+            sku = sku_item.text()
+            item_data = self.all_items_cache.get(sku, {})
+            name = item_data.get("Name", "N/A")
+            
+            # Find Part Number
+            attributes = item_data.get('attributes', {})
+            part_number = ''
+            if attributes:
+                for attr_i in range(1, 10): 
+                    if attributes.get(f'Attribute {attr_i} name') == 'Part Number':
+                        part_number = attributes.get(f'Attribute {attr_i} value(s)', '')
+                        break
+            if not part_number:
+                 part_number = item_data.get('part_number', '')
+            
+            # Get Price (Sale or Regular)
+            price = item_data.get("Sale price") or item_data.get("Regular price") or "N/A"
+            
+            data.append({
+                "SKU": sku,
+                "Item Name": name,
+                "Part Number": part_number,
+                "Price": price
+            })
+
+        df = pd.DataFrame(data)
+        
+        try:
+            df.to_excel(file_path, index=False)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setText(f"Queue exported successfully to {file_path}")
+            msg.setWindowTitle("Export Successful")
+            msg.exec()
+        except Exception as e:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setText(f"Failed to export data: {e}")
+            msg.setWindowTitle("Export Error")
+            msg.exec()
+
     def print_item_list(self):
         if self.sku_list_widget.rowCount() == 0:
             msg = QMessageBox(self)
@@ -905,26 +970,6 @@ class PrintQueueDialog(QDialog):
         preview_dialog.exec()
 
     def _generate_item_list_html(self):
-        try:
-            with open(resource_path("assets/logo.png"), "rb") as f:
-                logo_data = f.read()
-
-            pixmap = QPixmap()
-            pixmap.loadFromData(logo_data)
-
-            # Resize the pixmap to a height of 25px, keeping aspect ratio
-            scaled_pixmap = pixmap.scaledToHeight(25, Qt.TransformationMode.SmoothTransformation)
-
-            buffer = QBuffer()
-            buffer.open(QBuffer.OpenModeFlag.ReadWrite)
-            scaled_pixmap.save(buffer, "PNG")
-
-            # Base64 encode the image data
-            logo_src = f"data:image/png;base64,{buffer.data().toBase64().data().decode()}"
-
-        except FileNotFoundError:
-            logo_src = ""
-
         items_html = ""
         for i in range(self.sku_list_widget.rowCount()):
             sku_item = self.sku_list_widget.item(i, 0)
@@ -963,85 +1008,68 @@ class PrintQueueDialog(QDialog):
         <html>
         <head>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap');
                 body {{
                     font-family: 'Roboto', sans-serif;
-                    margin: 40px;
-                    color: #333;
+                    margin: 20px;
+                    color: #000;
                 }}
                 .header {{
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    border-bottom: 2px solid #eee;
-                    padding-bottom: 20px;
-                    margin-bottom: 30px;
-                }}
-                .header img {{
-                    width: auto;
+                    text-align: center;
+                    border-bottom: 3px solid #000;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
                 }}
                 .header h1 {{
-                    font-size: 18px; /* Slightly lower font size */
-                    font-weight: 700;
-                    color: #222;
-                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 900;
+                    color: #000;
+                    margin: 0 0 5px 0;
                 }}
                 .date {{
-                    font-size: 14px;
-                    color: #777;
+                    font-size: 40px;
+                    font-weight: 900;
+                    color: #000;
                 }}
                 table {{
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 48px; /* Much larger font size */
+                    font-size: 56px;
                 }}
                 th, td {{
-                    border: 1px solid #ddd;
-                    padding: 18px 20px;
+                    border: 2px solid #000;
+                    padding: 4px 10px;
                     text-align: left;
+                    font-weight: 900;
+                    color: #000;
                 }}
                 th {{
-                    background-color: #f8f8f8;
-                    font-weight: 700;
-                    color: #555;
+                    background-color: #f0f0f0;
                 }}
                 tr:nth-child(even) {{
-                    background-color: #f2f2f2;
-                }}
-                .footer {{
-                    margin-top: 40px;
-                    padding-top: 20px;
-                    border-top: 2px solid #eee;
-                    font-size: 36px;
-                    color: #777;
-                    text-align: center;
+                    background-color: #e6e6e6;
                 }}
             </style>
         </head>
         <body>
             <div class="header">
-                <img src="{logo_src}" alt="Company Logo">
                 <h1>Item Collection List</h1>
                 <div class="date">{datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
             </div>
-            <p>Here are the items to be collected from storage for display. Please handle with care.</p>
             <table>
                 <thead>
                     <tr>
-                        <th>Order</th>
-                        <th>SKU</th>
-                        <th>Item Name</th>
-                        <th>Part Number</th>
-                        <th>Price</th>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 15%;">SKU</th>
+                        <th style="width: 45%;">Item Name</th>
+                        <th style="width: 20%;">Part Number</th>
+                        <th style="width: 15%;">Price</th>
                     </tr>
                 </thead>
                 <tbody>
                     {items_html}
                 </tbody>
             </table>
-            <div class="footer">
-                <p>Happy hunting! May your carts be full and your steps be few.</p>
-            </div>
         </body>
         </html>
         """

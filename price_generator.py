@@ -2312,6 +2312,417 @@ def _draw_black_friday_theme(item_data, width_px, height_px, width_cm, height_cm
     return img.convert('RGB')
 
 
+def _draw_new_year_theme(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special=False):
+    """Creates a price tag with the New Year theme."""
+    # --- Colors ---
+    bg_color = '#E6E2DE' # Light beige/gray
+    text_color = '#1A3026' # Dark Green
+    accent_color = '#D12E29' # Red
+    gold_color = '#C5A059' # Gold for branches
+    white_color = '#FFFFFF'
+
+    img = Image.new('RGB', (width_px, height_px), bg_color)
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    scale_factor = math.sqrt((width_cm * height_cm) / (10 * 7))
+
+    # --- Fonts ---
+    # Base title size, will be scaled per line
+    base_title_size = 100 * scale_factor
+    
+    price_font_size = int(110 * scale_factor)
+    price_font = get_font(PRIMARY_FONT_BOLD_PATH, price_font_size, is_bold=True)
+    gel_font = get_font(GEL_FONT_PATH, price_font_size, is_bold=True)
+
+    strikethrough_font_size = int(60 * scale_factor)
+    strikethrough_font = get_font(PRIMARY_FONT_PATH, strikethrough_font_size)
+    gel_font_strikethrough = get_font(GEL_FONT_PATH, strikethrough_font_size)
+    
+    sku_font_size = int(45 * scale_factor)
+    sku_font = get_font(PRIMARY_FONT_BOLD_PATH, sku_font_size, is_bold=True)
+
+    # --- 1. Background Snowflakes ---
+    for _ in range(30):
+        x = random.randint(0, width_px)
+        y = random.randint(0, int(height_px * 0.7)) # Mostly top/middle
+        size = random.randint(int(5 * scale_factor), int(15 * scale_factor))
+        draw.ellipse([(x, y), (x + size, y + size)], fill=(255, 255, 255, 180))
+
+    # --- 2. Tree Text Header (Incremental Size) ---
+    center_x = width_px / 2
+    top_margin = height_px * 0.08
+    
+    # Red Star
+    star_size = 40 * scale_factor
+    def draw_star(cx, cy, size, color):
+        points = []
+        for i in range(10):
+            angle = math.pi / 2 + i * math.pi / 5 # Start pointing up
+            r = size if i % 2 == 0 else size / 2.5
+            px = cx + r * math.cos(angle)
+            py = cy - r * math.sin(angle) # y is inverted in screen coords
+            points.append((px, py))
+        draw.polygon(points, fill=color)
+
+    draw_star(center_x, top_margin, star_size, accent_color)
+    
+    # Text Lines with varying sizes
+    lines_config = [
+        {"text": "NEW", "scale": 0.7},
+        {"text": "YEAR", "scale": 1.0},
+        {"text": "SALE", "scale": 1.4}
+    ]
+    
+    y_text = top_margin + star_size - (5 * scale_factor) # Move closer to star
+    
+    for config in lines_config:
+        current_font_size = int(base_title_size * config["scale"])
+        current_font = get_font(PRIMARY_FONT_BOLD_PATH, current_font_size, is_bold=True)
+        
+        line = config["text"]
+        bbox = current_font.getbbox(line)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        ascent, descent = current_font.getmetrics()
+        real_h = ascent + descent
+        
+        draw.text((center_x, y_text), line, font=current_font, fill=text_color, anchor="ma")
+        
+        # Red dots decorations
+        dot_radius = 6 * scale_factor
+        # Adjusted positions to be tighter
+        draw.ellipse([(center_x - text_w/2 - 15*scale_factor, y_text + text_h/2), 
+                      (center_x - text_w/2 - 15*scale_factor + dot_radius*2, y_text + text_h/2 + dot_radius*2)], 
+                     fill=accent_color)
+        draw.ellipse([(center_x + text_w/2 + 5*scale_factor, y_text + text_h/2), 
+                      (center_x + text_w/2 + 5*scale_factor + dot_radius*2, y_text + text_h/2 + dot_radius*2)], 
+                     fill=accent_color)
+        
+        # Even tighter spacing
+        y_text += real_h * 0.65 
+
+    # --- 4. Price Box ---
+    box_margin = width_px * 0.1
+    # Reduced height (moved top down)
+    box_top = height_px * 0.62 
+    box_bottom = height_px - (height_px * 0.05)
+    
+    # White Card
+    draw.rectangle([(box_margin, box_top), (width_px - box_margin, box_bottom)], fill=white_color)
+
+    # --- 3. Logo (Moved down with the box) ---
+    logo_path = resource_path("assets/logo.png")
+    try:
+        with Image.open(logo_path).convert("RGBA") as logo:
+            logo_h = int(65 * scale_factor)
+            logo_w = int(logo_h * (logo.width / logo.height))
+            logo.thumbnail((logo_w, logo_h), Image.Resampling.LANCZOS)
+            # Position just above the box
+            logo_y = box_top - logo_h - (15 * scale_factor)
+            img.paste(logo, (int(center_x - logo_w/2), int(logo_y)), logo)
+    except FileNotFoundError:
+        pass
+
+    # --- 4b. Beige Snowflakes in Price Box ---
+    box_width = width_px - 2 * box_margin
+    box_height_val = box_bottom - box_top
+    for _ in range(15):
+        x = random.randint(int(box_margin), int(width_px - box_margin))
+        y = random.randint(int(box_top), int(box_bottom))
+        size = random.randint(int(4 * scale_factor), int(10 * scale_factor))
+        # Use bg_color for the "snow" inside the white box
+        draw.ellipse([(x, y), (x + size, y + size)], fill=bg_color)
+    
+    # --- 5. Price & SKU ---
+    sale_price = item_data.get('Sale price', '').strip()
+    regular_price = item_data.get('Regular price', '').strip()
+    sku_text = item_data.get('SKU', 'N/A')
+    
+    price_center_y = box_top + (box_bottom - box_top) / 2
+    
+    # Check if we need to shift price up to make room for SKU
+    price_shift_y = -(15 * scale_factor) # Shift up slightly
+    price_draw_y = price_center_y + price_shift_y
+    
+    is_on_sale = False
+    try:
+        sale_val = float(sale_price.replace(',', '.')) if sale_price else 0
+        regular_val = float(regular_price.replace(',', '.')) if regular_price else 0
+        is_on_sale = sale_val > 0 and sale_val < regular_val
+    except ValueError:
+        pass
+
+    gel_text = "₾"
+    spacing = 10 * scale_factor
+
+    if is_on_sale:
+        # Sale Price (Red, Big)
+        price_text = str(sale_price)
+        p_bbox = price_font.getbbox(price_text)
+        p_w = p_bbox[2] - p_bbox[0]
+        p_h = p_bbox[3] - p_bbox[1]
+        
+        g_bbox = gel_font.getbbox(gel_text)
+        g_w = g_bbox[2] - g_bbox[0]
+        
+        total_w = g_w + spacing + p_w
+        start_x = center_x - total_w / 2
+        
+        # Shift up slightly to fit old price below or strike it
+        draw.text((start_x, price_draw_y - p_h/2), gel_text, font=gel_font, fill=accent_color, anchor="lm")
+        draw.text((start_x + g_w + spacing, price_draw_y - p_h/2), price_text, font=price_font, fill=accent_color, anchor="lm")
+        
+        # Old Price (Strikethrough, smaller) - Positioned below centered
+        old_text = str(regular_price)
+        op_bbox = strikethrough_font.getbbox(old_text)
+        op_w = op_bbox[2] - op_bbox[0]
+        og_bbox = gel_font_strikethrough.getbbox(gel_text)
+        og_w = og_bbox[2] - og_bbox[0]
+        
+        total_old_w = og_w + spacing + op_w
+        old_start_x = center_x - total_old_w / 2
+        old_y = price_draw_y + p_h/2 + (10 * scale_factor)
+        
+        draw.text((old_start_x, old_y), gel_text, font=gel_font_strikethrough, fill=text_color, anchor="lm")
+        draw.text((old_start_x + og_w + spacing, old_y), old_text, font=strikethrough_font, fill=text_color, anchor="lm")
+        
+        # Strike line
+        line_y = old_y
+        draw.line([(old_start_x, line_y), (old_start_x + total_old_w, line_y)], fill=text_color, width=int(3 * scale_factor))
+
+    else:
+        # Regular Price
+        display_price = sale_price or regular_price or "N/A"
+        price_text = str(display_price)
+        
+        p_bbox = price_font.getbbox(price_text)
+        p_w = p_bbox[2] - p_bbox[0]
+        g_bbox = gel_font.getbbox(gel_text)
+        g_w = g_bbox[2] - g_bbox[0]
+        
+        total_w = g_w + spacing + p_w
+        start_x = center_x - total_w / 2
+        
+        draw.text((start_x, price_draw_y), gel_text, font=gel_font, fill=accent_color, anchor="lm")
+        draw.text((start_x + g_w + spacing, price_draw_y), price_text, font=price_font, fill=accent_color, anchor="lm")
+
+    # SKU - Bottom Center of White Box (NO PREFIX)
+    sku_y = box_bottom - (20 * scale_factor)
+    draw.text((center_x, sku_y), sku_text, font=sku_font, fill='#888888', anchor="ms") # Grey color for SKU
+
+    # --- 6. Pine Branches (Overlaying everything) ---
+    def draw_tapered_curved_needle(draw_obj, start, end, curvature, color, base_width):
+        """Draws a needle that curves and tapers from base_width to 0."""
+        # Calculate control point for curve
+        mid_x = (start[0] + end[0]) / 2
+        mid_y = (start[1] + end[1]) / 2
+        
+        # Vector perpendicular to start-end
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length = math.sqrt(dx*dx + dy*dy)
+        if length == 0: return
+
+        # Normalize and rotate 90 degrees
+        perp_x = -dy / length
+        perp_y = dx / length
+        
+        # Control point displaced by curvature
+        ctrl_x = mid_x + perp_x * curvature
+        ctrl_y = mid_y + perp_y * curvature
+        
+        # Generate points for the curve (Quadratic Bezier)
+        points = []
+        steps = 10
+        for i in range(steps + 1):
+            t = i / steps
+            # Bezier formula: (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+            bx = (1-t)**2 * start[0] + 2*(1-t)*t * ctrl_x + t**2 * end[0]
+            by = (1-t)**2 * start[1] + 2*(1-t)*t * ctrl_y + t**2 * end[1]
+            points.append((bx, by))
+            
+        # Create a polygon that follows these points but has width at start and 0 at end
+        poly_points = []
+        
+        # Add points going forward (offset to one side)
+        for i, (px, py) in enumerate(points):
+            t = i / steps
+            current_width = base_width * (1 - t) # Linear taper
+            
+            # Calculate local tangent to offset perpendicular
+            if i < steps:
+                next_p = points[i+1]
+                local_dx = next_p[0] - px
+                local_dy = next_p[1] - py
+            else:
+                prev_p = points[i-1]
+                local_dx = px - prev_p[0]
+                local_dy = py - prev_p[1]
+                
+            local_len = math.sqrt(local_dx*local_dx + local_dy*local_dy)
+            if local_len == 0: continue
+            
+            l_perp_x = -local_dy / local_len
+            l_perp_y = local_dx / local_len
+            
+            poly_points.append((px + l_perp_x * current_width * 0.5, py + l_perp_y * current_width * 0.5))
+            
+        # Add tip
+        poly_points.append(points[-1])
+        
+        # Add points coming back (offset to other side)
+        for i in range(steps - 1, -1, -1):
+            px, py = points[i]
+            t = i / steps
+            current_width = base_width * (1 - t)
+            
+            if i < steps:
+                next_p = points[i+1]
+                local_dx = next_p[0] - px
+                local_dy = next_p[1] - py
+            else: 
+                prev_p = points[i-1]
+                local_dx = px - prev_p[0]
+                local_dy = py - prev_p[1]
+
+            local_len = math.sqrt(local_dx*local_dx + local_dy*local_dy)
+            if local_len == 0: continue
+            
+            l_perp_x = -local_dy / local_len
+            l_perp_y = local_dx / local_len
+            
+            poly_points.append((px - l_perp_x * current_width * 0.5, py - l_perp_y * current_width * 0.5))
+            
+        draw_obj.polygon(poly_points, fill=color)
+
+    def draw_curved_pine_branch(origin, angle, length, width_scale, curvature_offset=30, add_sub_branch=False):
+        # Calculate end point
+        rad = math.radians(angle)
+        end_x = origin[0] + length * math.cos(rad)
+        end_y = origin[1] + length * math.sin(rad)
+        end = (end_x, end_y)
+
+        # Control point for Quadratic Bezier
+        # Midpoint of straight line
+        mid_x = (origin[0] + end_x) / 2
+        mid_y = (origin[1] + end_y) / 2
+        
+        # Perpendicular vector
+        dx = end_x - origin[0]
+        dy = end_y - origin[1]
+        dist = math.sqrt(dx*dx + dy*dy)
+        if dist == 0: return
+        perp_x = -dy / dist
+        perp_y = dx / dist
+        
+        # Apply curvature
+        ctrl_x = mid_x + perp_x * (curvature_offset * width_scale)
+        ctrl_y = mid_y + perp_y * (curvature_offset * width_scale)
+        
+        # Generate curve points for stem
+        stem_points = []
+        steps = 20
+        for i in range(steps + 1):
+            t = i / steps
+            bx = (1-t)**2 * origin[0] + 2*(1-t)*t * ctrl_x + t**2 * end_x
+            by = (1-t)**2 * origin[1] + 2*(1-t)*t * ctrl_y + t**2 * end_y
+            stem_points.append((bx, by))
+            
+        # Draw stem (polyline for curve)
+        draw.line(stem_points, fill=gold_color, width=int(6 * width_scale))
+        
+        # Needles
+        num_needles = 25
+        base_needle_width = 4 * width_scale
+        
+        for i in range(num_needles):
+            t = i / num_needles
+            # Bezier point
+            bx = (1-t)**2 * origin[0] + 2*(1-t)*t * ctrl_x + t**2 * end_x
+            by = (1-t)**2 * origin[1] + 2*(1-t)*t * ctrl_y + t**2 * end_y
+            
+            # Bezier tangent (derivative)
+            tx = 2*(1-t)*(ctrl_x - origin[0]) + 2*t*(end_x - ctrl_x)
+            ty = 2*(1-t)*(ctrl_y - origin[1]) + 2*t*(end_y - ctrl_y)
+            tangent_angle = math.degrees(math.atan2(ty, tx))
+            
+            # Randomize base slightly
+            offset_variation = (random.random() - 0.5) * (5 * width_scale)
+            # Perpendicular to tangent
+            p_angle_rad = math.atan2(ty, tx) + math.pi/2
+            p_x = math.cos(p_angle_rad) * offset_variation
+            p_y = math.sin(p_angle_rad) * offset_variation
+            
+            needle_base_x = bx
+            needle_base_y = by
+            
+            needle_len = length * 0.4 * (1 - abs(0.5 - t)) # Tapered
+            needle_len *= random.uniform(0.8, 1.2)
+            
+            angle_offset = 35 + random.uniform(-5, 5)
+            
+            # Left Needle
+            base_x1 = needle_base_x + p_x
+            base_y1 = needle_base_y + p_y
+            n1_angle = tangent_angle - angle_offset
+            n1_end_x = base_x1 + needle_len * math.cos(math.radians(n1_angle))
+            n1_end_y = base_y1 + needle_len * math.sin(math.radians(n1_angle))
+            
+            # Curvature: positive curves one way, negative the other. 
+            # Randomize curvature direction and intensity
+            curve_dir_1 = 1 if random.random() > 0.5 else -1
+            curve_amount_1 = needle_len * random.uniform(0.1, 0.25) * curve_dir_1
+            draw_tapered_curved_needle(draw, (base_x1, base_y1), (n1_end_x, n1_end_y), curve_amount_1, gold_color, base_needle_width)
+
+            # Right Needle
+            base_x2 = needle_base_x - p_x
+            base_y2 = needle_base_y - p_y
+            n2_angle = tangent_angle + angle_offset
+            n2_end_x = base_x2 + needle_len * math.cos(math.radians(n2_angle))
+            n2_end_y = base_y2 + needle_len * math.sin(math.radians(n2_angle))
+            
+            curve_dir_2 = 1 if random.random() > 0.5 else -1
+            curve_amount_2 = needle_len * random.uniform(0.1, 0.25) * curve_dir_2
+            draw_tapered_curved_needle(draw, (base_x2, base_y2), (n2_end_x, n2_end_y), curve_amount_2, gold_color, base_needle_width)
+            
+        if add_sub_branch:
+             # Sub-branch around 40% along the curve
+             t_sub = 0.4
+             sub_origin_x = (1-t_sub)**2 * origin[0] + 2*(1-t_sub)*t_sub * ctrl_x + t_sub**2 * end_x
+             sub_origin_y = (1-t_sub)**2 * origin[1] + 2*(1-t_sub)*t_sub * ctrl_y + t_sub**2 * end_y
+             
+             # Tangent at 40%
+             tx = 2*(1-t_sub)*(ctrl_x - origin[0]) + 2*t_sub*(end_x - ctrl_x)
+             ty = 2*(1-t_sub)*(ctrl_y - origin[1]) + 2*t_sub*(end_y - ctrl_y)
+             base_angle = math.degrees(math.atan2(ty, tx))
+             
+             sub_angle = base_angle + 45
+             sub_length = length * 0.5
+             draw_curved_pine_branch((sub_origin_x, sub_origin_y), sub_angle, sub_length, width_scale * 0.8, curvature_offset=15, add_sub_branch=False)
+
+    # Draw branches in corners
+    branch_len = width_px * 0.35 # Slightly longer to ensure they overlap well
+    
+    # Top Left (Angle 25, slightly curved)
+    draw_curved_pine_branch((0, 0), 25, branch_len, scale_factor, curvature_offset=-30)
+    draw_curved_pine_branch((0, 50 * scale_factor), 10, branch_len * 0.8, scale_factor, curvature_offset=-20)
+    
+    # Top Right (Angle 155, reduced length)
+    draw_curved_pine_branch((width_px, 0), 155, branch_len * 0.8, scale_factor, curvature_offset=30)
+    draw_curved_pine_branch((width_px, 50 * scale_factor), 170, branch_len * 0.6, scale_factor, curvature_offset=20)
+    
+    # Bottom Left (Angle -35, sub-branch)
+    draw_curved_pine_branch((0, height_px), -35, branch_len, scale_factor, curvature_offset=30, add_sub_branch=True)
+    
+    # Bottom Right (Angle -145, reduced length)
+    draw_curved_pine_branch((width_px, height_px), -145, branch_len * 0.8, scale_factor, curvature_offset=-30)
+
+    # --- Final Border ---
+    draw.rectangle([0, 0, width_px - 1, height_px - 1], outline='black', width=1)
+
+    return img.convert('RGB')
+
+
 def create_price_tag(item_data, size_config, theme, layout_settings, language='en', is_special=False, background_cache=None, is_dual=False):
     if layout_settings is None:
         layout_settings = get_default_layout_settings()
@@ -2320,6 +2731,8 @@ def create_price_tag(item_data, size_config, theme, layout_settings, language='e
     width_px, height_px = cm_to_pixels(width_cm), cm_to_pixels(height_cm)
 
     # --- ROUTING TO CORRECT TAG GENERATOR ---
+    if theme.get('design') == 'new_year':
+        return _draw_new_year_theme(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'black_friday':
         return _draw_black_friday_theme(item_data, width_px, height_px, width_cm, height_cm, theme, language, is_special)
     if theme.get('design') == 'modern_brand':
