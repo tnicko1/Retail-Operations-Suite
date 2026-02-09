@@ -1656,11 +1656,10 @@ class RetailOperationsSuite(QMainWindow):
         dialog = PrintQueueDialog(self.translator, self.user, self.all_items_cache, self.brands, self)
         if dialog.exec():
             skus_to_print = dialog.get_skus()
-            use_modern_design = dialog.get_modern_design_state()
             use_default_settings = dialog.get_use_default_settings_state()
             brand_override = dialog.get_brand()
             if skus_to_print:
-                self.generate_batch(skus_to_print, use_modern_design, use_default_settings, brand_override)
+                self.generate_batch(skus_to_print, use_default_settings, brand_override)
 
     def add_current_to_queue(self):
         if not self.current_item_data:
@@ -2114,7 +2113,7 @@ class RetailOperationsSuite(QMainWindow):
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
-    def generate_batch(self, skus_to_print, use_modern_design=False, use_default_settings=False, brand_override=None):
+    def generate_batch(self, skus_to_print, use_default_settings=False, brand_override=None):
         self.brand_design_choices = {}
         size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
         brand_name = brand_override if brand_override else self.brand_combo.currentText()
@@ -2123,7 +2122,8 @@ class RetailOperationsSuite(QMainWindow):
         size_config = self.paper_sizes[size_name]
 
         base_theme_config = self.themes[theme_name]
-        if not use_modern_design:
+        # Only update with brand_config if it's NOT Automatic and NOT None
+        if brand_name not in ["Automatic", "None"]:
             brand_config = self.brands.get(brand_name, {})
             base_theme_config.update(brand_config)
 
@@ -2167,7 +2167,7 @@ class RetailOperationsSuite(QMainWindow):
 
             final_theme_config = copy.deepcopy(base_theme_config)
 
-            if use_modern_design:
+            if brand_name == "Automatic":
                 item_name = item_data.get("Name", "")
                 detected_brand_key = self.detect_brand_from_name(item_name)
                 if detected_brand_key != "None":
@@ -2177,7 +2177,17 @@ class RetailOperationsSuite(QMainWindow):
             data_to_print = self._prepare_data_for_printing(item_data)
             data_to_print['qr_url'] = self.qr_cache.get(sku)
 
-            if brand_name == "Epson" and not use_modern_design:
+            # Check if Epson is being used (either directly or via detection)
+            is_epson = False
+            if brand_name == "Epson":
+                is_epson = True
+            elif brand_name == "Automatic":
+                # Need to re-detect or check what was detected
+                item_name = item_data.get("Name", "")
+                if self.detect_brand_from_name(item_name) == "Epson":
+                    is_epson = True
+
+            if is_epson:
                 data_to_print['all_specs'] = []
 
             is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)

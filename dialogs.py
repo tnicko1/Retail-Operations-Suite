@@ -610,9 +610,6 @@ class PrintQueueDialog(QDialog):
         saved_group.setLayout(saved_layout)
         main_layout.addWidget(saved_group)
 
-        self.modern_design_checkbox = QCheckBox("Use Modern Design for all applicable brands")
-        main_layout.addWidget(self.modern_design_checkbox)
-
         self.use_default_settings_checkbox = QCheckBox("Use Default Settings for selected paper size")
         main_layout.addWidget(self.use_default_settings_checkbox)
 
@@ -907,9 +904,6 @@ class PrintQueueDialog(QDialog):
 
     def get_brand(self):
         return self.brand_combo.currentText()
-
-    def get_modern_design_state(self):
-        return self.modern_design_checkbox.isChecked()
 
     def get_use_default_settings_state(self):
         return self.use_default_settings_checkbox.isChecked()
