@@ -54,7 +54,6 @@ def run_update_check(app_version):
     if not getattr(sys, 'frozen', False):
         return True
 
-    QApplication.setApplicationVersion(app_version)
     print("Checking for updates...")
     latest_version, download_url = updater.check_for_updates(app_version)
 
@@ -89,6 +88,7 @@ def main():
 
     sys.excepthook = global_exception_hook
     app = QApplication(sys.argv)
+    app.setApplicationVersion(APP_VERSION)
 
     if not run_update_check(APP_VERSION):
         return 0

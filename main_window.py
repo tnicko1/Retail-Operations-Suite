@@ -23,9 +23,10 @@ import price_generator
 from dialogs import (LayoutSettingsDialog, AddEditSizeDialog, CustomSizeManagerDialog, QuickStockDialog,
                      TemplateSelectionDialog, NewItemDialog, PrintQueueDialog, PriceHistoryDialog,
                      TemplateManagerDialog, ActivityLogDialog, DisplayManagerDialog, UserManagementDialog,
-                     ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog, ExportStockDialog)
+                     ColumnMappingManagerDialog, BrandSelectionDialog, QRGenerationProgressDialog, ExportStockDialog,
+                     WhatsNewDialog)
 from translations import Translator
-from utils import format_timedelta, resource_path
+from utils import format_timedelta, resource_path, get_latest_release_notes
 from theme_utils import get_theme_colors
 
 
@@ -1022,6 +1023,32 @@ class RetailOperationsSuite(QMainWindow):
             user_mgmt_action = QAction(self.tr('admin_manage_users'), self)
             user_mgmt_action.triggered.connect(self.open_user_management)
             admin_menu.addAction(user_mgmt_action)
+
+        help_menu = menu_bar.addMenu("Help")
+
+        whats_new_action = QAction("What's New", self)
+        whats_new_action.triggered.connect(self.show_whats_new_dialog)
+        help_menu.addAction(whats_new_action)
+        
+        # Check for update on startup (deferred)
+        QTimer.singleShot(1000, self.check_whats_new_on_startup)
+
+    def check_whats_new_on_startup(self):
+        current_version = QApplication.applicationVersion()
+        if not current_version:
+            return
+
+        last_seen_version = self.settings.get("last_seen_version")
+
+        if last_seen_version != current_version:
+            self.show_whats_new_dialog()
+            self.settings["last_seen_version"] = current_version
+            data_handler.save_settings(self.settings)
+
+    def show_whats_new_dialog(self):
+        notes = get_latest_release_notes()
+        dialog = WhatsNewDialog(notes, self)
+        dialog.exec()
 
     def open_quick_stock_checker(self):
         token = self.ensure_token_valid()

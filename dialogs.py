@@ -25,6 +25,32 @@ from utils import format_timedelta
 from theme_utils import get_theme_colors
 
 
+class WhatsNewDialog(QDialog):
+    def __init__(self, notes_content, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("What's New")
+        self.setMinimumSize(500, 400)
+        self.resize(600, 500)
+
+        layout = QVBoxLayout(self)
+
+        title_label = QLabel("Release Notes")
+        title_font = title_label.font()
+        title_font.setBold(True)
+        title_font.setPointSize(14)
+        title_label.setFont(title_font)
+        layout.addWidget(title_label)
+
+        self.text_edit = QTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setMarkdown(notes_content)
+        layout.addWidget(self.text_edit)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
+
+
 class LayoutSettingsDialog(QDialog):
     def __init__(self, translator, settings, parent=None):
         super().__init__(parent)

@@ -8,6 +8,9 @@ a = Analysis(
         ('assets', 'assets'),
         ('fonts', 'fonts'),
         ('config.json', '.'),
+        ('templates.json', '.'),
+        ('layout_presets.json', '.'),
+        ('WHATS_NEW.md', '.'),
         ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\pytz', 'pytz'),
         ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\plugins\\styles', 'PyQt6\\Qt6\\plugins\\styles'),
         ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\certifi', 'certifi')
