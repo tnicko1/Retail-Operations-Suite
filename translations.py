@@ -257,6 +257,7 @@ TRANSLATIONS = {
 
         # Batch Dialog / Print Queue
         "print_queue_title": "Print Queue",
+        "brand_override_group": "Global Brand Override",
         "print_queue_add_item_group": "Add Item to Queue by ID",
         "print_queue_add_button": "Add",
         "print_queue_skus_group": "Items to Print",
@@ -814,6 +815,7 @@ TRANSLATIONS = {
 
         # Batch Dialog / Print Queue
         "print_queue_title": "ბეჭდვის რიგი",
+        "brand_override_group": "ბრენდის შერჩევა",
         "print_queue_add_item_group": "რიგში დამატება ID-ით",
         "print_queue_add_button": "დამატება",
         "print_queue_skus_group": "დასაბეჭდი პროდუქტები",

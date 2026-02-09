@@ -519,7 +519,7 @@ class NewItemDialog(QDialog):
 
 
 class PrintQueueDialog(QDialog):
-    def __init__(self, translator, user, all_items_cache, parent=None):
+    def __init__(self, translator, user, all_items_cache, brands=None, parent=None):
         super().__init__(parent)
         self.translator = translator
         self.user = user
@@ -527,9 +527,10 @@ class PrintQueueDialog(QDialog):
         self.token = self.user.get('idToken')
         self.parent_window = parent
         self.all_items_cache = all_items_cache or {}
+        self.brands = brands or {}
 
         self.setWindowTitle(self.translator.get("print_queue_title"))
-        self.setMinimumSize(600, 700)
+        self.setMinimumSize(600, 750)
 
         main_layout = QVBoxLayout(self)
 
@@ -543,6 +544,27 @@ class PrintQueueDialog(QDialog):
         add_layout.addWidget(self.add_button)
         add_group.setLayout(add_layout)
         main_layout.addWidget(add_group)
+
+        # Brand Overide Group
+        brand_group = QGroupBox(self.translator.get("brand_override_group", "Global Brand Override"))
+        brand_layout = QHBoxLayout()
+        self.brand_override_label = QLabel(self.translator.get("brand_label") + ":")
+        self.brand_combo = QComboBox()
+        self.brand_combo.setEditable(True)
+        self.brand_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.brand_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.brand_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        
+        self.brand_combo.addItem("Automatic")
+        self.brand_combo.addItem("None")
+        if self.brands:
+            sorted_brands = sorted(self.brands.keys())
+            self.brand_combo.addItems(sorted_brands)
+        
+        brand_layout.addWidget(self.brand_override_label)
+        brand_layout.addWidget(self.brand_combo)
+        brand_group.setLayout(brand_layout)
+        main_layout.addWidget(brand_group)
 
         queue_group = QGroupBox(self.translator.get("print_queue_skus_group"))
         queue_layout = QVBoxLayout()
@@ -882,6 +904,9 @@ class PrintQueueDialog(QDialog):
             if item:
                 skus.append(item.text())
         return skus
+
+    def get_brand(self):
+        return self.brand_combo.currentText()
 
     def get_modern_design_state(self):
         return self.modern_design_checkbox.isChecked()

@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QFormLayout, QGroupBox, QComboBox, QMessageBox, QDialog,
                              QDialogButtonBox, QAbstractItemView, QTextEdit, QCheckBox,
                              QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QFileDialog,
-                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider, QApplication)
+                             QMenuBar, QTabWidget, QMenu, QDoubleSpinBox, QSpinBox, QSlider, QApplication, QCompleter)
 
 import a4_layout_generator
 import data_handler
@@ -1253,6 +1253,11 @@ class RetailOperationsSuite(QMainWindow):
         self.theme_combo = QComboBox()
         self.brand_label = QLabel(self.tr("brand_label"))
         self.brand_combo = QComboBox()
+        self.brand_combo.setEditable(True)
+        self.brand_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.brand_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.brand_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        
         self.theme_combo.currentTextChanged.connect(self.handle_theme_selection)
         self.brand_combo.currentTextChanged.connect(self.handle_brand_selection)
 
@@ -1648,13 +1653,14 @@ class RetailOperationsSuite(QMainWindow):
         self.active_dialog = None  # Clear reference after dialog closes
 
     def open_print_queue(self):
-        dialog = PrintQueueDialog(self.translator, self.user, self.all_items_cache, self)
+        dialog = PrintQueueDialog(self.translator, self.user, self.all_items_cache, self.brands, self)
         if dialog.exec():
             skus_to_print = dialog.get_skus()
             use_modern_design = dialog.get_modern_design_state()
             use_default_settings = dialog.get_use_default_settings_state()
+            brand_override = dialog.get_brand()
             if skus_to_print:
-                self.generate_batch(skus_to_print, use_modern_design, use_default_settings)
+                self.generate_batch(skus_to_print, use_modern_design, use_default_settings, brand_override)
 
     def add_current_to_queue(self):
         if not self.current_item_data:
@@ -2068,7 +2074,7 @@ class RetailOperationsSuite(QMainWindow):
 
         size_config = self.paper_sizes[size_name]
         theme_config = self.themes[theme_name]
-        brand_config = self.brands[brand_name]
+        brand_config = self.brands.get(brand_name, {})
         
         final_theme_config = copy.deepcopy(theme_config)
         final_theme_config.update(brand_config)
@@ -2108,9 +2114,10 @@ class RetailOperationsSuite(QMainWindow):
         if self.current_item_data.get('SKU') == sku:
             self.update_status_display()
 
-    def generate_batch(self, skus_to_print, use_modern_design=False, use_default_settings=False):
+    def generate_batch(self, skus_to_print, use_modern_design=False, use_default_settings=False, brand_override=None):
         self.brand_design_choices = {}
-        size_name, theme_name, brand_name = self.paper_size_combo.currentText(), self.theme_combo.currentText(), self.brand_combo.currentText()
+        size_name, theme_name = self.paper_size_combo.currentText(), self.theme_combo.currentText()
+        brand_name = brand_override if brand_override else self.brand_combo.currentText()
         if not size_name or not theme_name: return
 
         size_config = self.paper_sizes[size_name]
@@ -2164,7 +2171,8 @@ class RetailOperationsSuite(QMainWindow):
                 item_name = item_data.get("Name", "")
                 detected_brand_key = self.detect_brand_from_name(item_name)
                 if detected_brand_key != "None":
-                    final_theme_config.update(self.brands[detected_brand_key])
+                    brand_config = self.brands.get(detected_brand_key, {})
+                    final_theme_config.update(brand_config)
 
             data_to_print = self._prepare_data_for_printing(item_data)
             data_to_print['qr_url'] = self.qr_cache.get(sku)
@@ -2298,7 +2306,7 @@ class RetailOperationsSuite(QMainWindow):
 
         size_config = self.paper_sizes[size_name]
         theme_config = self.themes[theme_name]
-        brand_config = self.brands[brand_name]
+        brand_config = self.brands.get(brand_name, {})
         
         # Deep copy to avoid modifying the original theme/brand objects
         final_theme_config = copy.deepcopy(theme_config)
