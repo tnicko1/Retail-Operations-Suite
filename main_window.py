@@ -2177,19 +2177,6 @@ class RetailOperationsSuite(QMainWindow):
             data_to_print = self._prepare_data_for_printing(item_data)
             data_to_print['qr_url'] = self.qr_cache.get(sku)
 
-            # Check if Epson is being used (either directly or via detection)
-            is_epson = False
-            if brand_name == "Epson":
-                is_epson = True
-            elif brand_name == "Automatic":
-                # Need to re-detect or check what was detected
-                item_name = item_data.get("Name", "")
-                if self.detect_brand_from_name(item_name) == "Epson":
-                    is_epson = True
-
-            if is_epson:
-                data_to_print['all_specs'] = []
-
             is_dual = self.dual_lang_checkbox.isChecked() and not size_config.get("is_accessory_style", False)
             is_special = self.special_tag_checkbox.isChecked()
 
@@ -2435,10 +2422,6 @@ class RetailOperationsSuite(QMainWindow):
         if spec_limit is None or spec_limit == 0:
             return []
         
-        brand_name = self.brand_combo.currentText()
-        if brand_name == "Epson":
-            return []
-
         return all_specs[:spec_limit]
 
     def update_spec_item_appearance(self, item):
