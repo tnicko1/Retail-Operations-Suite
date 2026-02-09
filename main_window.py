@@ -1383,7 +1383,33 @@ class RetailOperationsSuite(QMainWindow):
             return self.qr_cache[sku]
 
         correct_url = None
-        # Sanitize item_name to create a URL slug
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        # 1. Try direct SKU search (most reliable)
+        search_url = f"https://pcshop.ge/?s={sku}&post_type=product"
+        try:
+            req = urllib.request.Request(search_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as response:
+                final_url = response.geturl()
+                if "/shop/" in final_url:
+                    # Successfully redirected to a single product page
+                    self.qr_cache[sku] = final_url
+                    return final_url
+                
+                # If not redirected, we might be on a search results page
+                if 'text/html' in response.getheader('Content-Type', ''):
+                    page_content = response.read().decode('utf-8', errors='ignore')
+                    # Look for a link to a product page that matches the SKU in its content
+                    # or just confirm we are on the product page but it didn't use /shop/ (unlikely)
+                    if re.search(f"SKU:.*?{re.escape(sku)}", page_content, re.IGNORECASE):
+                        self.qr_cache[sku] = final_url
+                        return final_url
+        except Exception:
+            pass
+
+        # 2. Fallback to slug-based guessing (original logic, improved with headers)
         base_slug = re.sub(r'[^a-z0-9-]+', '-', item_name.lower()).strip('-')
 
         # Try slug and slug-2
@@ -1396,7 +1422,8 @@ class RetailOperationsSuite(QMainWindow):
             url_to_check = f"https://pcshop.ge/shop/{slug_variant}/"
 
             try:
-                with urllib.request.urlopen(url_to_check, timeout=3) as response:
+                req = urllib.request.Request(url_to_check, headers=headers)
+                with urllib.request.urlopen(req, timeout=3) as response:
                     if 'text/html' not in response.getheader('Content-Type', ''):
                         continue
                     page_content = response.read().decode('utf-8', errors='ignore')
@@ -1424,10 +1451,15 @@ class RetailOperationsSuite(QMainWindow):
 
             product_page_url = self._find_product_page_url(sku, item_name)
 
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+
             image_url = None
             if product_page_url:
                 try:
-                    with urllib.request.urlopen(product_page_url, timeout=3) as response:
+                    req = urllib.request.Request(product_page_url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=3) as response:
                         page_html = response.read()
 
                     soup = BeautifulSoup(page_html, 'lxml')
@@ -1449,7 +1481,8 @@ class RetailOperationsSuite(QMainWindow):
 
             if image_url:
                 try:
-                    with urllib.request.urlopen(image_url, timeout=5) as response:
+                    req = urllib.request.Request(image_url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=5) as response:
                         image_data = response.read()
 
                     pixmap = QPixmap()
