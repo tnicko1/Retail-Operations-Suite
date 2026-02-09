@@ -19,8 +19,10 @@ import csv
 import os
 import json
 import re
+import shutil
 from bs4 import BeautifulSoup
 import firebase_handler
+from utils import resource_path
 
 
 def _get_user_data_dir():
@@ -43,10 +45,8 @@ def _get_user_data_dir():
 
 # Define the path for the user settings file in the user-writable directory.
 USER_SETTINGS_FILE = os.path.join(_get_user_data_dir(), 'user_settings.json')
-
-# This file is a fallback and is read-only, so it can stay relative.
-# cx_Freeze will bundle it alongside the executable.
-TEMPLATES_FILE = 'templates.json'
+TEMPLATES_FILE = os.path.join(_get_user_data_dir(), 'templates.json')
+BUNDLED_TEMPLATES_FILE = resource_path('templates.json')
 
 DEFAULT_PAPER_SIZES = {
     '6x3.5cm': {'dims': (6, 3.5), 'spec_limit': 0, 'is_accessory_style': True},
@@ -112,7 +112,7 @@ def sanitize_for_indexing(text):
 def get_item_templates(token=None):
     """
     Fetches templates from Firebase first. If unavailable or empty,
-    falls back to the local JSON file.
+    falls back to the local JSON file (AppData, then bundled).
     """
     # 1. Try to get from Firebase
     if token:
@@ -120,38 +120,68 @@ def get_item_templates(token=None):
         if firebase_templates:
             return firebase_templates
 
-    # 2. Fallback to local file
+    # 2. Fallback to local files
     if not os.path.exists(TEMPLATES_FILE):
-        default_templates = {
-            "template_blank": {"category_name": "Uncategorized", "specs": []},
-            "template_laptop": {"category_name": "Laptops",
-                                "specs": ["Brand", "Model", "Screen", "Processor", "Memory", "Storage", "Graphics",
-                                          "Operating System", "Color", "Warranty"]},
-            "template_monitor": {"category_name": "Monitors",
-                                 "specs": ["Brand", "Model", "Screen Size", "Resolution", "Panel Type", "Refresh Rate",
-                                           "Ports", "Warranty"]},
-            "template_tv": {"category_name": "TVs",
-                            "specs": ["Brand", "Model", "Screen Size", "Resolution", "Smart TV", "Ports", "Warranty"]},
-            "template_phone": {"category_name": "Mobile Phones",
-                               "specs": ["Brand", "Model", "Screen", "Processor", "RAM", "Storage", "Main Camera",
-                                         "Front Camera", "Battery", "Color", "Warranty"]},
-            "template_printer": {"category_name": "Printers",
-                                 "specs": ["Brand", "Model", "Printer Type", "Print Technology", "Print Speed",
-                                           "Connectivity", "Warranty"]},
-            "template_ups": {"category_name": "UPS",
-                             "specs": ["Brand", "Model", "Capacity (VA)", "Capacity (Watts)", "Outlets", "Warranty"]}
-        }
-        # Note: We don't write the fallback templates to the AppData folder,
-        # as it's just a read-only default. It should be bundled with the app.
+        # 2a. Migration: Check for legacy templates.json in CWD
+        legacy_path = 'templates.json'
+        if os.path.exists(legacy_path):
+            try:
+                shutil.copy2(legacy_path, TEMPLATES_FILE)
+            except Exception:
+                pass
+
+        # 2b. If still missing, try to copy from bundled version
+        if not os.path.exists(TEMPLATES_FILE) and os.path.exists(BUNDLED_TEMPLATES_FILE):
+            try:
+                shutil.copy2(BUNDLED_TEMPLATES_FILE, TEMPLATES_FILE)
+            except Exception:
+                pass
+
+    # Try to read from TEMPLATES_FILE (AppData)
+    if os.path.exists(TEMPLATES_FILE):
+        try:
+            with open(TEMPLATES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, PermissionError):
+            pass
+
+    # If TEMPLATES_FILE failed, try to read from BUNDLED_TEMPLATES_FILE
+    if os.path.exists(BUNDLED_TEMPLATES_FILE):
+        try:
+            with open(BUNDLED_TEMPLATES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, PermissionError):
+            pass
+
+    # 3. Final Fallback: Hardcoded defaults
+    default_templates = {
+        "template_blank": {"category_name": "Uncategorized", "specs": []},
+        "template_laptop": {"category_name": "Laptops",
+                            "specs": ["Brand", "Model", "Screen", "Processor", "Memory", "Storage", "Graphics",
+                                      "Operating System", "Color", "Warranty"]},
+        "template_monitor": {"category_name": "Monitors",
+                             "specs": ["Brand", "Model", "Screen Size", "Resolution", "Panel Type", "Refresh Rate",
+                                       "Ports", "Warranty"]},
+        "template_tv": {"category_name": "TVs",
+                        "specs": ["Brand", "Model", "Screen Size", "Resolution", "Smart TV", "Ports", "Warranty"]},
+        "template_phone": {"category_name": "Mobile Phones",
+                           "specs": ["Brand", "Model", "Screen", "Processor", "RAM", "Storage", "Main Camera",
+                                     "Front Camera", "Battery", "Color", "Warranty"]},
+        "template_printer": {"category_name": "Printers",
+                             "specs": ["Brand", "Model", "Printer Type", "Print Technology", "Print Speed",
+                                       "Connectivity", "Warranty"]},
+        "template_ups": {"category_name": "UPS",
+                         "specs": ["Brand", "Model", "Capacity (VA)", "Capacity (Watts)", "Outlets", "Warranty"]}
+    }
+
+    # Try to save defaults to AppData for future use
+    try:
         with open(TEMPLATES_FILE, 'w', encoding='utf-8') as f:
             json.dump(default_templates, f, indent=4)
-        return default_templates
+    except Exception:
+        pass
 
-    try:
-        with open(TEMPLATES_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {}
+    return default_templates
 
 
 # --- Main Data and Settings ---
@@ -192,7 +222,7 @@ def get_all_paper_sizes():
 
 def get_layout_presets():
     try:
-        with open('layout_presets.json', 'r') as f:
+        with open(resource_path('layout_presets.json'), 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
