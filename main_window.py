@@ -581,6 +581,13 @@ class RetailOperationsSuite(QMainWindow):
                 "bg_color": "#000000",
                 "text_color": "black"
             },
+            "UGREEN": {
+                "design": "modern_brand",
+                "accessory_logo_path": resource_path("assets/brands/Ugreen.png"),
+                "brand_name": "UGREEN",
+                "bg_color": "#06F4A6",
+                "text_color": "black"
+            },
             "Ubiquiti": {
                 "design": "modern_brand",
                 "accessory_logo_path": resource_path("assets/brands/Ubiquiti.png"),
