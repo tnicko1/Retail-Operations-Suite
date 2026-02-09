@@ -3,7 +3,10 @@
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\bin\\*.dll', '.')],
+    binaries=[
+        ('C:\\Users\\Nikoloz\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PyQt6\\Qt6\\bin\\*.dll', '.'),
+        ('*.dll', '.')
+    ],
     datas=[
         ('assets', 'assets'),
         ('fonts', 'fonts'),
